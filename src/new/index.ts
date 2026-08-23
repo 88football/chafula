@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import ps0 from "./new/index";
+import ps0 from "./ps/index";
 
 const new0 = new Hono();
 
