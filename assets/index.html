@@ -22,5 +22,18 @@ try {
 </script>
 </head>
 <body>
+<form method="get" action="/new/ps/fw">
+<input id="url" name="url" spellcheck="false" type="password">
+<output>ここにURLを入力</output>
+<input id="and">
+<input type="submit">
+</form>
+<script>
+onload = () => {
+  document.querySelector('#and').oninput = () => document.querySelector('#url').value = document.querySelector('#and').value;
+  document.querySelector('#url').oninput = () => document.querySelector('output').value = document.querySelector('#url').value;
+  document.querySelector('output').onclick = () => document.querySelector('#url').focus();
+};
+</script>
 </body>
 </html>
