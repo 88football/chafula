@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-const app = new Hono();
+const ps0 = new Hono();
 
 // マルチバイト文字のみをURLエンコードする関数
 function encodeMultiByteOnly(str: string): string {
@@ -18,7 +18,7 @@ function encodeMultiByteOnly(str: string): string {
   return encoded;
 }
 
-app.all('/', async (c) => {
+ps0.all('/', async (c) => {
   // CORSヘッダー
   c.header('Access-Control-Allow-Origin', '*');
 
@@ -178,4 +178,4 @@ app.all('/', async (c) => {
   });
 });
 
-export default app;
+export default ps0;
