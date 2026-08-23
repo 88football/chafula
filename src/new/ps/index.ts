@@ -127,7 +127,7 @@ ps0.all('/', async (c) => {
 
   // text/html でリダイレクトが必要な場合の判定
   if (contentType.toLowerCase().startsWith('text/html') && (urlParam !== finalUrl || parParam || Object.keys(gp).length > 0)) {
-    return c.redirect('https://abekenman.cloudfree.jp/new/ps/?url=' + encodeURIComponent(finalUrl), 302);
+    return c.redirect('https://ちんこ.com/new/ps/?url=' + encodeURIComponent(finalUrl), 302);
   }
 
   let bodyText = await response.text();
