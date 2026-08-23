@@ -18,7 +18,7 @@ function encodeMultiByteOnly(str: string): string {
   return encoded;
 }
 
-ps0.all('/', async (c) => {
+ps0.all('*', async (c) => {
   // CORSヘッダー
   c.header('Access-Control-Allow-Origin', '*');
 
