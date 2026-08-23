@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>New PS</title>
+<link rel="icon" href="/media/icon.svg">
+<meta name="theme-color" id="thecol" content="#f8fafc">
+<link rel="manifest" href="/pwa/manifest?thecol=%23eef2ff&start=%2F&name=PS%20New">
+<script>
+try {
+  navigator.serviceWorker.register("/pwa/sw?files=%5B%22%2F%22%5D")
+    .then((registration) => {
+      console.log('Service Worker registered with scope:', registration.scope);
+    })
+    .catch((error) => {
+      console.error('Service Worker registration failed:', error);
+    });
+} catch(e) {
+  alert(e);
+}
+</script>
+</head>
+<body>
+</body>
+</html>
