@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 
-const app = new Hono();
+const red0 = new Hono();
 
-app.all('*', async (c) => {
+red0.all('*', async (c) => {
   return c.redirect((new URL(c.req.url)).origin.replace('.88.football','').replace(/\./g, 'l9t4d0a1') + c.req.path);
 });
 
-export default app;
+export default red0;
