@@ -29,23 +29,71 @@ window.fetch = function(input, init) {
   return ABEKENMAN_fetch.call(this, input, init);
 };
 
-// --- 3. location.href のフック（堅牢化） ---
-try {
-  // Prototypeへの定義
-  Object.defineProperty(Location.prototype, 'href', {
-    get: function() {
-      return restoreUrl(window.location.origin + window.location.pathname + window.location.search + window.location.hash);
-    },
-    set: function(val) {
-      window.location.assign(transformUrls(val));
-    },
-    configurable: true,
-    enumerable: true
-  });
-  console.log('成功しました');
-} catch (e) {
-  console.warn("Location.prototype の上書きに失敗しました:", e);
-}
+// --- 3. location.href & document.location の強力なフック ---
+(function hookLocation() {
+  // 元のネイティブゲッター/セッターDescriptorを取得
+  const nativeHrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+
+  if (!nativeHrefDescriptor) {
+    console.error('ネイティブの href Descriptor を取得できませんでした。');
+    return;
+  }
+
+  const customGetter = function() {
+    // ネイティブのゲッターを使って「実際のURL」を取得し、復元処理を通す
+    const realHref = nativeHrefDescriptor.get.call(this);
+    return restoreUrl(realHref);
+  };
+
+  const customSetter = function(val) {
+    // 遷移先のURLを変換してネイティブのセッターに渡す
+    const transformedVal = transformUrls(val);
+    nativeHrefDescriptor.set.call(this, transformedVal);
+  };
+
+  // A. Location.prototype への上書き
+  try {
+    Object.defineProperty(Location.prototype, 'href', {
+      get: customGetter,
+      set: customSetter,
+      configurable: true,
+      enumerable: true
+    });
+  } catch (e) {
+    console.warn('Location.prototype のフック失敗:', e);
+  }
+
+  // B. window.location インスタンス自体への直接プロパティ再定義（Chromium対策）
+  try {
+    Object.defineProperty(window.location, 'href', {
+      get: customGetter,
+      set: customSetter,
+      configurable: true,
+      enumerable: true
+    });
+  } catch (e) {
+    // ブラウザのセキュリティ設定によってはインスタンス直接の変更が失敗する場合があるためキャッチ
+  }
+
+  // C. document.location の上書き
+  try {
+    Object.defineProperty(Document.prototype, 'location', {
+      get: customGetter,
+      set: customSetter,
+      configurable: true,
+      enumerable: true
+    });
+  } catch (e) {}
+
+  // D. document.URL の上書き（文字列参照対策）
+  try {
+    Object.defineProperty(Document.prototype, 'URL', {
+      get: customGetter,
+      configurable: true,
+      enumerable: true
+    });
+  } catch (e) {}
+})();
 
 // テスト実行
 alert(location.href);
