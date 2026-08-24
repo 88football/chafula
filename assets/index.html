@@ -167,16 +167,16 @@ input[type="submit"]:hover {
   <h1>New PS</h1>
   <form method="get" action="/red">
     <input id="url" name="url" spellcheck="false" type="password">
-    <output>ここにURLを入力</output>
-    <input id="and" placeholder="URLを入力してください..." autocomplete="off">
-    <input type="submit" value="送信">
+    <output>请输入网址。</output>
+    <input id="and" placeholder="请输入网址。" autocomplete="off">
+    <input type="submit" value="发送">
   </form>
 </div>
 
 <script>
 onload = () => {
   document.querySelector('#and').oninput = () => document.querySelector('#url').value = document.querySelector('#and').value;
-  document.querySelector('#url').oninput = () => document.querySelector('output').value = document.querySelector('#url').value || 'ここにURLを入力';
+  document.querySelector('#url').oninput = () => document.querySelector('output').value = document.querySelector('#url').value || '请输入网址。';
   document.querySelector('output').onclick = () => document.querySelector('#and').focus();
 };
 </script>
