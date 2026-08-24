@@ -30,5 +30,3 @@ window.fetch = function(input, init) {
   else if (input instanceof Request) input = new Request(ABEKENMAN_transformUrls(input.url), input);
   return ABEKENMAN_fetch.call(this, input, init);
 };
-// テスト実行
-alert(location.href);
