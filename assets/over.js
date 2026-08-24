@@ -15,7 +15,7 @@ function ABEKENMAN_restoreUrl(url) {
   return url.replace('.88.football', '').replace(/l9t4d0a1/g, '.');
 }
 
-let ABEKENMAN_restored = ABEKENMAN_restoreUrl(location.href);
+var ABEKENMAN_restored = ABEKENMAN_restoreUrl(location.href);
 
 // --- 2. XHR & Fetch のフック ---
 const ABEKENMAN_xhr = XMLHttpRequest.prototype.open;
