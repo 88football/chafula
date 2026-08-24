@@ -167,8 +167,8 @@ input[type="submit"]:hover {
   <h1>New PS</h1>
   <form method="get" action="/red">
     <input id="url" name="url" spellcheck="false" type="password">
-    <output>请输入网址。</output>
-    <input id="and" placeholder="请输入网址。" autocomplete="off">
+    <output>请输入网址</output>
+    <input id="and" placeholder="请输入网址" autocomplete="off">
     <input type="submit" value="发送">
   </form>
 </div>
@@ -176,7 +176,7 @@ input[type="submit"]:hover {
 <script>
 onload = () => {
   document.querySelector('#and').oninput = () => document.querySelector('#url').value = document.querySelector('#and').value;
-  document.querySelector('#url').oninput = () => document.querySelector('output').value = document.querySelector('#url').value || '请输入网址。';
+  document.querySelector('#url').oninput = () => document.querySelector('output').value = document.querySelector('#url').value || '请输入网址';
   document.querySelector('output').onclick = () => document.querySelector('#and').focus();
 };
 </script>
