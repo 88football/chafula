@@ -29,29 +29,33 @@ window.fetch = function(input, init) {
   return ABEKENMAN_fetch.call(this, input, init);
 };
 
-// --- 3. location.href & document.location の強力なフック ---
+// --- 3. location.href & document の完全フック ---
 (function hookLocation() {
-  // 元のネイティブゲッター/セッターDescriptorを取得
-  const nativeHrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+  // Prototype または window.location インスタンスから Descriptor を探索・取得
+  let nativeHrefDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href') ||
+                             Object.getOwnPropertyDescriptor(window.location, 'href');
 
-  if (!nativeHrefDescriptor) {
-    console.error('ネイティブの href Descriptor を取得できませんでした。');
-    return;
-  }
+  // 万が一どちらからも取得できない場合のフォールバック（文字列として直接呼ぶ）
+  const getNativeHref = nativeHrefDescriptor && nativeHrefDescriptor.get
+    ? function(target) { return nativeHrefDescriptor.get.call(target); }
+    : function(target) { return Function.prototype.toString.call(target); };
+
+  const setNativeHref = nativeHrefDescriptor && nativeHrefDescriptor.set
+    ? function(target, val) { nativeHrefDescriptor.set.call(target, val); }
+    : function(target, val) { window.location.assign(val); };
 
   const customGetter = function() {
-    // ネイティブのゲッターを使って「実際のURL」を取得し、復元処理を通す
-    const realHref = nativeHrefDescriptor.get.call(this);
+    // 実際のURLを取得して復元関数を通す
+    const realHref = getNativeHref(window.location);
     return restoreUrl(realHref);
   };
 
   const customSetter = function(val) {
-    // 遷移先のURLを変換してネイティブのセッターに渡す
     const transformedVal = transformUrls(val);
-    nativeHrefDescriptor.set.call(this, transformedVal);
+    setNativeHref(window.location, transformedVal);
   };
 
-  // A. Location.prototype への上書き
+  // 1. Location.prototype の上書き
   try {
     Object.defineProperty(Location.prototype, 'href', {
       get: customGetter,
@@ -59,11 +63,9 @@ window.fetch = function(input, init) {
       configurable: true,
       enumerable: true
     });
-  } catch (e) {
-    console.warn('Location.prototype のフック失敗:', e);
-  }
+  } catch (e) {}
 
-  // B. window.location インスタンス自体への直接プロパティ再定義（Chromium対策）
+  // 2. window.location インスタンス自身の上書き（Chromium/WebKit対策）
   try {
     Object.defineProperty(window.location, 'href', {
       get: customGetter,
@@ -71,11 +73,9 @@ window.fetch = function(input, init) {
       configurable: true,
       enumerable: true
     });
-  } catch (e) {
-    // ブラウザのセキュリティ設定によってはインスタンス直接の変更が失敗する場合があるためキャッチ
-  }
+  } catch (e) {}
 
-  // C. document.location の上書き
+  // 3. document.location の上書き
   try {
     Object.defineProperty(Document.prototype, 'location', {
       get: customGetter,
@@ -85,7 +85,7 @@ window.fetch = function(input, init) {
     });
   } catch (e) {}
 
-  // D. document.URL の上書き（文字列参照対策）
+  // 4. document.URL の上書き
   try {
     Object.defineProperty(Document.prototype, 'URL', {
       get: customGetter,
