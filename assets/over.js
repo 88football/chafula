@@ -4,9 +4,13 @@ function ABEKENMAN_transformUrls(text) {
   const urlRegex = /(?<![:\\])(https?:)?\/\/([^\/\s"']+)(\/[^\s"']*)?/gi;
   return text.replace(urlRegex, (match, protocol, domain, pathAndQuery) => {
     const proto = protocol || '';
-    const modifiedDomain = domain.replace(/\./g, 'l9t4d0a1');
+    if (domain.includes('.88.football')) {
+      const modifiedDomain = domain;
+    } else {
+      const modifiedDomain = domain.replace(/\./g, 'l9t4d0a1') + '.88.football';
+    }
     const path = pathAndQuery || '';
-    return `${proto}//${modifiedDomain}.88.football${path}`;
+    return proto + '//' + modifiedDomain + path;
   });
 }
 
