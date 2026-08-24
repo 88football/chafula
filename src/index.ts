@@ -1,12 +1,10 @@
 import { Hono } from "hono";
 
-import new0 from "./new/index";
-import pwa0 from "./pwa/index";
+import red0 from "./red/index";
 
 const app = new Hono();
 
-app.route("/new", new0);
-app.route("/pwa", pwa0);
+app.route("/red", red0);
 
 export default app;
 
