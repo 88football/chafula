@@ -55,3 +55,5 @@ Object.defineProperty(Location.prototype, 'href', {
   configurable: true,
   enumerable: true
 });
+
+alert(location.href);
