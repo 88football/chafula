@@ -4,10 +4,11 @@ function ABEKENMAN_transformUrls(text) {
   const urlRegex = /(?<![:\\])(https?:)?\/\/([^\/\s"']+)(\/[^\s"']*)?/gi;
   return text.replace(urlRegex, (match, protocol, domain, pathAndQuery) => {
     const proto = protocol || '';
+    let modifiedDomain;
     if (domain.includes('.88.football')) {
-      const modifiedDomain = domain;
+      modifiedDomain = domain;
     } else {
-      const modifiedDomain = domain.replace(/\./g, 'l9t4d0a1') + '.88.football';
+      modifiedDomain = domain.replace(/\./g, 'l9t4d0a1') + '.88.football';
     }
     const path = pathAndQuery || '';
     return proto + '//' + modifiedDomain + path;
