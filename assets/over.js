@@ -20,6 +20,7 @@ var ABEKENMAN_restored = ABEKENMAN_restoreUrl(location.href);
 // --- 2. XHR & Fetch のフック ---
 const ABEKENMAN_xhr = XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open = function(method, url, async=true, user=null, password=null) {
+  console.log('XHR:  ' + url);
   return ABEKENMAN_xhr.call(this, method, ABEKENMAN_transformUrls(url), async, user, password);
 };
 
