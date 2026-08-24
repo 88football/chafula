@@ -42,6 +42,7 @@ try {
     configurable: true,
     enumerable: true
   });
+  console.log('成功しました');
 } catch (e) {
   console.warn("Location.prototype の上書きに失敗しました:", e);
 }
