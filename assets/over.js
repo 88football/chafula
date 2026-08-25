@@ -41,9 +41,9 @@ window.fetch = function(input, init) {
 const ABEKENMAN_setAttribute = Element.prototype.setAttribute;
 
 Element.prototype.setAttribute = function(name, value) {
+  let chand;
   if (typeof name === 'string' && typeof value === 'string') {
     // URLを含む可能性がある属性
-    let chand;
     const urlAttributes = [
       'href',
       'src',
