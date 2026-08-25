@@ -84,3 +84,21 @@ Object.defineProperty(HTMLAnchorElement.prototype, "href", {
   enumerable: ABEKENMAN_href_descriptor.enumerable,
 });
 
+const ABEKENMAN_innerHTML_descriptor = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  "innerHTML"
+);
+
+Object.defineProperty(Element.prototype, "innerHTML", {
+  get() {
+    return ABEKENMAN_innerHTML_descriptor.get.call(this);
+  },
+  set(value) {
+    const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
+    console.log("innerHTML に代入:", ABEKENMAN_res);
+    return ABEKENMAN_innerHTML_descriptor.set.call(this, ABEKENMAN_res);
+  },
+  configurable: ABEKENMAN_innerHTML_descriptor.configurable,
+  enumerable: ABEKENMAN_innerHTML_descriptor.enumerable,
+});
+
