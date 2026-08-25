@@ -43,6 +43,7 @@ const ABEKENMAN_setAttribute = Element.prototype.setAttribute;
 Element.prototype.setAttribute = function(name, value) {
   if (typeof name === 'string' && typeof value === 'string') {
     // URLを含む可能性がある属性
+    let chand;
     const urlAttributes = [
       'href',
       'src',
@@ -56,8 +57,8 @@ Element.prototype.setAttribute = function(name, value) {
     ];
 
     if (urlAttributes.includes(name.toLowerCase())) {
-      value = ABEKENMAN_transformUrls(value);
-    }
+      chand = ABEKENMAN_transformUrls(value);
+    } else chand = value;
   }
 
   return ABEKENMAN_setAttribute.call(this, name, value);
