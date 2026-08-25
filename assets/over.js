@@ -47,6 +47,7 @@ Element.prototype.setAttribute = function(name, value) {
     const urlAttributes = [
       'href',
       'src',
+      'srcset',
       'action',
       'formaction',
       'cite',
