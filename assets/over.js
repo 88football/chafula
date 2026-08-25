@@ -66,3 +66,21 @@ Element.prototype.setAttribute = function(name, value) {
   return ABEKENMAN_setAttribute.call(this, name, chand);
 };
 
+const ABEKENMAN_href_descriptor = Object.getOwnPropertyDescriptor(
+  HTMLAnchorElement.prototype,
+  "href"
+);
+
+Object.defineProperty(HTMLAnchorElement.prototype, "href", {
+  get() {
+    return ABEKENMAN_href_descriptor.get.call(this)
+  },
+  set(value) {
+    const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
+    console.log("href に代入:", ABEKENMAN_res);
+    return ABEKENMAN_href_descriptor.set.call(this, ABEKENMAN_res);
+  },
+  configurable: ABEKENMAN_href_descriptor.configurable,
+  enumerable: ABEKENMAN_href_descriptor.enumerable,
+});
+
