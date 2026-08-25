@@ -60,7 +60,8 @@ Element.prototype.setAttribute = function(name, value) {
       chand = ABEKENMAN_transformUrls(value);
     } else chand = value;
   }
+  console.log('setAttribute:       ' + chand);
 
-  return ABEKENMAN_setAttribute.call(this, name, value);
+  return ABEKENMAN_setAttribute.call(this, name, chand);
 };
 
