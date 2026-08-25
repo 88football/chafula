@@ -36,3 +36,30 @@ window.fetch = function(input, init) {
   else if (input instanceof Request) input = new Request(ABEKENMAN_transformUrls(input.url), input);
   return ABEKENMAN_fetch.call(this, input, init);
 };
+
+// --- 3. setAttribute のフック ---
+const ABEKENMAN_setAttribute = Element.prototype.setAttribute;
+
+Element.prototype.setAttribute = function(name, value) {
+  if (typeof name === 'string' && typeof value === 'string') {
+    // URLを含む可能性がある属性
+    const urlAttributes = [
+      'href',
+      'src',
+      'action',
+      'formaction',
+      'cite',
+      'poster',
+      'background',
+      'data',
+      'manifest'
+    ];
+
+    if (urlAttributes.includes(name.toLowerCase())) {
+      value = ABEKENMAN_transformUrls(value);
+    }
+  }
+
+  return ABEKENMAN_setAttribute.call(this, name, value);
+};
+
