@@ -582,15 +582,20 @@ const ABEKENMAN_location = {
   },
 
   get host() {
-    return ABEKENMAN_transformUrls(
-      window.location.host
-    );
+    const hostname =
+      ABEKENMAN_transformUrls(
+        '//' + window.location.hostname
+      ).replace(/^\/\//, '');
+    
+    return window.location.port
+      ? hostname + ':' + window.location.port
+      : hostname;
   },
 
   get hostname() {
     return ABEKENMAN_transformUrls(
-      window.location.hostname
-    );
+      '//' + window.location.hostname
+    ).replace(/^\/\//, '');
   },
 
   get port() {
