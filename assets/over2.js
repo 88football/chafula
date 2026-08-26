@@ -690,14 +690,14 @@ if (typeof EventSource !== 'undefined') {
           'ABEKENMAN_location.href GET'
         );
 
-        return ABEKENMAN_transformUrls(
+        return ABEKENMAN_restore(
           window.location.href
         );
       },
 
       set(url) {
         const transformed =
-          ABEKENMAN_restore(String(url));
+          ABEKENMAN_transformUrls(String(url));
 
         console.log(
           'ABEKENMAN_location.href SET:',
@@ -723,9 +723,9 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         const hostname =
-          ABEKENMAN_transformUrls(
-            '//' + window.location.hostname
-          ).replace(/^\/\//, '');
+          ABEKENMAN_restore(
+            window.location.hostname
+          );
 
         return window.location.port
           ? hostname + ':' + window.location.port
@@ -739,8 +739,8 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         return ABEKENMAN_transformUrls(
-          '//' + window.location.hostname
-        ).replace(/^\/\//, '');
+          window.location.hostname
+        );
       }
     },
 
@@ -785,7 +785,7 @@ if (typeof EventSource !== 'undefined') {
       enumerable: true,
 
       get() {
-        return ABEKENMAN_transformUrls(
+        return ABEKENMAN_restore(
           window.location.origin
         );
       }
