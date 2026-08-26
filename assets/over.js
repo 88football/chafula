@@ -102,6 +102,11 @@ Object.defineProperty(Element.prototype, "innerHTML", {
   enumerable: ABEKENMAN_innerHTML_descriptor.enumerable,
 });
 
+
+
+
+/*
+
 // ============================================================
 // --- 追加: URLを受け取るAPI / プロパティのフック ---
 // ============================================================
@@ -554,6 +559,11 @@ if (typeof EventSource !== 'undefined') {
   window.EventSource.prototype =
     ABEKENMAN_EventSource.prototype;
 }
+
+*/
+
+
+
 
 /*
 
