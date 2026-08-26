@@ -567,9 +567,8 @@ if (typeof EventSource !== 'undefined') {
 
 
 
-/*
 
-const ABEKENMAN_location = {
+var ABEKENMAN_location = {
   get href() {
     return ABEKENMAN_transformUrls(
       window.location.href
@@ -669,4 +668,6 @@ const ABEKENMAN_location = {
     return this.href;
   }
 };
-*/
+
+
+
