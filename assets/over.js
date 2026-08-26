@@ -102,7 +102,7 @@ Object.defineProperty(Element.prototype, "innerHTML", {
   enumerable: ABEKENMAN_innerHTML_descriptor.enumerable,
 });
 
-
+/*
 // ============================================================
 // --- 追加: URLを受け取るAPI / プロパティのフック ---
 // ============================================================
@@ -656,4 +656,4 @@ const ABEKENMAN_location = {
     return this.href;
   }
 };
-
+*/
