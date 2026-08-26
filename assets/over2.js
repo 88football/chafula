@@ -697,7 +697,7 @@ if (typeof EventSource !== 'undefined') {
 
       set(url) {
         const transformed =
-          ABEKENMAN_transformUrls(String(url));
+          ABEKENMAN_restore(String(url));
 
         console.log(
           'ABEKENMAN_location.href SET:',
