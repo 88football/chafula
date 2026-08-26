@@ -459,7 +459,7 @@ history.pushState = function(
 // 23. history.replaceState()
 // ============================================================
 
-const ABEKENMAN_replaceState =
+var ABEKENMAN_replaceState =
   history.replaceState;
 
 history.replaceState = function(
