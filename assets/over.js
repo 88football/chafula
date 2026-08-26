@@ -25,7 +25,7 @@ var ABEKENMAN_restored = ABEKENMAN_restoreUrl(location.href);
 // --- 2. XHR & Fetch のフック ---
 const ABEKENMAN_xhr = XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open = function(method, url, async=true, user=null, password=null) {
-  console.log('XHR:  ' + url);
+  console.trace('XHR:  ' + url);
   return ABEKENMAN_xhr.call(this, method, ABEKENMAN_transformUrls(url), async, user, password);
 };
 
@@ -60,7 +60,7 @@ Element.prototype.setAttribute = function(name, value) {
     if (urlAttributes.includes(name.toLowerCase())) {
       chand = ABEKENMAN_transformUrls(value);
     } else chand = value;
-    console.log('setAttribute:       ' + chand);
+    console.trace('setAttribute:       ' + chand);
   }
 
   return ABEKENMAN_setAttribute.call(this, name, chand);
@@ -77,7 +77,7 @@ Object.defineProperty(HTMLAnchorElement.prototype, "href", {
   },
   set(value) {
     const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
-    console.log("hrefに代入:", ABEKENMAN_res);
+    console.trace("hrefに代入:", ABEKENMAN_res);
     return ABEKENMAN_href_descriptor.set.call(this, ABEKENMAN_res);
   },
   configurable: ABEKENMAN_href_descriptor.configurable,
@@ -95,7 +95,7 @@ Object.defineProperty(Element.prototype, "innerHTML", {
   },
   set(value) {
     const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
-    console.log("innerHTMLに代入:", ABEKENMAN_res);
+    console.trace("innerHTMLに代入:", ABEKENMAN_res);
     return ABEKENMAN_innerHTML_descriptor.set.call(this, ABEKENMAN_res);
   },
   configurable: ABEKENMAN_innerHTML_descriptor.configurable,
