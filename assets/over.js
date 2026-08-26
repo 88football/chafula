@@ -77,7 +77,7 @@ Object.defineProperty(HTMLAnchorElement.prototype, "href", {
   },
   set(value) {
     const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
-    console.log("href に代入:", ABEKENMAN_res);
+    console.log("hrefに代入:", ABEKENMAN_res);
     return ABEKENMAN_href_descriptor.set.call(this, ABEKENMAN_res);
   },
   configurable: ABEKENMAN_href_descriptor.configurable,
@@ -95,7 +95,7 @@ Object.defineProperty(Element.prototype, "innerHTML", {
   },
   set(value) {
     const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
-    console.log("innerHTML に代入:", ABEKENMAN_res);
+    console.log("innerHTMLに代入:", ABEKENMAN_res);
     return ABEKENMAN_innerHTML_descriptor.set.call(this, ABEKENMAN_res);
   },
   configurable: ABEKENMAN_innerHTML_descriptor.configurable,
