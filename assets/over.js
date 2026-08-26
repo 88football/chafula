@@ -102,3 +102,457 @@ Object.defineProperty(Element.prototype, "innerHTML", {
   enumerable: ABEKENMAN_innerHTML_descriptor.enumerable,
 });
 
+
+// ============================================================
+// --- 追加: URLを受け取るAPI / プロパティのフック ---
+// ============================================================
+
+// 汎用プロパティフック
+function ABEKENMAN_hookUrlProperty(prototype, property, label) {
+  if (!prototype) return;
+
+  const descriptor = Object.getOwnPropertyDescriptor(
+    prototype,
+    property
+  );
+
+  if (!descriptor || !descriptor.set) return;
+
+  Object.defineProperty(prototype, property, {
+    get() {
+      return descriptor.get
+        ? descriptor.get.call(this)
+        : undefined;
+    },
+
+    set(value) {
+      const transformed =
+        typeof value === 'string'
+          ? ABEKENMAN_transformUrls(value)
+          : value;
+
+      console.log(label + ':', transformed);
+
+      return descriptor.set.call(this, transformed);
+    },
+
+    configurable: descriptor.configurable,
+    enumerable: descriptor.enumerable
+  });
+}
+
+
+// ============================================================
+// 1. <area href>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLAreaElement.prototype,
+  'href',
+  'area.href'
+);
+
+
+// ============================================================
+// 2. <link href>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLLinkElement.prototype,
+  'href',
+  'link.href'
+);
+
+
+// ============================================================
+// 3. <base href>
+// ============================================================
+
+if (typeof HTMLBaseElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLBaseElement.prototype,
+    'href',
+    'base.href'
+  );
+}
+
+
+// ============================================================
+// 4. <iframe src>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLIFrameElement.prototype,
+  'src',
+  'iframe.src'
+);
+
+
+// ============================================================
+// 5. <frame src>
+// ============================================================
+
+if (typeof HTMLFrameElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLFrameElement.prototype,
+    'src',
+    'frame.src'
+  );
+}
+
+
+// ============================================================
+// 6. <script src>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLScriptElement.prototype,
+  'src',
+  'script.src'
+);
+
+
+// ============================================================
+// 7. <img src>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLImageElement.prototype,
+  'src',
+  'img.src'
+);
+
+
+// ============================================================
+// 8. <audio src>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLAudioElement.prototype,
+  'src',
+  'audio.src'
+);
+
+
+// ============================================================
+// 9. <video src>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLVideoElement.prototype,
+  'src',
+  'video.src'
+);
+
+
+// ============================================================
+// 10. <source src>
+// ============================================================
+
+if (typeof HTMLSourceElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLSourceElement.prototype,
+    'src',
+    'source.src'
+  );
+}
+
+
+// ============================================================
+// 11. <track src>
+// ============================================================
+
+if (typeof HTMLTrackElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLTrackElement.prototype,
+    'src',
+    'track.src'
+  );
+}
+
+
+// ============================================================
+// 12. <embed src>
+// ============================================================
+
+if (typeof HTMLEmbedElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLEmbedElement.prototype,
+    'src',
+    'embed.src'
+  );
+}
+
+
+// ============================================================
+// 13. <object data>
+// ============================================================
+
+if (typeof HTMLObjectElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLObjectElement.prototype,
+    'data',
+    'object.data'
+  );
+}
+
+
+// ============================================================
+// 14. <video poster>
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLVideoElement.prototype,
+  'poster',
+  'video.poster'
+);
+
+
+// ============================================================
+// 15. <blockquote / q cite>
+// ============================================================
+
+if (typeof HTMLQuoteElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLQuoteElement.prototype,
+    'cite',
+    'quote.cite'
+  );
+}
+
+
+// ============================================================
+// 16. form.action
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLFormElement.prototype,
+  'action',
+  'form.action'
+);
+
+
+// ============================================================
+// 17. button.formAction
+// ============================================================
+
+if (typeof HTMLButtonElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLButtonElement.prototype,
+    'formAction',
+    'button.formAction'
+  );
+}
+
+
+// ============================================================
+// 18. input.formAction
+// ============================================================
+
+if (typeof HTMLInputElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLInputElement.prototype,
+    'formAction',
+    'input.formAction'
+  );
+}
+
+
+// ============================================================
+// 19. img.srcset
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLImageElement.prototype,
+  'srcset',
+  'img.srcset'
+);
+
+
+// ============================================================
+// 20. source.srcset
+// ============================================================
+
+if (typeof HTMLSourceElement !== 'undefined') {
+  ABEKENMAN_hookUrlProperty(
+    HTMLSourceElement.prototype,
+    'srcset',
+    'source.srcset'
+  );
+}
+
+
+// ============================================================
+// 21. window.open()
+// ============================================================
+
+const ABEKENMAN_windowOpen = window.open;
+
+window.open = function(
+  url,
+  target,
+  features,
+  replace
+) {
+  let transformed = url;
+
+  if (typeof url === 'string') {
+    transformed =
+      ABEKENMAN_transformUrls(url);
+  } else if (url instanceof URL) {
+    transformed =
+      ABEKENMAN_transformUrls(url.toString());
+  }
+
+  console.log(
+    'window.open:',
+    transformed
+  );
+
+  return ABEKENMAN_windowOpen.call(
+    this,
+    transformed,
+    target,
+    features,
+    replace
+  );
+};
+
+
+// ============================================================
+// 22. history.pushState()
+// ============================================================
+
+const ABEKENMAN_pushState =
+  history.pushState;
+
+history.pushState = function(
+  state,
+  unused,
+  url
+) {
+  let transformed = url;
+
+  if (typeof url === 'string') {
+    transformed =
+      ABEKENMAN_transformUrls(url);
+  } else if (url instanceof URL) {
+    transformed =
+      ABEKENMAN_transformUrls(url.toString());
+  }
+
+  console.log(
+    'history.pushState:',
+    transformed
+  );
+
+  return ABEKENMAN_pushState.call(
+    this,
+    state,
+    unused,
+    transformed
+  );
+};
+
+
+// ============================================================
+// 23. history.replaceState()
+// ============================================================
+
+const ABEKENMAN_replaceState =
+  history.replaceState;
+
+history.replaceState = function(
+  state,
+  unused,
+  url
+) {
+  let transformed = url;
+
+  if (typeof url === 'string') {
+    transformed =
+      ABEKENMAN_transformUrls(url);
+  } else if (url instanceof URL) {
+    transformed =
+      ABEKENMAN_transformUrls(url.toString());
+  }
+
+  console.log(
+    'history.replaceState:',
+    transformed
+  );
+
+  return ABEKENMAN_replaceState.call(
+    this,
+    state,
+    unused,
+    transformed
+  );
+};
+
+
+// ============================================================
+// 24. WebSocket()
+// ============================================================
+
+if (typeof WebSocket !== 'undefined') {
+  const ABEKENMAN_WebSocket =
+    window.WebSocket;
+
+  window.WebSocket = function(
+    url,
+    protocols
+  ) {
+    const transformed =
+      ABEKENMAN_transformUrls(
+        String(url)
+      );
+
+    console.log(
+      'WebSocket:',
+      transformed
+    );
+
+    return new ABEKENMAN_WebSocket(
+      transformed,
+      protocols
+    );
+  };
+
+  window.WebSocket.prototype =
+    ABEKENMAN_WebSocket.prototype;
+}
+
+
+// ============================================================
+// 25. EventSource()
+// ============================================================
+
+if (typeof EventSource !== 'undefined') {
+  const ABEKENMAN_EventSource =
+    window.EventSource;
+
+  window.EventSource = function(
+    url,
+    eventSourceInitDict
+  ) {
+    const transformed =
+      ABEKENMAN_transformUrls(
+        String(url)
+      );
+
+    console.log(
+      'EventSource:',
+      transformed
+    );
+
+    return new ABEKENMAN_EventSource(
+      transformed,
+      eventSourceInitDict
+    );
+  };
+
+  window.EventSource.prototype =
+    ABEKENMAN_EventSource.prototype;
+}
+
