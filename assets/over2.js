@@ -568,7 +568,7 @@ if (typeof EventSource !== 'undefined') {
 
 
 
-var ABEKENMAN_location_desc = {
+var ABEKENMAN_location = {
   get href() {
     return ABEKENMAN_transformUrls(
       window.location.href
@@ -582,7 +582,7 @@ var ABEKENMAN_location_desc = {
       );
 
     console.log(
-      'ABEKENMAN_location_desc.href =',
+      'ABEKENMAN_location.href =',
       transformed
     );
 
@@ -653,7 +653,7 @@ var ABEKENMAN_location_desc = {
       );
 
     console.log(
-      'ABEKENMAN_location_desc.replace:',
+      'ABEKENMAN_location.replace:',
       transformed
     );
 
