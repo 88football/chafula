@@ -669,7 +669,7 @@ var ABEKENMAN_location = {
   }
 };
 
-alert(ABEKENMAN_location_desc.href);
+alert(ABEKENMAN_location.href);
 
 
 
