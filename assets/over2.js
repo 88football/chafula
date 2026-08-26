@@ -568,7 +568,7 @@ if (typeof EventSource !== 'undefined') {
 
 
 
-var ABEKENMAN_location = {
+/*var ABEKENMAN_location = {
   get href() {
     return ABEKENMAN_transformUrls(
       window.location.href
@@ -667,7 +667,221 @@ var ABEKENMAN_location = {
   toString() {
     return this.href;
   }
-};
+};*/
+
+
+
+
+
+(function () {
+  const locationObject = {};
+
+  /*
+   * window.ABEKENMAN_location の中身を定義
+   */
+  Object.defineProperties(locationObject, {
+
+    href: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        console.log(
+          'ABEKENMAN_location.href GET'
+        );
+
+        return ABEKENMAN_transformUrls(
+          window.location.href
+        );
+      },
+
+      set(url) {
+        const transformed =
+          ABEKENMAN_transformUrls(String(url));
+
+        console.log(
+          'ABEKENMAN_location.href SET:',
+          transformed
+        );
+
+        window.location.href = transformed;
+      }
+    },
+
+    protocol: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.protocol;
+      }
+    },
+
+    host: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        const hostname =
+          ABEKENMAN_transformUrls(
+            '//' + window.location.hostname
+          ).replace(/^\/\//, '');
+
+        return window.location.port
+          ? hostname + ':' + window.location.port
+          : hostname;
+      }
+    },
+
+    hostname: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return ABEKENMAN_transformUrls(
+          '//' + window.location.hostname
+        ).replace(/^\/\//, '');
+      }
+    },
+
+    port: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.port;
+      }
+    },
+
+    pathname: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.pathname;
+      }
+    },
+
+    search: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.search;
+      }
+    },
+
+    hash: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.hash;
+      }
+    },
+
+    origin: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return ABEKENMAN_transformUrls(
+          window.location.origin
+        );
+      }
+    },
+
+    assign: {
+      configurable: true,
+      enumerable: true,
+
+      value(url) {
+        const transformed =
+          ABEKENMAN_transformUrls(String(url));
+
+        console.log(
+          'ABEKENMAN_location.assign:',
+          transformed
+        );
+
+        window.location.assign(transformed);
+      }
+    },
+
+    replace: {
+      configurable: true,
+      enumerable: true,
+
+      value(url) {
+        const transformed =
+          ABEKENMAN_transformUrls(String(url));
+
+        console.log(
+          'ABEKENMAN_location.replace:',
+          transformed
+        );
+
+        window.location.replace(transformed);
+      }
+    },
+
+    reload: {
+      configurable: true,
+      enumerable: true,
+
+      value(...args) {
+        return window.location.reload(...args);
+      }
+    },
+
+    toString: {
+      configurable: true,
+      enumerable: true,
+
+      value() {
+        return this.href;
+      }
+    }
+  });
+
+
+  /*
+   * window.ABEKENMAN_location 自体を定義
+   *
+   * GET:
+   *   window.ABEKENMAN_location
+   *
+   * SET:
+   *   window.ABEKENMAN_location = value
+   */
+  Object.defineProperty(window, 'ABEKENMAN_location', {
+
+    configurable: true,
+    enumerable: true,
+
+    get() {
+      console.log(
+        'ABEKENMAN_location GET'
+      );
+
+      return locationObject;
+    },
+
+    set(value) {
+      console.log(
+        'ABEKENMAN_location SET:',
+        value
+      );
+    }
+  });
+
+})();
+
+
+
+
+
+
 
 //alert(ABEKENMAN_location.href);
 
