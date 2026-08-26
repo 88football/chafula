@@ -690,7 +690,7 @@ if (typeof EventSource !== 'undefined') {
           'ABEKENMAN_location.href GET'
         );
 
-        return ABEKENMAN_restore(
+        return ABEKENMAN_restoreUrl(
           window.location.href
         );
       },
@@ -723,7 +723,7 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         const hostname =
-          ABEKENMAN_restore(
+          ABEKENMAN_restoreUrl(
             window.location.hostname
           );
 
@@ -785,7 +785,7 @@ if (typeof EventSource !== 'undefined') {
       enumerable: true,
 
       get() {
-        return ABEKENMAN_restore(
+        return ABEKENMAN_restoreUrl(
           window.location.origin
         );
       }
