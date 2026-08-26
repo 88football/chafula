@@ -669,5 +669,7 @@ var ABEKENMAN_location_desc = {
   }
 };
 
+alert(ABEKENMAN_location_desc.href);
+
 
 
