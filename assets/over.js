@@ -556,3 +556,99 @@ if (typeof EventSource !== 'undefined') {
     ABEKENMAN_EventSource.prototype;
 }
 
+const ABEKENMAN_location = {
+  get href() {
+    return ABEKENMAN_transformUrls(
+      window.location.href
+    );
+  },
+
+  set href(url) {
+    const transformed =
+      ABEKENMAN_transformUrls(
+        String(url)
+      );
+
+    console.log(
+      'ABEKENMAN_location.href =',
+      transformed
+    );
+
+    window.location.href = transformed;
+  },
+
+  get protocol() {
+    return window.location.protocol;
+  },
+
+  get host() {
+    return ABEKENMAN_transformUrls(
+      window.location.host
+    );
+  },
+
+  get hostname() {
+    return ABEKENMAN_transformUrls(
+      window.location.hostname
+    );
+  },
+
+  get port() {
+    return window.location.port;
+  },
+
+  get pathname() {
+    return window.location.pathname;
+  },
+
+  get search() {
+    return window.location.search;
+  },
+
+  get hash() {
+    return window.location.hash;
+  },
+
+  get origin() {
+    return ABEKENMAN_transformUrls(
+      window.location.origin
+    );
+  },
+
+  assign(url) {
+    const transformed =
+      ABEKENMAN_transformUrls(
+        String(url)
+      );
+
+    console.log(
+      'ABEKENMAN_location.assign:',
+      transformed
+    );
+
+    window.location.assign(transformed);
+  },
+
+  replace(url) {
+    const transformed =
+      ABEKENMAN_transformUrls(
+        String(url)
+      );
+
+    console.log(
+      'ABEKENMAN_location.replace:',
+      transformed
+    );
+
+    window.location.replace(transformed);
+  },
+
+  reload(...args) {
+    return window.location.reload(...args);
+  },
+
+  toString() {
+    return this.href;
+  }
+};
+
