@@ -143,6 +143,7 @@ function ABEKENMAN_hookUrlProperty(prototype, property, label) {
     configurable: descriptor.configurable,
     enumerable: descriptor.enumerable
   });
+  console.log('overwrite: ' + label);
 }
 
 
