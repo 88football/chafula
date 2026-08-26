@@ -113,14 +113,14 @@ Object.defineProperty(Element.prototype, "innerHTML", {
 
 // 汎用プロパティフック
 function ABEKENMAN_hookUrlProperty(prototype, property, label) {
-  if (!prototype) return;
+  if (!prototype) return console.log('no prototype: ' + label);
 
   const descriptor = Object.getOwnPropertyDescriptor(
     prototype,
     property
   );
 
-  if (!descriptor || !descriptor.set) return;
+  if (!descriptor || !descriptor.set) return console.log('no descriptor: ' + label);
 
   Object.defineProperty(prototype, property, {
     get() {
