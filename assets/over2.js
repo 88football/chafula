@@ -676,9 +676,6 @@ if (typeof EventSource !== 'undefined') {
 (function () {
   const locationObject = {};
 
-  /*
-   * window.ABEKENMAN_location の中身を定義
-   */
   Object.defineProperties(locationObject, {
 
     href: {
@@ -686,18 +683,24 @@ if (typeof EventSource !== 'undefined') {
       enumerable: true,
 
       get() {
+        const restored =
+          ABEKENMAN_restoreUrl(
+            window.location.href
+          );
+
         console.log(
-          'ABEKENMAN_location.href GET'
+          'ABEKENMAN_location.href GET:',
+          restored
         );
 
-        return ABEKENMAN_restoreUrl(
-          window.location.href
-        );
+        return restored;
       },
 
-      set(url) {
+      set(value) {
         const transformed =
-          ABEKENMAN_transformUrls(String(url));
+          ABEKENMAN_transformUrls(
+            String(value)
+          );
 
         console.log(
           'ABEKENMAN_location.href SET:',
@@ -714,6 +717,17 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         return window.location.protocol;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log(
+          'ABEKENMAN_location.protocol SET:',
+          setval
+        );
+
+        window.location.protocol = setval;
       }
     },
 
@@ -722,14 +736,33 @@ if (typeof EventSource !== 'undefined') {
       enumerable: true,
 
       get() {
-        const hostname =
+        const restored =
           ABEKENMAN_restoreUrl(
-            window.location.hostname
+            window.location.host
           );
 
-        return window.location.port
-          ? hostname + ':' + window.location.port
-          : hostname;
+        console.log(
+          'ABEKENMAN_location.host GET:',
+          restored
+        );
+
+        return restored;
+      },
+
+      set(value) {
+        const input =
+          '//' + String(value);
+        
+        const transformed =
+          ABEKENMAN_transformUrls(input)
+          .replace(/^\/\//, '');
+
+        console.log(
+          'ABEKENMAN_location.host SET:',
+          transformed
+        );
+
+        window.location.host = transformed;
       }
     },
 
@@ -738,9 +771,33 @@ if (typeof EventSource !== 'undefined') {
       enumerable: true,
 
       get() {
-        return ABEKENMAN_transformUrls(
-          window.location.hostname
+        const restored =
+          ABEKENMAN_restoreUrl(
+            window.location.hostname
+          );
+
+        console.log(
+          'ABEKENMAN_location.hostname GET:',
+          restored
         );
+
+        return restored;
+      },
+
+      set(value) {
+        const input =
+          '//' + String(value);
+        
+        const transformed =
+          ABEKENMAN_transformUrls(input)
+          .replace(/^\/\//, '');
+
+        console.log(
+          'ABEKENMAN_location.hostname SET:',
+          transformed
+        );
+
+        window.location.hostname = transformed;
       }
     },
 
@@ -750,6 +807,17 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         return window.location.port;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log(
+          'ABEKENMAN_location.port SET:',
+          setval
+        );
+
+        window.location.port = setval;
       }
     },
 
@@ -759,6 +827,17 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         return window.location.pathname;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log(
+          'ABEKENMAN_location.pathname SET:',
+          setval
+        );
+
+        window.location.pathname = setval;
       }
     },
 
@@ -768,6 +847,17 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         return window.location.search;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log(
+          'ABEKENMAN_location.search SET:',
+          setval
+        );
+
+        window.location.search = setval;
       }
     },
 
@@ -777,6 +867,17 @@ if (typeof EventSource !== 'undefined') {
 
       get() {
         return window.location.hash;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log(
+          'ABEKENMAN_location.hash SET:',
+          setval
+        );
+
+        window.location.hash = setval;
       }
     },
 
@@ -785,9 +886,17 @@ if (typeof EventSource !== 'undefined') {
       enumerable: true,
 
       get() {
-        return ABEKENMAN_restoreUrl(
-          window.location.origin
+        const restored =
+          ABEKENMAN_restoreUrl(
+            window.location.origin
+          );
+
+        console.log(
+          'ABEKENMAN_location.origin GET:',
+          restored
         );
+
+        return restored;
       }
     },
 
@@ -797,7 +906,9 @@ if (typeof EventSource !== 'undefined') {
 
       value(url) {
         const transformed =
-          ABEKENMAN_transformUrls(String(url));
+          ABEKENMAN_transformUrls(
+            String(url)
+          );
 
         console.log(
           'ABEKENMAN_location.assign:',
@@ -814,7 +925,9 @@ if (typeof EventSource !== 'undefined') {
 
       value(url) {
         const transformed =
-          ABEKENMAN_transformUrls(String(url));
+          ABEKENMAN_transformUrls(
+            String(url)
+          );
 
         console.log(
           'ABEKENMAN_location.replace:',
@@ -845,15 +958,6 @@ if (typeof EventSource !== 'undefined') {
   });
 
 
-  /*
-   * window.ABEKENMAN_location 自体を定義
-   *
-   * GET:
-   *   window.ABEKENMAN_location
-   *
-   * SET:
-   *   window.ABEKENMAN_location = value
-   */
   Object.defineProperty(window, 'ABEKENMAN_location', {
 
     configurable: true,
@@ -879,11 +983,6 @@ if (typeof EventSource !== 'undefined') {
 
 
 
-
-
-
-
-//alert(ABEKENMAN_location.href);
 
 
 
