@@ -115,6 +115,178 @@ Object.defineProperty(Element.prototype, 'innerHTML', {
   enumerable: ABEKENMAN_innerHTML_descriptor.enumerable
 });
 
+
+// ============================================================
+// --- 追加: HTML parser / HTML insertion API のフック
+// ============================================================
+
+// --- Element.outerHTML ---
+const ABEKENMAN_outerHTML_descriptor = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  'outerHTML'
+);
+
+if (
+  ABEKENMAN_outerHTML_descriptor &&
+  ABEKENMAN_outerHTML_descriptor.set
+) {
+  Object.defineProperty(Element.prototype, 'outerHTML', {
+    get() {
+      return ABEKENMAN_outerHTML_descriptor.get.call(this);
+    },
+
+    set(value) {
+      const transformed =
+        typeof value === 'string'
+          ? ABEKENMAN_transformUrls(value)
+          : value;
+
+      console.trace('outerHTMLに代入:', transformed);
+
+      return ABEKENMAN_outerHTML_descriptor.set.call(
+        this,
+        transformed
+      );
+    },
+
+    configurable: ABEKENMAN_outerHTML_descriptor.configurable,
+    enumerable: ABEKENMAN_outerHTML_descriptor.enumerable
+  });
+
+  console.log('overwrite: Element.outerHTML');
+}
+
+
+// --- Element.insertAdjacentHTML() ---
+const ABEKENMAN_insertAdjacentHTML =
+  Element.prototype.insertAdjacentHTML;
+
+Element.prototype.insertAdjacentHTML = function(
+  position,
+  text
+) {
+  const transformed =
+    typeof text === 'string'
+      ? ABEKENMAN_transformUrls(text)
+      : text;
+
+  console.trace(
+    'insertAdjacentHTML:',
+    position,
+    transformed
+  );
+
+  return ABEKENMAN_insertAdjacentHTML.call(
+    this,
+    position,
+    transformed
+  );
+};
+
+
+// --- document.write() ---
+const ABEKENMAN_documentWrite = Document.prototype.write;
+
+Document.prototype.write = function(...args) {
+  const transformedArgs = args.map(value => {
+    return typeof value === 'string'
+      ? ABEKENMAN_transformUrls(value)
+      : value;
+  });
+
+  console.trace(
+    'document.write:',
+    transformedArgs
+  );
+
+  return ABEKENMAN_documentWrite.apply(
+    this,
+    transformedArgs
+  );
+};
+
+
+// --- document.writeln() ---
+const ABEKENMAN_documentWriteln =
+  Document.prototype.writeln;
+
+Document.prototype.writeln = function(...args) {
+  const transformedArgs = args.map(value => {
+    return typeof value === 'string'
+      ? ABEKENMAN_transformUrls(value)
+      : value;
+  });
+
+  console.trace(
+    'document.writeln:',
+    transformedArgs
+  );
+
+  return ABEKENMAN_documentWriteln.apply(
+    this,
+    transformedArgs
+  );
+};
+
+
+// --- DOMParser.parseFromString() ---
+const ABEKENMAN_DOMParser =
+  window.DOMParser;
+
+if (ABEKENMAN_DOMParser) {
+  const ABEKENMAN_parseFromString =
+    DOMParser.prototype.parseFromString;
+
+  DOMParser.prototype.parseFromString = function(
+    source,
+    type
+  ) {
+    const transformed =
+      typeof source === 'string'
+        ? ABEKENMAN_transformUrls(source)
+        : source;
+
+    console.trace(
+      'DOMParser.parseFromString:',
+      type,
+      transformed
+    );
+
+    return ABEKENMAN_parseFromString.call(
+      this,
+      transformed,
+      type
+    );
+  };
+}
+
+
+// --- Range.createContextualFragment() ---
+const ABEKENMAN_createContextualFragment =
+  Range.prototype.createContextualFragment;
+
+Range.prototype.createContextualFragment = function(
+  fragment
+) {
+  const transformed =
+    typeof fragment === 'string'
+      ? ABEKENMAN_transformUrls(fragment)
+      : fragment;
+
+  console.trace(
+    'Range.createContextualFragment:',
+    transformed
+  );
+
+  return ABEKENMAN_createContextualFragment.call(
+    this,
+    transformed
+  );
+};
+
+
+
+
 // ============================================================
 // --- 追加: URLを受け取るAPI / プロパティのフック ---
 // ============================================================
