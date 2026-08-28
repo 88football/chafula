@@ -277,7 +277,7 @@
             class="dialog-button dialog-yes"
             id="dialog-yes"
           >
-            はい
+            Yes
           </button>
 
           <button
@@ -285,7 +285,7 @@
             class="dialog-button dialog-no"
             id="dialog-no"
           >
-            いいえ
+            No
           </button>
 
         </div>
