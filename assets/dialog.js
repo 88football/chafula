@@ -1,51 +1,30 @@
-<script>
-(() => {
-  /*
-   * ============================================================
-   * Independent Dialog
-   * ============================================================
-   *
-   * 既存ページとは独立して動作する確認ダイアログ。
-   *
-   * 特徴:
-   * - Shadow DOMでCSSを分離
-   * - <dialog>.show() を使用するため背景を操作可能
-   * - 「はい」「いいえ」の2ボタン
-   * - Promiseで結果を取得可能
-   * - グローバル変数を作らない
-   * ============================================================
-   */
+() => {
+  function showIndependentDialog(dialogTitle, dialogUrl) {
+    const host = document.createElement("div");
 
-  // ------------------------------------------------------------
-  // Shadow DOM
-  // ------------------------------------------------------------
+    // 既存ページのレイアウトへの影響をなくす
+    Object.assign(host.style, {
+      position: "fixed",
+      width: "0",
+      height: "0",
+      margin: "0",
+      padding: "0",
+      border: "0",
+      overflow: "visible",
+      zIndex: "2147483647",
+    });
 
-  const host = document.createElement("div");
+    document.documentElement.appendChild(host);
 
-  // 既存ページのレイアウトへの影響をなくす
-  Object.assign(host.style, {
-    position: "fixed",
-    width: "0",
-    height: "0",
-    margin: "0",
-    padding: "0",
-    border: "0",
-    overflow: "visible",
-    zIndex: "2147483647"
-  });
+    const shadow = host.attachShadow({
+      mode: "closed",
+    });
 
-  document.documentElement.appendChild(host);
+    // ------------------------------------------------------------
+    // HTML + CSS
+    // ------------------------------------------------------------
 
-  const shadow = host.attachShadow({
-    mode: "closed"
-  });
-
-
-  // ------------------------------------------------------------
-  // HTML + CSS
-  // ------------------------------------------------------------
-
-  shadow.innerHTML = `
+    shadow.innerHTML = `
     <style>
 
       /*
@@ -316,88 +295,61 @@
     </dialog>
   `;
 
+    // ------------------------------------------------------------
+    // Elements
+    // ------------------------------------------------------------
 
-  // ------------------------------------------------------------
-  // Elements
-  // ------------------------------------------------------------
+    const dialog = shadow.querySelector(".independent-dialog");
+    const title = shadow.querySelector(".dialog-title");
+    const message = shadow.querySelector(".dialog-message");
 
-  const dialog = shadow.querySelector(".independent-dialog");
-  const title = shadow.querySelector(".dialog-title");
-  const message = shadow.querySelector(".dialog-message");
+    const yesButton = shadow.querySelector(".dialog-yes");
+    const noButton = shadow.querySelector(".dialog-no");
 
-  const yesButton = shadow.querySelector(".dialog-yes");
-  const noButton = shadow.querySelector(".dialog-no");
+    title.textContent = "Blocked Content";
+    message.textContent = dialogUrl;
 
+    // 二重呼び出し対策
+    if (dialog.open) {
+      dialog.close();
+    }
 
-  // ------------------------------------------------------------
-  // Dialog function
-  // ------------------------------------------------------------
+    // 結果を一度だけ返す
+    let finished = false;
 
-  function showIndependentDialog(
-    dialogTitle,
-    dialogUrl
-  ) {
+    const finish = (result) => {
+      dialog.close();
+    };
 
+    yesButton.onclick = () => {
+      open(dialogUrl);
+    };
 
-      title.textContent = 'Blocked Content';
-      message.textContent = dialogUrl;
+    noButton.onclick = () => {
+      finish(false);
+    };
+    setTimeout(() => finish(false), 3000);
 
-
-      // 二重呼び出し対策
-      if (dialog.open) {
-        dialog.close();
-      }
-
-
-      // 結果を一度だけ返す
-      let finished = false;
-
-      const finish = (result) => {
-        dialog.close();
-      };
-
-
-      yesButton.onclick = () => {
-        open(dialogUrl);
-      };
-
-
-      noButton.onclick = () => {
+    // ESCを押した場合は「いいえ」とする
+    const cancelHandler = () => {
+      if (!finished) {
         finish(false);
-      };
-      setTimeout(() => finish(false), 3000);
+      }
+    };
 
+    dialog.addEventListener("cancel", cancelHandler, { once: true });
 
-      // ESCを押した場合は「いいえ」とする
-      const cancelHandler = () => {
-
-        if (!finished) {
-          finish(false);
-        }
-
-      };
-
-      dialog.addEventListener(
-        "cancel",
-        cancelHandler,
-        { once: true }
-      );
-
-
-      /*
-       * showModal() ではなく show()
-       *
-       * これにより背景ページを操作可能にする。
-       */
-      dialog.show();
+    /*
+     * showModal() ではなく show()
+     *
+     * これにより背景ページを操作可能にする。
+     */
+    dialog.show();
   }
-
 
   // ------------------------------------------------------------
   // 外部から呼び出せる関数だけ公開
   // ------------------------------------------------------------
 
   window.ABEKENMAN_showIndependentDialog = showIndependentDialog;
-
-})();
-</script>
+};
