@@ -307,7 +307,7 @@
     const noButton = shadow.querySelector(".dialog-no");
 
     title.textContent = "Blocked Content";
-    message.textContent = durl;
+    message.textContent = new URL(durl).hostname;
 
     // 二重呼び出し対策
     if (dialog.open) {
