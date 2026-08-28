@@ -1,372 +1,754 @@
-// --- 1. URL変換・復元関数 ---
+// ============================================================
+// --- 1. URL変換・復元関数
+// ============================================================
+
 function ABEKENMAN_transformUrls(text) {
   if (typeof text !== 'string') return text;
-  const urlRegex = /(?<![:\\])(https?:)?\/\/([^\/\s"']+)(\/[^\s"']*)?/gi;
 
-  return text.replace(urlRegex, (match, protocol, domain, pathAndQuery) => {
-    const proto = protocol || '';
-    let modifiedDomain;
+  const urlRegex =
+    /(?<![:\\])(https?:)?\/\/([^\/\s"']+)(\/[^\s"']*)?/gi;
 
-    if (domain.includes('.88.football')) {
-      modifiedDomain = domain;
-    } else {
-      modifiedDomain = domain.replace(/\./g, 'l9t4d0a1') + '.88.football';
+  return text.replace(
+    urlRegex,
+    (match, protocol, domain, pathAndQuery) => {
+      const proto = protocol || '';
+      let modifiedDomain;
+
+      if (domain.includes('.88.football')) {
+        modifiedDomain = domain;
+      } else {
+        modifiedDomain =
+          domain.replace(/\./g, 'l9t4d0a1') +
+          '.88.football';
+      }
+
+      const path = pathAndQuery || '';
+
+      return (
+        proto +
+        '//' +
+        modifiedDomain +
+        path
+      );
     }
-
-    const path = pathAndQuery || '';
-    return proto + '//' + modifiedDomain + path;
-  });
+  );
 }
+
 
 function ABEKENMAN_restoreUrl(url) {
   if (typeof url !== 'string') return url;
-  return url.replace('.88.football', '').replace(/l9t4d0a1/g, '.');
+
+  return url
+    .replace('.88.football', '')
+    .replace(/l9t4d0a1/g, '.');
 }
 
-var ABEKENMAN_restored = ABEKENMAN_restoreUrl(location.href);
 
-// --- 2. XHR & Fetch のフック ---
-const ABEKENMAN_xhr = XMLHttpRequest.prototype.open;
+var ABEKENMAN_restored =
+  ABEKENMAN_restoreUrl(location.href);
 
-XMLHttpRequest.prototype.open = function(method, url, async = true, user = null, password = null) {
-  console.trace('XHR:  ' + url);
-  return ABEKENMAN_xhr.call(this, method, ABEKENMAN_transformUrls(url), async, user, password);
-};
 
-const ABEKENMAN_fetch = window.fetch;
+// ============================================================
+// --- 2. 別オリジン遷移判定
+// ============================================================
 
-window.fetch = function(input, init) {
-  if (typeof input === 'string') {
-    input = ABEKENMAN_transformUrls(input);
-  } else if (input instanceof URL) {
-    input = new URL(ABEKENMAN_transformUrls(input.toString()));
-  } else if (input instanceof Request) {
-    input = new Request(ABEKENMAN_transformUrls(input.url), input);
+function ABEKENMAN_isCrossOriginNavigation(url) {
+  try {
+    const target = new URL(
+      String(url),
+      window.location.href
+    );
+
+    return (
+      target.origin !==
+      window.location.origin
+    );
+  } catch (e) {
+    console.warn(
+      'ABEKENMAN_isCrossOriginNavigation: invalid URL',
+      url
+    );
+
+    return false;
   }
+}
 
-  return ABEKENMAN_fetch.call(this, input, init);
-};
 
-// --- 3. setAttribute のフック ---
-const ABEKENMAN_setAttribute = Element.prototype.setAttribute;
+// ============================================================
+// --- 3. XHR & Fetch のフック
+// ============================================================
 
-Element.prototype.setAttribute = function(name, value) {
-  let chand;
+const ABEKENMAN_xhr =
+  XMLHttpRequest.prototype.open;
 
-  if (typeof name === 'string' && typeof value === 'string') {
-    const urlAttributes = [
-      'href',
-      'src',
-      'srcset',
-      'action',
-      'formaction',
-      'cite',
-      'poster',
-      'background',
-      'data',
-      'manifest'
-    ];
+XMLHttpRequest.prototype.open =
+  function(
+    method,
+    url,
+    async = true,
+    user = null,
+    password = null
+  ) {
+    console.trace(
+      'XHR:  ' + url
+    );
 
-    if (urlAttributes.includes(name.toLowerCase())) {
-      chand = ABEKENMAN_transformUrls(value);
-    } else {
-      chand = value;
+    return ABEKENMAN_xhr.call(
+      this,
+      method,
+      ABEKENMAN_transformUrls(url),
+      async,
+      user,
+      password
+    );
+  };
+
+
+const ABEKENMAN_fetch =
+  window.fetch;
+
+window.fetch =
+  function(input, init) {
+    if (typeof input === 'string') {
+
+      input =
+        ABEKENMAN_transformUrls(input);
+
+    } else if (input instanceof URL) {
+
+      input =
+        new URL(
+          ABEKENMAN_transformUrls(
+            input.toString()
+          )
+        );
+
+    } else if (input instanceof Request) {
+
+      input =
+        new Request(
+          ABEKENMAN_transformUrls(
+            input.url
+          ),
+          input
+        );
     }
 
-    console.trace('setAttribute:       ' + chand);
-  }
+    return ABEKENMAN_fetch.call(
+      this,
+      input,
+      init
+    );
+  };
 
-  return ABEKENMAN_setAttribute.call(this, name, chand);
-};
 
-const ABEKENMAN_href_descriptor = Object.getOwnPropertyDescriptor(
+// ============================================================
+// --- 4. setAttribute のフック
+// ============================================================
+
+const ABEKENMAN_setAttribute =
+  Element.prototype.setAttribute;
+
+Element.prototype.setAttribute =
+  function(name, value) {
+
+    let chand;
+
+    if (
+      typeof name === 'string' &&
+      typeof value === 'string'
+    ) {
+
+      const urlAttributes = [
+        'href',
+        'src',
+        'srcset',
+        'action',
+        'formaction',
+        'cite',
+        'poster',
+        'background',
+        'data',
+        'manifest'
+      ];
+
+      if (
+        urlAttributes.includes(
+          name.toLowerCase()
+        )
+      ) {
+
+        chand =
+          ABEKENMAN_transformUrls(
+            value
+          );
+
+      } else {
+
+        chand = value;
+      }
+
+      console.trace(
+        'setAttribute:       ' +
+        chand
+      );
+    }
+
+    return ABEKENMAN_setAttribute.call(
+      this,
+      name,
+      chand
+    );
+  };
+
+
+// ============================================================
+// --- 5. HTMLAnchorElement.href
+// ============================================================
+
+const ABEKENMAN_href_descriptor =
+  Object.getOwnPropertyDescriptor(
+    HTMLAnchorElement.prototype,
+    'href'
+  );
+
+Object.defineProperty(
   HTMLAnchorElement.prototype,
-  'href'
+  'href',
+  {
+    get() {
+
+      return ABEKENMAN_href_descriptor.get.call(
+        this
+      );
+    },
+
+    set(value) {
+
+      const ABEKENMAN_res =
+        ABEKENMAN_transformUrls(
+          value
+        );
+
+      console.trace(
+        'hrefに代入:',
+        ABEKENMAN_res
+      );
+
+      return ABEKENMAN_href_descriptor.set.call(
+        this,
+        ABEKENMAN_res
+      );
+    },
+
+    configurable:
+      ABEKENMAN_href_descriptor.configurable,
+
+    enumerable:
+      ABEKENMAN_href_descriptor.enumerable
+  }
 );
-
-Object.defineProperty(HTMLAnchorElement.prototype, 'href', {
-  get() {
-    return ABEKENMAN_href_descriptor.get.call(this);
-  },
-  set(value) {
-    const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
-    console.trace('hrefに代入:', ABEKENMAN_res);
-    return ABEKENMAN_href_descriptor.set.call(this, ABEKENMAN_res);
-  },
-  configurable: ABEKENMAN_href_descriptor.configurable,
-  enumerable: ABEKENMAN_href_descriptor.enumerable
-});
-
-const ABEKENMAN_innerHTML_descriptor = Object.getOwnPropertyDescriptor(
-  Element.prototype,
-  'innerHTML'
-);
-
-Object.defineProperty(Element.prototype, 'innerHTML', {
-  get() {
-    return ABEKENMAN_innerHTML_descriptor.get.call(this);
-  },
-  set(value) {
-    const ABEKENMAN_res = ABEKENMAN_transformUrls(value);
-    console.trace('innerHTMLに代入:', ABEKENMAN_res);
-    return ABEKENMAN_innerHTML_descriptor.set.call(this, ABEKENMAN_res);
-  },
-  configurable: ABEKENMAN_innerHTML_descriptor.configurable,
-  enumerable: ABEKENMAN_innerHTML_descriptor.enumerable
-});
 
 
 // ============================================================
-// --- 追加: HTML parser / HTML insertion API のフック
+// --- 6. innerHTML
 // ============================================================
 
-// --- Element.outerHTML ---
-const ABEKENMAN_outerHTML_descriptor = Object.getOwnPropertyDescriptor(
+const ABEKENMAN_innerHTML_descriptor =
+  Object.getOwnPropertyDescriptor(
+    Element.prototype,
+    'innerHTML'
+  );
+
+Object.defineProperty(
   Element.prototype,
-  'outerHTML'
+  'innerHTML',
+  {
+    get() {
+
+      return ABEKENMAN_innerHTML_descriptor.get.call(
+        this
+      );
+    },
+
+    set(value) {
+
+      const ABEKENMAN_res =
+        ABEKENMAN_transformUrls(
+          value
+        );
+
+      console.trace(
+        'innerHTMLに代入:',
+        ABEKENMAN_res
+      );
+
+      return ABEKENMAN_innerHTML_descriptor.set.call(
+        this,
+        ABEKENMAN_res
+      );
+    },
+
+    configurable:
+      ABEKENMAN_innerHTML_descriptor.configurable,
+
+    enumerable:
+      ABEKENMAN_innerHTML_descriptor.enumerable
+  }
 );
+
+
+// ============================================================
+// --- 7. Element.outerHTML
+// ============================================================
+
+const ABEKENMAN_outerHTML_descriptor =
+  Object.getOwnPropertyDescriptor(
+    Element.prototype,
+    'outerHTML'
+  );
 
 if (
   ABEKENMAN_outerHTML_descriptor &&
   ABEKENMAN_outerHTML_descriptor.set
 ) {
-  Object.defineProperty(Element.prototype, 'outerHTML', {
-    get() {
-      return ABEKENMAN_outerHTML_descriptor.get.call(this);
-    },
 
-    set(value) {
-      const transformed =
-        typeof value === 'string'
-          ? ABEKENMAN_transformUrls(value)
-          : value;
+  Object.defineProperty(
+    Element.prototype,
+    'outerHTML',
+    {
+      get() {
 
-      console.trace('outerHTMLに代入:', transformed);
+        return ABEKENMAN_outerHTML_descriptor.get.call(
+          this
+        );
+      },
 
-      return ABEKENMAN_outerHTML_descriptor.set.call(
-        this,
-        transformed
-      );
-    },
+      set(value) {
 
-    configurable: ABEKENMAN_outerHTML_descriptor.configurable,
-    enumerable: ABEKENMAN_outerHTML_descriptor.enumerable
-  });
+        const transformed =
+          typeof value === 'string'
+            ? ABEKENMAN_transformUrls(
+                value
+              )
+            : value;
 
-  console.log('overwrite: Element.outerHTML');
+        console.trace(
+          'outerHTMLに代入:',
+          transformed
+        );
+
+        return ABEKENMAN_outerHTML_descriptor.set.call(
+          this,
+          transformed
+        );
+      },
+
+      configurable:
+        ABEKENMAN_outerHTML_descriptor.configurable,
+
+      enumerable:
+        ABEKENMAN_outerHTML_descriptor.enumerable
+    }
+  );
+
+  console.log(
+    'overwrite: Element.outerHTML'
+  );
 }
 
 
-// --- Element.insertAdjacentHTML() ---
+// ============================================================
+// --- 8. Element.insertAdjacentHTML()
+// ============================================================
+
 const ABEKENMAN_insertAdjacentHTML =
   Element.prototype.insertAdjacentHTML;
 
-Element.prototype.insertAdjacentHTML = function(
-  position,
-  text
-) {
-  const transformed =
-    typeof text === 'string'
-      ? ABEKENMAN_transformUrls(text)
-      : text;
-
-  console.trace(
-    'insertAdjacentHTML:',
+Element.prototype.insertAdjacentHTML =
+  function(
     position,
-    transformed
-  );
+    text
+  ) {
 
-  return ABEKENMAN_insertAdjacentHTML.call(
-    this,
-    position,
-    transformed
-  );
-};
+    const transformed =
+      typeof text === 'string'
+        ? ABEKENMAN_transformUrls(
+            text
+          )
+        : text;
 
+    console.trace(
+      'insertAdjacentHTML:',
+      position,
+      transformed
+    );
 
-// --- document.write() ---
-const ABEKENMAN_documentWrite = Document.prototype.write;
-
-Document.prototype.write = function(...args) {
-  const transformedArgs = args.map(value => {
-    return typeof value === 'string'
-      ? ABEKENMAN_transformUrls(value)
-      : value;
-  });
-
-  console.trace(
-    'document.write:',
-    transformedArgs
-  );
-
-  return ABEKENMAN_documentWrite.apply(
-    this,
-    transformedArgs
-  );
-};
+    return ABEKENMAN_insertAdjacentHTML.call(
+      this,
+      position,
+      transformed
+    );
+  };
 
 
-// --- document.writeln() ---
+// ============================================================
+// --- 9. document.write()
+// ============================================================
+
+const ABEKENMAN_documentWrite =
+  Document.prototype.write;
+
+Document.prototype.write =
+  function(...args) {
+
+    const transformedArgs =
+      args.map(value => {
+
+        return typeof value === 'string'
+          ? ABEKENMAN_transformUrls(
+              value
+            )
+          : value;
+      });
+
+    console.trace(
+      'document.write:',
+      transformedArgs
+    );
+
+    return ABEKENMAN_documentWrite.apply(
+      this,
+      transformedArgs
+    );
+  };
+
+
+// ============================================================
+// --- 10. document.writeln()
+// ============================================================
+
 const ABEKENMAN_documentWriteln =
   Document.prototype.writeln;
 
-Document.prototype.writeln = function(...args) {
-  const transformedArgs = args.map(value => {
-    return typeof value === 'string'
-      ? ABEKENMAN_transformUrls(value)
-      : value;
-  });
+Document.prototype.writeln =
+  function(...args) {
 
-  console.trace(
-    'document.writeln:',
-    transformedArgs
-  );
+    const transformedArgs =
+      args.map(value => {
 
-  return ABEKENMAN_documentWriteln.apply(
-    this,
-    transformedArgs
-  );
-};
+        return typeof value === 'string'
+          ? ABEKENMAN_transformUrls(
+              value
+            )
+          : value;
+      });
+
+    console.trace(
+      'document.writeln:',
+      transformedArgs
+    );
+
+    return ABEKENMAN_documentWriteln.apply(
+      this,
+      transformedArgs
+    );
+  };
 
 
-// --- DOMParser.parseFromString() ---
+// ============================================================
+// --- 11. DOMParser.parseFromString()
+// ============================================================
+
 const ABEKENMAN_DOMParser =
   window.DOMParser;
 
 if (ABEKENMAN_DOMParser) {
+
   const ABEKENMAN_parseFromString =
     DOMParser.prototype.parseFromString;
 
-  DOMParser.prototype.parseFromString = function(
-    source,
-    type
-  ) {
-    const transformed =
-      typeof source === 'string'
-        ? ABEKENMAN_transformUrls(source)
-        : source;
-
-    console.trace(
-      'DOMParser.parseFromString:',
-      type,
-      transformed
-    );
-
-    return ABEKENMAN_parseFromString.call(
-      this,
-      transformed,
+  DOMParser.prototype.parseFromString =
+    function(
+      source,
       type
-    );
-  };
+    ) {
+
+      const transformed =
+        typeof source === 'string'
+          ? ABEKENMAN_transformUrls(
+              source
+            )
+          : source;
+
+      console.trace(
+        'DOMParser.parseFromString:',
+        type,
+        transformed
+      );
+
+      return ABEKENMAN_parseFromString.call(
+        this,
+        transformed,
+        type
+      );
+    };
 }
 
 
-// --- Range.createContextualFragment() ---
+// ============================================================
+// --- 12. Range.createContextualFragment()
+// ============================================================
+
 const ABEKENMAN_createContextualFragment =
   Range.prototype.createContextualFragment;
 
-Range.prototype.createContextualFragment = function(
-  fragment
+Range.prototype.createContextualFragment =
+  function(fragment) {
+
+    const transformed =
+      typeof fragment === 'string'
+        ? ABEKENMAN_transformUrls(
+            fragment
+          )
+        : fragment;
+
+    console.trace(
+      'Range.createContextualFragment:',
+      transformed
+    );
+
+    return ABEKENMAN_createContextualFragment.call(
+      this,
+      transformed
+    );
+  };
+
+
+// ============================================================
+// --- 13. 汎用URLプロパティフック
+// ============================================================
+
+function ABEKENMAN_hookUrlProperty(
+  prototype,
+  property,
+  label
 ) {
-  const transformed =
-    typeof fragment === 'string'
-      ? ABEKENMAN_transformUrls(fragment)
-      : fragment;
 
-  console.trace(
-    'Range.createContextualFragment:',
-    transformed
-  );
-
-  return ABEKENMAN_createContextualFragment.call(
-    this,
-    transformed
-  );
-};
-
-
-
-
-// ============================================================
-// --- 追加: URLを受け取るAPI / プロパティのフック ---
-// ============================================================
-
-// 汎用プロパティフック
-function ABEKENMAN_hookUrlProperty(prototype, property, label) {
-  if (!prototype) return console.log('no prototype: ' + label);
-
-  const descriptor = Object.getOwnPropertyDescriptor(prototype, property);
-
-  if (!descriptor || !descriptor.set) {
-    return console.log('no descriptor: ' + label);
+  if (!prototype) {
+    return console.log(
+      'no prototype: ' + label
+    );
   }
 
-  Object.defineProperty(prototype, property, {
-    get() {
-      return descriptor.get ? descriptor.get.call(this) : undefined;
-    },
+  const descriptor =
+    Object.getOwnPropertyDescriptor(
+      prototype,
+      property
+    );
 
-    set(value) {
-      const transformed =
-        typeof value === 'string'
-          ? ABEKENMAN_transformUrls(value)
-          : value;
+  if (
+    !descriptor ||
+    !descriptor.set
+  ) {
 
-      console.log(label + ':', transformed);
-      return descriptor.set.call(this, transformed);
-    },
+    return console.log(
+      'no descriptor: ' + label
+    );
+  }
 
-    configurable: descriptor.configurable,
-    enumerable: descriptor.enumerable
-  });
+  Object.defineProperty(
+    prototype,
+    property,
+    {
+      get() {
 
-  console.log('overwrite: ' + label);
+        return descriptor.get
+          ? descriptor.get.call(this)
+          : undefined;
+      },
+
+      set(value) {
+
+        const transformed =
+          typeof value === 'string'
+            ? ABEKENMAN_transformUrls(
+                value
+              )
+            : value;
+
+        console.log(
+          label + ':',
+          transformed
+        );
+
+        return descriptor.set.call(
+          this,
+          transformed
+        );
+      },
+
+      configurable:
+        descriptor.configurable,
+
+      enumerable:
+        descriptor.enumerable
+    }
+  );
+
+  console.log(
+    'overwrite: ' + label
+  );
 }
 
-// --- URLプロパティのフック ---
-ABEKENMAN_hookUrlProperty(HTMLAreaElement.prototype, 'href', 'area.href');
-ABEKENMAN_hookUrlProperty(HTMLLinkElement.prototype, 'href', 'link.href');
 
-if (typeof HTMLBaseElement !== 'undefined') {
-  ABEKENMAN_hookUrlProperty(HTMLBaseElement.prototype, 'href', 'base.href');
+// ============================================================
+// --- 14. URLプロパティのフック
+// ============================================================
+
+ABEKENMAN_hookUrlProperty(
+  HTMLAreaElement.prototype,
+  'href',
+  'area.href'
+);
+
+ABEKENMAN_hookUrlProperty(
+  HTMLLinkElement.prototype,
+  'href',
+  'link.href'
+);
+
+if (
+  typeof HTMLBaseElement !==
+  'undefined'
+) {
+
+  ABEKENMAN_hookUrlProperty(
+    HTMLBaseElement.prototype,
+    'href',
+    'base.href'
+  );
 }
 
-ABEKENMAN_hookUrlProperty(HTMLIFrameElement.prototype, 'src', 'iframe.src');
+ABEKENMAN_hookUrlProperty(
+  HTMLIFrameElement.prototype,
+  'src',
+  'iframe.src'
+);
 
-if (typeof HTMLFrameElement !== 'undefined') {
-  ABEKENMAN_hookUrlProperty(HTMLFrameElement.prototype, 'src', 'frame.src');
+if (
+  typeof HTMLFrameElement !==
+  'undefined'
+) {
+
+  ABEKENMAN_hookUrlProperty(
+    HTMLFrameElement.prototype,
+    'src',
+    'frame.src'
+  );
 }
 
-ABEKENMAN_hookUrlProperty(HTMLScriptElement.prototype, 'src', 'script.src');
-ABEKENMAN_hookUrlProperty(HTMLImageElement.prototype, 'src', 'img.src');
-ABEKENMAN_hookUrlProperty(HTMLAudioElement.prototype, 'src', 'audio.src');
-ABEKENMAN_hookUrlProperty(HTMLVideoElement.prototype, 'src', 'video.src');
+ABEKENMAN_hookUrlProperty(
+  HTMLScriptElement.prototype,
+  'src',
+  'script.src'
+);
 
-if (typeof HTMLSourceElement !== 'undefined') {
-  ABEKENMAN_hookUrlProperty(HTMLSourceElement.prototype, 'src', 'source.src');
+ABEKENMAN_hookUrlProperty(
+  HTMLImageElement.prototype,
+  'src',
+  'img.src'
+);
+
+ABEKENMAN_hookUrlProperty(
+  HTMLAudioElement.prototype,
+  'src',
+  'audio.src'
+);
+
+ABEKENMAN_hookUrlProperty(
+  HTMLVideoElement.prototype,
+  'src',
+  'video.src'
+);
+
+if (
+  typeof HTMLSourceElement !==
+  'undefined'
+) {
+
+  ABEKENMAN_hookUrlProperty(
+    HTMLSourceElement.prototype,
+    'src',
+    'source.src'
+  );
 }
 
-if (typeof HTMLTrackElement !== 'undefined') {
-  ABEKENMAN_hookUrlProperty(HTMLTrackElement.prototype, 'src', 'track.src');
+if (
+  typeof HTMLTrackElement !==
+  'undefined'
+) {
+
+  ABEKENMAN_hookUrlProperty(
+    HTMLTrackElement.prototype,
+    'src',
+    'track.src'
+  );
 }
 
-if (typeof HTMLEmbedElement !== 'undefined') {
-  ABEKENMAN_hookUrlProperty(HTMLEmbedElement.prototype, 'src', 'embed.src');
+if (
+  typeof HTMLEmbedElement !==
+  'undefined'
+) {
+
+  ABEKENMAN_hookUrlProperty(
+    HTMLEmbedElement.prototype,
+    'src',
+    'embed.src'
+  );
 }
 
-if (typeof HTMLObjectElement !== 'undefined') {
-  ABEKENMAN_hookUrlProperty(HTMLObjectElement.prototype, 'data', 'object.data');
+if (
+  typeof HTMLObjectElement !==
+  'undefined'
+) {
+
+  ABEKENMAN_hookUrlProperty(
+    HTMLObjectElement.prototype,
+    'data',
+    'object.data'
+  );
 }
 
-ABEKENMAN_hookUrlProperty(HTMLVideoElement.prototype, 'poster', 'video.poster');
+ABEKENMAN_hookUrlProperty(
+  HTMLVideoElement.prototype,
+  'poster',
+  'video.poster'
+);
 
-if (typeof HTMLQuoteElement !== 'undefined') {
-  ABEKENMAN_hookUrlProperty(HTMLQuoteElement.prototype, 'cite', 'quote.cite');
+if (
+  typeof HTMLQuoteElement !==
+  'undefined'
+) {
+
+  ABEKENMAN_hookUrlProperty(
+    HTMLQuoteElement.prototype,
+    'cite',
+    'quote.cite'
+  );
 }
 
-ABEKENMAN_hookUrlProperty(HTMLFormElement.prototype, 'action', 'form.action');
+ABEKENMAN_hookUrlProperty(
+  HTMLFormElement.prototype,
+  'action',
+  'form.action'
+);
 
-if (typeof HTMLButtonElement !== 'undefined') {
+if (
+  typeof HTMLButtonElement !==
+  'undefined'
+) {
+
   ABEKENMAN_hookUrlProperty(
     HTMLButtonElement.prototype,
     'formAction',
@@ -374,7 +756,11 @@ if (typeof HTMLButtonElement !== 'undefined') {
   );
 }
 
-if (typeof HTMLInputElement !== 'undefined') {
+if (
+  typeof HTMLInputElement !==
+  'undefined'
+) {
+
   ABEKENMAN_hookUrlProperty(
     HTMLInputElement.prototype,
     'formAction',
@@ -382,9 +768,17 @@ if (typeof HTMLInputElement !== 'undefined') {
   );
 }
 
-ABEKENMAN_hookUrlProperty(HTMLImageElement.prototype, 'srcset', 'img.srcset');
+ABEKENMAN_hookUrlProperty(
+  HTMLImageElement.prototype,
+  'srcset',
+  'img.srcset'
+);
 
-if (typeof HTMLSourceElement !== 'undefined') {
+if (
+  typeof HTMLSourceElement !==
+  'undefined'
+) {
+
   ABEKENMAN_hookUrlProperty(
     HTMLSourceElement.prototype,
     'srcset',
@@ -392,336 +786,816 @@ if (typeof HTMLSourceElement !== 'undefined') {
   );
 }
 
-// --- window.open() ---
-const ABEKENMAN_windowOpen = window.open;
 
-window.open = function(url, target, features, replace) {
-  let transformed = url;
+// ============================================================
+// --- 15. window.open()
+// --- 別オリジンならダイアログ、それ以外は通常動作
+// ============================================================
 
-  if (typeof url === 'string') {
-    transformed = ABEKENMAN_transformUrls(url);
-  } else if (url instanceof URL) {
-    transformed = ABEKENMAN_transformUrls(url.toString());
-  }
+const ABEKENMAN_windowOpen =
+  window.open;
 
-  console.log('window.open:', transformed);
-
-  return ABEKENMAN_windowOpen.call(
-    this,
-    transformed,
+window.open =
+  function(
+    url,
     target,
     features,
     replace
-  );
-};
+  ) {
 
-// --- history.pushState() ---
-const ABEKENMAN_pushState = history.pushState;
+    let transformed = url;
 
-history.pushState = function(state, unused, url) {
-  let transformed = url;
+    if (typeof url === 'string') {
 
-  if (typeof url === 'string') {
-    transformed = ABEKENMAN_transformUrls(url);
-  } else if (url instanceof URL) {
-    transformed = ABEKENMAN_transformUrls(url.toString());
-  }
+      transformed =
+        ABEKENMAN_transformUrls(url);
 
-  console.log('history.pushState:', transformed);
+    } else if (url instanceof URL) {
 
-  return ABEKENMAN_pushState.call(
-    this,
-    state,
-    unused,
-    transformed
-  );
-};
+      transformed =
+        ABEKENMAN_transformUrls(
+          url.toString()
+        );
+    }
 
-// --- history.replaceState() ---
-const ABEKENMAN_replaceState = history.replaceState;
+    console.log(
+      'window.open:',
+      transformed
+    );
 
-history.replaceState = function(state, unused, url) {
-  let transformed = url;
 
-  if (typeof url === 'string') {
-    transformed = ABEKENMAN_transformUrls(url);
-  } else if (url instanceof URL) {
-    transformed = ABEKENMAN_transformUrls(url.toString());
-  }
+    if (
+      typeof transformed === 'string' &&
+      ABEKENMAN_isCrossOriginNavigation(
+        transformed
+      )
+    ) {
 
-  console.log('history.replaceState:', transformed);
+      console.log(
+        'ABEKENMAN: window.open cross-origin:',
+        transformed
+      );
 
-  return ABEKENMAN_replaceState.call(
-    this,
-    state,
-    unused,
-    transformed
-  );
-};
+      ABEKENMAN_showIndependentDialog(
+        transformed
+      );
 
-// --- WebSocket() ---
-if (typeof WebSocket !== 'undefined') {
-  const ABEKENMAN_WebSocket = window.WebSocket;
+      return null;
+    }
 
-  window.WebSocket = function(url, protocols) {
-    const transformed = ABEKENMAN_transformUrls(String(url));
 
-    console.log('WebSocket:', transformed);
-
-    return new ABEKENMAN_WebSocket(transformed, protocols);
-  };
-
-  window.WebSocket.prototype = ABEKENMAN_WebSocket.prototype;
-}
-
-// --- EventSource() ---
-if (typeof EventSource !== 'undefined') {
-  const ABEKENMAN_EventSource = window.EventSource;
-
-  window.EventSource = function(url, eventSourceInitDict) {
-    const transformed = ABEKENMAN_transformUrls(String(url));
-
-    console.log('EventSource:', transformed);
-
-    return new ABEKENMAN_EventSource(
+    return ABEKENMAN_windowOpen.call(
+      this,
       transformed,
-      eventSourceInitDict
+      target,
+      features,
+      replace
     );
   };
 
-  window.EventSource.prototype = ABEKENMAN_EventSource.prototype;
+
+// ============================================================
+// --- 16. history.pushState()
+// --- 別オリジンならダイアログ
+// ============================================================
+
+const ABEKENMAN_pushState =
+  history.pushState;
+
+history.pushState =
+  function(
+    state,
+    unused,
+    url
+  ) {
+
+    let transformed = url;
+
+    if (typeof url === 'string') {
+
+      transformed =
+        ABEKENMAN_transformUrls(url);
+
+    } else if (url instanceof URL) {
+
+      transformed =
+        ABEKENMAN_transformUrls(
+          url.toString()
+        );
+    }
+
+    console.log(
+      'history.pushState:',
+      transformed
+    );
+
+
+    if (
+      transformed != null &&
+      ABEKENMAN_isCrossOriginNavigation(
+        transformed
+      )
+    ) {
+
+      console.log(
+        'ABEKENMAN: history.pushState cross-origin:',
+        transformed
+      );
+
+      ABEKENMAN_showIndependentDialog(
+        String(transformed)
+      );
+
+      return;
+    }
+
+
+    return ABEKENMAN_pushState.call(
+      this,
+      state,
+      unused,
+      transformed
+    );
+  };
+
+
+// ============================================================
+// --- 17. history.replaceState()
+// --- 別オリジンならダイアログ
+// ============================================================
+
+const ABEKENMAN_replaceState =
+  history.replaceState;
+
+history.replaceState =
+  function(
+    state,
+    unused,
+    url
+  ) {
+
+    let transformed = url;
+
+    if (typeof url === 'string') {
+
+      transformed =
+        ABEKENMAN_transformUrls(url);
+
+    } else if (url instanceof URL) {
+
+      transformed =
+        ABEKENMAN_transformUrls(
+          url.toString()
+        );
+    }
+
+    console.log(
+      'history.replaceState:',
+      transformed
+    );
+
+
+    if (
+      transformed != null &&
+      ABEKENMAN_isCrossOriginNavigation(
+        transformed
+      )
+    ) {
+
+      console.log(
+        'ABEKENMAN: history.replaceState cross-origin:',
+        transformed
+      );
+
+      ABEKENMAN_showIndependentDialog(
+        String(transformed)
+      );
+
+      return;
+    }
+
+
+    return ABEKENMAN_replaceState.call(
+      this,
+      state,
+      unused,
+      transformed
+    );
+  };
+
+
+// ============================================================
+// --- 18. WebSocket()
+// ============================================================
+
+if (
+  typeof WebSocket !==
+  'undefined'
+) {
+
+  const ABEKENMAN_WebSocket =
+    window.WebSocket;
+
+  window.WebSocket =
+    function(
+      url,
+      protocols
+    ) {
+
+      const transformed =
+        ABEKENMAN_transformUrls(
+          String(url)
+        );
+
+      console.log(
+        'WebSocket:',
+        transformed
+      );
+
+      return new ABEKENMAN_WebSocket(
+        transformed,
+        protocols
+      );
+    };
+
+  window.WebSocket.prototype =
+    ABEKENMAN_WebSocket.prototype;
 }
 
-// --- ABEKENMAN_location ---
+
+// ============================================================
+// --- 19. EventSource()
+// ============================================================
+
+if (
+  typeof EventSource !==
+  'undefined'
+) {
+
+  const ABEKENMAN_EventSource =
+    window.EventSource;
+
+  window.EventSource =
+    function(
+      url,
+      eventSourceInitDict
+    ) {
+
+      const transformed =
+        ABEKENMAN_transformUrls(
+          String(url)
+        );
+
+      console.log(
+        'EventSource:',
+        transformed
+      );
+
+      return new ABEKENMAN_EventSource(
+        transformed,
+        eventSourceInitDict
+      );
+    };
+
+  window.EventSource.prototype =
+    ABEKENMAN_EventSource.prototype;
+}
+
+
+// ============================================================
+// --- 20. ABEKENMAN_location
+// ============================================================
+
 (function() {
+
   const locationObject = {};
 
-  Object.defineProperties(locationObject, {
-    href: {
-      configurable: true,
-      enumerable: true,
 
-      get() {
-        const restored = ABEKENMAN_restoreUrl(window.location.href);
+  Object.defineProperties(
+    locationObject,
+    {
 
-        console.log('ABEKENMAN_location.href GET:', restored);
+      // --------------------------------------------------------
+      // href
+      // --------------------------------------------------------
 
-        return restored;
+      href: {
+        configurable: true,
+        enumerable: true,
+
+        get() {
+
+          const restored =
+            ABEKENMAN_restoreUrl(
+              window.location.href
+            );
+
+          console.log(
+            'ABEKENMAN_location.href GET:',
+            restored
+          );
+
+          return restored;
+        },
+
+        set(value) {
+
+          const transformed =
+            ABEKENMAN_transformUrls(
+              String(value)
+            );
+
+          console.log(
+            'ABEKENMAN_location.href SET:',
+            transformed
+          );
+
+
+          if (
+            ABEKENMAN_isCrossOriginNavigation(
+              transformed
+            )
+          ) {
+
+            console.log(
+              'ABEKENMAN: location.href cross-origin:',
+              transformed
+            );
+
+            ABEKENMAN_showIndependentDialog(
+              transformed
+            );
+
+            return;
+          }
+
+
+          window.location.href =
+            transformed;
+        }
       },
 
-      set(value) {
-        const transformed = ABEKENMAN_transformUrls(String(value));
 
-        console.log('ABEKENMAN_location.href SET:', transformed);
+      // --------------------------------------------------------
+      // protocol
+      // --------------------------------------------------------
 
-        window.location.href = transformed;
-      }
-    },
+      protocol: {
+        configurable: true,
+        enumerable: true,
 
-    protocol: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        return window.location.protocol;
+          return window.location.protocol;
+        },
+
+        set(value) {
+
+          const setval =
+            String(value);
+
+          console.log(
+            'ABEKENMAN_location.protocol SET:',
+            setval
+          );
+
+          window.location.protocol =
+            setval;
+        }
       },
 
-      set(value) {
-        const setval = String(value);
 
-        console.log('ABEKENMAN_location.protocol SET:', setval);
+      // --------------------------------------------------------
+      // host
+      // --------------------------------------------------------
 
-        window.location.protocol = setval;
-      }
-    },
+      host: {
+        configurable: true,
+        enumerable: true,
 
-    host: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        const restored = ABEKENMAN_restoreUrl(window.location.host);
+          const restored =
+            ABEKENMAN_restoreUrl(
+              window.location.host
+            );
 
-        console.log('ABEKENMAN_location.host GET:', restored);
+          console.log(
+            'ABEKENMAN_location.host GET:',
+            restored
+          );
 
-        return restored;
+          return restored;
+        },
+
+        set(value) {
+
+          const input =
+            '//' + String(value);
+
+          const transformed =
+            ABEKENMAN_transformUrls(
+              input
+            ).replace(
+              /^\/\//,
+              ''
+            );
+
+          console.log(
+            'ABEKENMAN_location.host SET:',
+            transformed
+          );
+
+
+          if (
+            ABEKENMAN_isCrossOriginNavigation(
+              '//' + transformed
+            )
+          ) {
+
+            console.log(
+              'ABEKENMAN: location.host cross-origin:',
+              transformed
+            );
+
+            ABEKENMAN_showIndependentDialog(
+              '//' + transformed
+            );
+
+            return;
+          }
+
+
+          window.location.host =
+            transformed;
+        }
       },
 
-      set(value) {
-        const input = '//' + String(value);
-        const transformed = ABEKENMAN_transformUrls(input).replace(/^\/\//, '');
 
-        console.log('ABEKENMAN_location.host SET:', transformed);
+      // --------------------------------------------------------
+      // hostname
+      // --------------------------------------------------------
 
-        window.location.host = transformed;
-      }
-    },
+      hostname: {
+        configurable: true,
+        enumerable: true,
 
-    hostname: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        const restored = ABEKENMAN_restoreUrl(window.location.hostname);
+          const restored =
+            ABEKENMAN_restoreUrl(
+              window.location.hostname
+            );
 
-        console.log('ABEKENMAN_location.hostname GET:', restored);
+          console.log(
+            'ABEKENMAN_location.hostname GET:',
+            restored
+          );
 
-        return restored;
+          return restored;
+        },
+
+        set(value) {
+
+          const input =
+            '//' + String(value);
+
+          const transformed =
+            ABEKENMAN_transformUrls(
+              input
+            ).replace(
+              /^\/\//,
+              ''
+            );
+
+          console.log(
+            'ABEKENMAN_location.hostname SET:',
+            transformed
+          );
+
+
+          if (
+            ABEKENMAN_isCrossOriginNavigation(
+              '//' + transformed
+            )
+          ) {
+
+            console.log(
+              'ABEKENMAN: location.hostname cross-origin:',
+              transformed
+            );
+
+            ABEKENMAN_showIndependentDialog(
+              '//' + transformed
+            );
+
+            return;
+          }
+
+
+          window.location.hostname =
+            transformed;
+        }
       },
 
-      set(value) {
-        const input = '//' + String(value);
-        const transformed = ABEKENMAN_transformUrls(input).replace(/^\/\//, '');
 
-        console.log('ABEKENMAN_location.hostname SET:', transformed);
+      // --------------------------------------------------------
+      // port
+      // --------------------------------------------------------
 
-        window.location.hostname = transformed;
-      }
-    },
+      port: {
+        configurable: true,
+        enumerable: true,
 
-    port: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        return window.location.port;
+          return window.location.port;
+        },
+
+        set(value) {
+
+          const setval =
+            String(value);
+
+          console.log(
+            'ABEKENMAN_location.port SET:',
+            setval
+          );
+
+          window.location.port =
+            setval;
+        }
       },
 
-      set(value) {
-        const setval = String(value);
 
-        console.log('ABEKENMAN_location.port SET:', setval);
+      // --------------------------------------------------------
+      // pathname
+      // --------------------------------------------------------
 
-        window.location.port = setval;
-      }
-    },
+      pathname: {
+        configurable: true,
+        enumerable: true,
 
-    pathname: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        return window.location.pathname;
+          return window.location.pathname;
+        },
+
+        set(value) {
+
+          const setval =
+            String(value);
+
+          console.log(
+            'ABEKENMAN_location.pathname SET:',
+            setval
+          );
+
+          window.location.pathname =
+            setval;
+        }
       },
 
-      set(value) {
-        const setval = String(value);
 
-        console.log('ABEKENMAN_location.pathname SET:', setval);
+      // --------------------------------------------------------
+      // search
+      // --------------------------------------------------------
 
-        window.location.pathname = setval;
-      }
-    },
+      search: {
+        configurable: true,
+        enumerable: true,
 
-    search: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        return window.location.search;
+          return window.location.search;
+        },
+
+        set(value) {
+
+          const setval =
+            String(value);
+
+          console.log(
+            'ABEKENMAN_location.search SET:',
+            setval
+          );
+
+          window.location.search =
+            setval;
+        }
       },
 
-      set(value) {
-        const setval = String(value);
 
-        console.log('ABEKENMAN_location.search SET:', setval);
+      // --------------------------------------------------------
+      // hash
+      // --------------------------------------------------------
 
-        window.location.search = setval;
-      }
-    },
+      hash: {
+        configurable: true,
+        enumerable: true,
 
-    hash: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        return window.location.hash;
+          return window.location.hash;
+        },
+
+        set(value) {
+
+          const setval =
+            String(value);
+
+          console.log(
+            'ABEKENMAN_location.hash SET:',
+            setval
+          );
+
+          window.location.hash =
+            setval;
+        }
       },
 
-      set(value) {
-        const setval = String(value);
 
-        console.log('ABEKENMAN_location.hash SET:', setval);
+      // --------------------------------------------------------
+      // origin
+      // --------------------------------------------------------
 
-        window.location.hash = setval;
-      }
-    },
+      origin: {
+        configurable: true,
+        enumerable: true,
 
-    origin: {
-      configurable: true,
-      enumerable: true,
+        get() {
 
-      get() {
-        const restored = ABEKENMAN_restoreUrl(window.location.origin);
+          const restored =
+            ABEKENMAN_restoreUrl(
+              window.location.origin
+            );
 
-        console.log('ABEKENMAN_location.origin GET:', restored);
+          console.log(
+            'ABEKENMAN_location.origin GET:',
+            restored
+          );
 
-        return restored;
-      }
-    },
+          return restored;
+        }
+      },
 
-    assign: {
-      configurable: true,
-      enumerable: true,
 
-      value(url) {
-        const transformed = ABEKENMAN_transformUrls(String(url));
+      // --------------------------------------------------------
+      // assign()
+      // --------------------------------------------------------
 
-        console.log('ABEKENMAN_location.assign:', transformed);
+      assign: {
+        configurable: true,
+        enumerable: true,
 
-        window.location.assign(transformed);
-      }
-    },
+        value(url) {
 
-    replace: {
-      configurable: true,
-      enumerable: true,
+          const transformed =
+            ABEKENMAN_transformUrls(
+              String(url)
+            );
 
-      value(url) {
-        const transformed = ABEKENMAN_transformUrls(String(url));
+          console.log(
+            'ABEKENMAN_location.assign:',
+            transformed
+          );
 
-        console.log('ABEKENMAN_location.replace:', transformed);
 
-        window.location.replace(transformed);
-      }
-    },
+          if (
+            ABEKENMAN_isCrossOriginNavigation(
+              transformed
+            )
+          ) {
 
-    reload: {
-      configurable: true,
-      enumerable: true,
+            console.log(
+              'ABEKENMAN: location.assign cross-origin:',
+              transformed
+            );
 
-      value(...args) {
-        return window.location.reload(...args);
-      }
-    },
+            ABEKENMAN_showIndependentDialog(
+              transformed
+            );
 
-    toString: {
-      configurable: true,
-      enumerable: true,
+            return;
+          }
 
-      value() {
-        return this.href;
+
+          window.location.assign(
+            transformed
+          );
+        }
+      },
+
+
+      // --------------------------------------------------------
+      // replace()
+      // --------------------------------------------------------
+
+      replace: {
+        configurable: true,
+        enumerable: true,
+
+        value(url) {
+
+          const transformed =
+            ABEKENMAN_transformUrls(
+              String(url)
+            );
+
+          console.log(
+            'ABEKENMAN_location.replace:',
+            transformed
+          );
+
+
+          if (
+            ABEKENMAN_isCrossOriginNavigation(
+              transformed
+            )
+          ) {
+
+            console.log(
+              'ABEKENMAN: location.replace cross-origin:',
+              transformed
+            );
+
+            ABEKENMAN_showIndependentDialog(
+              transformed
+            );
+
+            return;
+          }
+
+
+          window.location.replace(
+            transformed
+          );
+        }
+      },
+
+
+      // --------------------------------------------------------
+      // reload()
+      // --------------------------------------------------------
+
+      reload: {
+        configurable: true,
+        enumerable: true,
+
+        value(...args) {
+
+          return window.location.reload(
+            ...args
+          );
+        }
+      },
+
+
+      // --------------------------------------------------------
+      // toString()
+      // --------------------------------------------------------
+
+      toString: {
+        configurable: true,
+        enumerable: true,
+
+        value() {
+
+          return this.href;
+        }
       }
     }
-  });
+  );
 
-  Object.defineProperty(window, 'ABEKENMAN_location', {
-    configurable: true,
-    enumerable: true,
 
-    get() {
-      console.log('ABEKENMAN_location GET');
-      return locationObject;
-    },
+  // ==========================================================
+  // --- window.ABEKENMAN_location
+  // ==========================================================
 
-    set(value) {
-      console.log('ABEKENMAN_location SET:', value);
+  Object.defineProperty(
+    window,
+    'ABEKENMAN_location',
+    {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+
+        console.log(
+          'ABEKENMAN_location GET'
+        );
+
+        return locationObject;
+      },
+
+      set(value) {
+
+        console.log(
+          'ABEKENMAN_location SET:',
+          value
+        );
+      }
     }
-  });
+  );
+
 })();
-
-
-
-
-
-
