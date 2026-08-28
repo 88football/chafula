@@ -1,5 +1,5 @@
-() => {
-  function showIndependentDialog(dialogTitle, dialogUrl) {
+(() => {
+  const showIndependentDialog = function (durl) {
     const host = document.createElement("div");
 
     // 既存ページのレイアウトへの影響をなくす
@@ -307,7 +307,7 @@
     const noButton = shadow.querySelector(".dialog-no");
 
     title.textContent = "Blocked Content";
-    message.textContent = dialogUrl;
+    message.textContent = durl;
 
     // 二重呼び出し対策
     if (dialog.open) {
@@ -322,7 +322,7 @@
     };
 
     yesButton.onclick = () => {
-      open(dialogUrl);
+      open(durl);
     };
 
     noButton.onclick = () => {
@@ -345,11 +345,11 @@
      * これにより背景ページを操作可能にする。
      */
     dialog.show();
-  }
+  };
 
   // ------------------------------------------------------------
   // 外部から呼び出せる関数だけ公開
   // ------------------------------------------------------------
 
   window.ABEKENMAN_showIndependentDialog = showIndependentDialog;
-};
+})();
