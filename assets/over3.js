@@ -23,7 +23,7 @@
   });
 } */
 
-function transformUrls4(text) {
+function ABEKENMAN_transformUrls4(text) {
   const urlRegex = /(?<=href\=['"]\$\{)(\w+)(?=\}['"])/gi;
   return text.replace(urlRegex, (match, varedurl) => {
     const varur = "ABEKENMAN_transformUrls(" + varedurl + ")";
@@ -31,9 +31,9 @@ function transformUrls4(text) {
   });
 }
 
-function transformUrls3(text) {
+function ABEKENMAN_transformUrls3(text) {
   const urlRegex = /(['"]https?:)\/\/(['"+.()\-\/\s\w]+)(?=;)/gi;
-  return transformUrls4(text).replace(
+  return ABEKENMAN_transformUrls4(text).replace(
     urlRegex,
     (match, protocol, domainandpath) => {
       const proto = protocol || "";
@@ -49,9 +49,9 @@ function transformUrls3(text) {
   );
 }
 
-function transformUrls2(text) {
+function ABEKENMAN_transformUrls2(text) {
   const urlRegex = /(?<![:\\])(https?:)?\/\/\$\{([^\/\s"']+)\}(\/[^\s"']*)?/gi;
-  return transformUrls3(text).replace(
+  return ABEKENMAN_transformUrls3(text).replace(
     urlRegex,
     (match, protocol, domain, pathAndQuery) => {
       const proto = protocol || "";
@@ -63,7 +63,7 @@ function transformUrls2(text) {
   );
 }
 
-function transformUrls(text) {
+function ABEKENMAN_transformUrls(text) {
   const urlRegex =
     /(?<![:\\])(https?:)?(?:\/\/|\\\/\\\/)([^\/\s"'$]+)((?:\\\/|(?<!\\)\/)[^\s"']*)/gi;
   return transformUrls2(text).replace(
