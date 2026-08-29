@@ -935,6 +935,339 @@ if (typeof MutationObserver !== "undefined") {
 }
 
 // ============================================================
+// --- 20. ABEKENMAN_location
+// ============================================================
+
+(function () {
+  const locationObject = {};
+
+  Object.defineProperties(locationObject, {
+    // --------------------------------------------------------
+    // href
+    // --------------------------------------------------------
+
+    href: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        const restored = ABEKENMAN_restoreUrl(window.location.href);
+
+        console.log("ABEKENMAN_location.href GET:", restored);
+
+        return restored;
+      },
+
+      set(value) {
+        const transformed = ABEKENMAN_transformUrls(String(value));
+
+        console.log("ABEKENMAN_location.href SET:", transformed);
+
+        if (ABEKENMAN_isCrossOriginNavigation(transformed)) {
+          console.log("ABEKENMAN: location.href cross-origin:", transformed);
+
+          ABEKENMAN_showIndependentDialog(transformed);
+
+          return;
+        }
+
+        window.location.href = transformed;
+      },
+    },
+
+    // --------------------------------------------------------
+    // protocol
+    // --------------------------------------------------------
+
+    protocol: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.protocol;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log("ABEKENMAN_location.protocol SET:", setval);
+
+        window.location.protocol = setval;
+      },
+    },
+
+    // --------------------------------------------------------
+    // host
+    // --------------------------------------------------------
+
+    host: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        const restored = ABEKENMAN_restoreUrl(window.location.host);
+
+        console.log("ABEKENMAN_location.host GET:", restored);
+
+        return restored;
+      },
+
+      set(value) {
+        const input = "//" + String(value);
+
+        const transformed = ABEKENMAN_transformUrls(input).replace(/^\/\//, "");
+
+        console.log("ABEKENMAN_location.host SET:", transformed);
+
+        if (ABEKENMAN_isCrossOriginNavigation("//" + transformed)) {
+          console.log("ABEKENMAN: location.host cross-origin:", transformed);
+
+          ABEKENMAN_showIndependentDialog("//" + transformed);
+
+          return;
+        }
+
+        window.location.host = transformed;
+      },
+    },
+
+    // --------------------------------------------------------
+    // hostname
+    // --------------------------------------------------------
+
+    hostname: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        const restored = ABEKENMAN_restoreUrl(window.location.hostname);
+
+        console.log("ABEKENMAN_location.hostname GET:", restored);
+
+        return restored;
+      },
+
+      set(value) {
+        const input = "//" + String(value);
+
+        const transformed = ABEKENMAN_transformUrls(input).replace(/^\/\//, "");
+
+        console.log("ABEKENMAN_location.hostname SET:", transformed);
+
+        if (ABEKENMAN_isCrossOriginNavigation("//" + transformed)) {
+          console.log(
+            "ABEKENMAN: location.hostname cross-origin:",
+            transformed,
+          );
+
+          ABEKENMAN_showIndependentDialog("//" + transformed);
+
+          return;
+        }
+
+        window.location.hostname = transformed;
+      },
+    },
+
+    // --------------------------------------------------------
+    // port
+    // --------------------------------------------------------
+
+    port: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.port;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log("ABEKENMAN_location.port SET:", setval);
+
+        window.location.port = setval;
+      },
+    },
+
+    // --------------------------------------------------------
+    // pathname
+    // --------------------------------------------------------
+
+    pathname: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.pathname;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log("ABEKENMAN_location.pathname SET:", setval);
+
+        window.location.pathname = setval;
+      },
+    },
+
+    // --------------------------------------------------------
+    // search
+    // --------------------------------------------------------
+
+    search: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.search;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log("ABEKENMAN_location.search SET:", setval);
+
+        window.location.search = setval;
+      },
+    },
+
+    // --------------------------------------------------------
+    // hash
+    // --------------------------------------------------------
+
+    hash: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        return window.location.hash;
+      },
+
+      set(value) {
+        const setval = String(value);
+
+        console.log("ABEKENMAN_location.hash SET:", setval);
+
+        window.location.hash = setval;
+      },
+    },
+
+    // --------------------------------------------------------
+    // origin
+    // --------------------------------------------------------
+
+    origin: {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+        const restored = ABEKENMAN_restoreUrl(window.location.origin);
+
+        console.log("ABEKENMAN_location.origin GET:", restored);
+
+        return restored;
+      },
+    },
+
+    // --------------------------------------------------------
+    // assign()
+    // --------------------------------------------------------
+
+    assign: {
+      configurable: true,
+      enumerable: true,
+
+      value(url) {
+        const transformed = ABEKENMAN_transformUrls(String(url));
+
+        console.log("ABEKENMAN_location.assign:", transformed);
+
+        if (ABEKENMAN_isCrossOriginNavigation(transformed)) {
+          console.log("ABEKENMAN: location.assign cross-origin:", transformed);
+
+          ABEKENMAN_showIndependentDialog(transformed);
+
+          return;
+        }
+
+        window.location.assign(transformed);
+      },
+    },
+
+    // --------------------------------------------------------
+    // replace()
+    // --------------------------------------------------------
+
+    replace: {
+      configurable: true,
+      enumerable: true,
+
+      value(url) {
+        const transformed = ABEKENMAN_transformUrls(String(url));
+
+        console.log("ABEKENMAN_location.replace:", transformed);
+
+        if (ABEKENMAN_isCrossOriginNavigation(transformed)) {
+          console.log("ABEKENMAN: location.replace cross-origin:", transformed);
+
+          ABEKENMAN_showIndependentDialog(transformed);
+
+          return;
+        }
+
+        window.location.replace(transformed);
+      },
+    },
+
+    // --------------------------------------------------------
+    // reload()
+    // --------------------------------------------------------
+
+    reload: {
+      configurable: true,
+      enumerable: true,
+
+      value(...args) {
+        return window.location.reload(...args);
+      },
+    },
+
+    // --------------------------------------------------------
+    // toString()
+    // --------------------------------------------------------
+
+    toString: {
+      configurable: true,
+      enumerable: true,
+
+      value() {
+        return this.href;
+      },
+    },
+  });
+
+  // ==========================================================
+  // --- window.ABEKENMAN_location
+  // ==========================================================
+
+  Object.defineProperty(window, "ABEKENMAN_location", {
+    configurable: true,
+    enumerable: true,
+
+    get() {
+      console.log("ABEKENMAN_location GET");
+
+      return locationObject;
+    },
+
+    set(value) {
+      console.log("ABEKENMAN_location SET:", value);
+    },
+  });
+})();
+
+// ============================================================
 // --- 30. Drag & Drop によるリンク遷移
 // ============================================================
 //
