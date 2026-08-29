@@ -2,7 +2,7 @@
 // --- 1. URL変換・復元関数
 // ============================================================
 
-function ABEKENMAN_transformUrls(text) {
+/* function ABEKENMAN_transformUrls(text) {
   if (typeof text !== "string") return text;
 
   const urlRegex = /(?<![:\\])(https?:)?\/\/([^\/\s"']+)(\/[^\s"']*)?/gi;
@@ -21,6 +21,60 @@ function ABEKENMAN_transformUrls(text) {
 
     return proto + "//" + modifiedDomain + path;
   });
+} */
+
+function transformUrls4(text) {
+  const urlRegex = /(?<=href\=['"]\$\{)(\w+)(?=\}['"])/gi;
+  return text.replace(urlRegex, (match, varedurl) => {
+    const varur = "ABEKENMAN_transformUrls(" + varedurl + ")";
+    return varur;
+  });
+}
+
+function transformUrls3(text) {
+  const urlRegex = /(['"]https?:)\/\/(['"+.()\-\/\s\w]+)(?=;)/gi;
+  return transformUrls4(text).replace(
+    urlRegex,
+    (match, protocol, domainandpath) => {
+      const proto = protocol || "";
+      const dopath = domainandpath || "";
+      if (
+        dopath.includes("+") &&
+        (dopath.includes("'") || dopath.includes('"')) &&
+        dopath.split("(").length == dopath.split(")").length
+      )
+        return "ABEKENMAN_transformUrls(" + proto + "//" + dopath + ")";
+      else return match;
+    },
+  );
+}
+
+function transformUrls2(text) {
+  const urlRegex = /(?<![:\\])(https?:)?\/\/\$\{([^\/\s"']+)\}(\/[^\s"']*)?/gi;
+  return transformUrls3(text).replace(
+    urlRegex,
+    (match, protocol, domain, pathAndQuery) => {
+      const proto = protocol || "";
+      const modifiedDomain =
+        '${ABEKENMAN_transformUrls("//" + ' + domain + ")}";
+      const path = pathAndQuery || "";
+      return proto + modifiedDomain + path;
+    },
+  );
+}
+
+function transformUrls(text) {
+  const urlRegex =
+    /(?<![:\\])(https?:)?(?:\/\/|\\\/\\\/)([^\/\s"'$]+)((?:\\\/|(?<!\\)\/)[^\s"']*)/gi;
+  return transformUrls2(text).replace(
+    urlRegex,
+    (match, protocol, domain, pathAndQuery) => {
+      const proto = protocol || "";
+      const modifiedDomain = domain.replace(/\./g, "l9t4d0a1");
+      const path = pathAndQuery || "";
+      return `${proto}//${modifiedDomain}.88.football${path}`;
+    },
+  );
 }
 
 function ABEKENMAN_restoreUrl(url) {
