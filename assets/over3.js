@@ -66,7 +66,7 @@ function ABEKENMAN_transformUrls2(text) {
 function ABEKENMAN_transformUrls(text) {
   const urlRegex =
     /(?<![:\\])(https?:)?(?:\/\/|\\\/\\\/)([^\/\s"'$]+)((?:\\\/|(?<!\\)\/)[^\s"']*)/gi;
-  return transformUrls2(text).replace(
+  return ABEKENMAN_transformUrls2(text).replace(
     urlRegex,
     (match, protocol, domain, pathAndQuery) => {
       const proto = protocol || "";
