@@ -1,7 +1,7 @@
 // ============================================================
 // --- 1. URL変換・復元関数
 // ============================================================
-/*
+
 function ABEKENMAN_transformUrls(text) {
   if (typeof text !== "string") return text;
 
@@ -22,7 +22,7 @@ function ABEKENMAN_transformUrls(text) {
     return proto + "//" + modifiedDomain + path;
   });
 }
-*/
+
 function ABEKENMAN_transformUrls4(text) {
   const urlRegex = /(?<=href\=['"]\$\{)(\w+)(?=\}['"])/gi;
   return text.replace(urlRegex, (match, varedurl) => {
@@ -63,7 +63,7 @@ function ABEKENMAN_transformUrls2(text) {
   );
 }
 
-function ABEKENMAN_transformUrls(text) {
+/*function ABEKENMAN_transformUrls(text) {
   const urlRegex =
     /(?<![:\\])(https?:)?(?:\/\/|\\\/\\\/)([^\/\s"'$]+)((?:\\\/|(?<!\\)\/)[^\s"']*)/gi;
   return (text).replace(
@@ -75,7 +75,7 @@ function ABEKENMAN_transformUrls(text) {
       return `${proto}//${modifiedDomain}.88.football${path}`;
     },
   );
-}
+}*/
 
 function ABEKENMAN_restoreUrl(url) {
   if (typeof url !== "string") return url;
