@@ -281,10 +281,6 @@ for(const g of pmx.materials){
 }
 
 const debugModelScale=0.12;
-const boneStatus=document.createElement('div');
-boneStatus.style.cssText='position:fixed;left:24px;bottom:28px;padding:8px 12px;border-radius:10px;background:rgba(0,0,0,.45);font-size:12px;pointer-events:none';
-boneStatus.textContent='ボーンテスト準備中…';
-document.body.appendChild(boneStatus);
 const debugModelHeight=pmx.bounds.mx[1]-pmx.bounds.mn[1];
 const debugModelCenterX=(pmx.bounds.mn[0]+pmx.bounds.mx[0])*0.5;
 const debugModelCenterZ=(pmx.bounds.mn[2]+pmx.bounds.mx[2])*0.5;
@@ -293,27 +289,17 @@ const debugModelBottom=pmx.bounds.mn[1];
 function setTestBone(){
   for(const b of pmx.bones)b.rot=[0,0,0];
   const t=performance.now()*0.001;
-  const candidates=['左腕','左腕1','左肩','左手腕'];
-  let i=-1;
-  for(const name of candidates){
-    const idx=pmx.boneMap.get(name);
-    if(idx!==undefined){i=idx;break;}
-  }
-  if(i>=0){
-    pmx.bones[i].rot=[0,0,Math.sin(t*2.2)*1.15];
-    return pmx.bones[i].name;
-  }
-  return '見つからない';
+  const i=pmx.boneMap.get('左腕');
+  if(i!==undefined) pmx.bones[i].rot=[0,0,Math.sin(t*2.2)*0.45];
 }
 function boneMatrices(){
-  const animatedBone=setTestBone();
+  setTestBone();
   const out=new Float32Array(pmx.bones.length*16),world=[];
   for(let i=0;i<pmx.bones.length;i++){
     const b=pmx.bones[i],parent=b.parent;
     const localPos=parent>=0
       ? mt(b.pos[0]-pmx.bones[parent].pos[0],b.pos[1]-pmx.bones[parent].pos[1],b.pos[2]-pmx.bones[parent].pos[2])
       : mt(b.pos[0],b.pos[1],b.pos[2]);
-    // ボーン自身の原点を中心に回転するため、親からの移動→自身の回転の順で合成する。
     const pose=mm(localPos,mr(b.rot[0],b.rot[1],b.rot[2]));
     world[i]=parent>=0?mm(world[parent],pose):pose;
     const skin=mm(world[i],invBind[i]);
@@ -328,8 +314,6 @@ function modelMat(x,y,z,s,r=0){
 
 function drawModel(pass,vp,matrix){
   const bones=boneMatrices();
-  const bi = ['左腕','左腕1','左肩','左手腕'].find(n=>pmx.boneMap.has(n));
-  boneStatus.textContent = bi ? `GPUスキニング：${bi} を回転中` : '対象の左腕ボーンが見つかりません';
   device.queue.writeBuffer(boneBuf,0,bones);
   device.queue.writeBuffer(camBuf,0,vp);
   device.queue.writeBuffer(camBuf,64,matrix);
