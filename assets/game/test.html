@@ -37,6 +37,7 @@ window.addEventListener('unhandledrejection',e=>showError(e.reason?.message||Str
 if(!navigator.gpu){showError('このブラウザはWebGPUに対応していません。Chrome / Edge最新版をお試しください。');throw new Error('WebGPU unavailable');}
 const adapter=await navigator.gpu.requestAdapter(); if(!adapter){showError('WebGPUアダプターを取得できませんでした。');throw new Error('No adapter');}
 const device=await adapter.requestDevice();
+device.addEventListener('uncapturederror',e=>showError('WebGPU描画エラー: '+(e.error?.message||e.message||e)));
 device.addEventListener('uncapturederror',e=>{showError('WebGPUエラー: '+(e.error?.message||e.message||'unknown'));});
 device.lost.then(i=>showError('GPUデバイスが失われました: '+i.message));
 const ctx=canvas.getContext('webgpu'),format=navigator.gpu.getPreferredCanvasFormat(); let depthTex;
@@ -98,27 +99,168 @@ const pmx=parsePMX(b64ToBytes(ASSETS['仆人.pmx']).buffer);loading.textContent=
 const modelScale=0.12; const rootOffset=[0,-pmx.bounds.mn[1]*modelScale,0];
 const bindWorld=[],invBind=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i];const local=mt(b.pos[0]-(b.parent>=0?pmx.bones[b.parent].pos[0]:0),b.pos[1]-(b.parent>=0?pmx.bones[b.parent].pos[1]:0),b.pos[2]-(b.parent>=0?pmx.bones[b.parent].pos[2]:0));bindWorld[i]=b.parent>=0?mm(bindWorld[b.parent],local):local;invBind[i]=invRigid(bindWorld[i]);}
 
-// GPU buffers
-const stride=64;const raw=new ArrayBuffer((pmx.vertices.length/3)*stride);const dv=new DataView(raw);for(let i=0;i<pmx.vertices.length/3;i++){let o=i*stride;for(let k=0;k<3;k++)dv.setFloat32(o+k*4,pmx.vertices[i*3+k],true);for(let k=0;k<3;k++)dv.setFloat32(o+12+k*4,pmx.normals[i*3+k],true);for(let k=0;k<2;k++)dv.setFloat32(o+24+k*4,pmx.uv[i*2+k],true);for(let k=0;k<4;k++)dv.setUint32(o+32+k*4,pmx.bi[i*4+k]>>>0,true);for(let k=0;k<4;k++)dv.setFloat32(o+48+k*4,pmx.bw[i*4+k],true);}
-const vb=device.createBuffer({size:raw.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(vb,0,raw);
-const ib=device.createBuffer({size:pmx.indices.byteLength,usage:GPUBufferUsage.INDEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(ib,0,pmx.indices);
+// ---------- TEXTURED PMX renderer (no skinning yet) ----------
+// 段階2: PMXの頂点・UV・材質・テクスチャをWebGPUで表示する。
+// ボーン/スキニングはまだ使用しない。
+const stride=32;
+const vertexCount=pmx.vertices.length/3;
+const raw=new ArrayBuffer(vertexCount*stride);
+const dv=new DataView(raw);
+for(let i=0;i<vertexCount;i++){
+  const o=i*stride;
+  dv.setFloat32(o+0,pmx.vertices[i*3],true);
+  dv.setFloat32(o+4,pmx.vertices[i*3+1],true);
+  dv.setFloat32(o+8,pmx.vertices[i*3+2],true);
+  dv.setFloat32(o+12,pmx.normals[i*3],true);
+  dv.setFloat32(o+16,pmx.normals[i*3+1],true);
+  dv.setFloat32(o+20,pmx.normals[i*3+2],true);
+  dv.setFloat32(o+24,pmx.uv[i*2],true);
+  dv.setFloat32(o+28,pmx.uv[i*2+1],true);
+}
+const vb=device.createBuffer({size:raw.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
+device.queue.writeBuffer(vb,0,raw);
+const ib=device.createBuffer({size:pmx.indices.byteLength,usage:GPUBufferUsage.INDEX|GPUBufferUsage.COPY_DST});
+device.queue.writeBuffer(ib,0,pmx.indices);
 const camBuf=device.createBuffer({size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
-const boneBuf=device.createBuffer({size:pmx.bones.length*64,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
-const matBuf=device.createBuffer({size:32,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
-const sampler=device.createSampler({magFilter:'linear',minFilter:'linear',mipmapFilter:'nearest',addressModeU:'repeat',addressModeV:'repeat'});
+const matBuf=device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+const sampler=device.createSampler({magFilter:'linear',minFilter:'linear',mipmapFilter:'linear',addressModeU:'repeat',addressModeV:'repeat'});
 
-const shader=`struct Cam{vp:mat4x4f; model:mat4x4f;}; @group(0) @binding(0) var<uniform> cam:Cam; @group(0) @binding(1) var<storage,read> bones:array<mat4x4f>; @group(0) @binding(2) var samp:sampler; @group(0) @binding(3) var tex:texture_2d<f32>; @group(0) @binding(4) var<uniform> mat:vec4f; struct VIn{@location(0) p:vec3f;@location(1)n:vec3f;@location(2)uv:vec2f;@location(3)bi:vec4u;@location(4)bw:vec4f}; struct VOut{@builtin(position)pos:vec4f;@location(0)uv:vec2f;@location(1)n:vec3f;@location(2)world:vec3f}; @vertex fn vs(v:VIn)->VOut{var sk=mat4x4f();sk += bones[v.bi.x]*v.bw.x;sk += bones[v.bi.y]*v.bw.y;sk += bones[v.bi.z]*v.bw.z;sk += bones[v.bi.w]*v.bw.w;let lp=sk*vec4f(v.p,1);let ln=sk*vec4f(v.n,0);let wp=cam.model*lp;var o:VOut;o.pos=cam.vp*wp;o.uv=v.uv;o.n=normalize((cam.model*vec4f(ln.xyz,0)).xyz);o.world=wp.xyz;return o;} @fragment fn fs(v:VOut)->@location(0) vec4f{let al=textureSample(tex,samp,v.uv)*mat;let L=normalize(vec3f(-0.35,0.85,0.45));let nd=max(dot(normalize(v.n),L),0.0);let shade=0.38+0.62*nd;return vec4f(al.rgb*shade,al.a);}`;
-const module=device.createShaderModule({code:shader});
-const shaderInfo=await module.getCompilationInfo();
-if(shaderInfo.messages.some(m=>m.type==='error')){throw Error(shaderInfo.messages.filter(m=>m.type==='error').map(m=>`WGSL ${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));}
-const bgl=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,sampler:{}},{binding:3,visibility:GPUShaderStage.FRAGMENT,texture:{}},{binding:4,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});
-const pipeline=device.createRenderPipeline({layout:device.createPipelineLayout({bindGroupLayouts:[bgl]}),vertex:{module,entryPoint:'vs',buffers:[{arrayStride:stride,attributes:[{shaderLocation:0,format:'float32x3',offset:0},{shaderLocation:1,format:'float32x3',offset:12},{shaderLocation:2,format:'float32x2',offset:24},{shaderLocation:3,format:'uint32x4',offset:32},{shaderLocation:4,format:'float32x4',offset:48}]}]},fragment:{module,entryPoint:'fs',targets:[{format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
+const texturedShader=`
+struct U {
+  vp: mat4x4f,
+  model: mat4x4f
+};
+struct VOut {
+  @builtin(position) pos: vec4f,
+  @location(0) uv: vec2f,
+  @location(1) n: vec3f
+};
+@group(0) @binding(0) var<uniform> u: U;
+@group(0) @binding(1) var<uniform> materialColor: vec4f;
+@group(0) @binding(2) var texSampler: sampler;
+@group(0) @binding(3) var tex: texture_2d<f32>;
+@vertex fn vs(
+  @location(0) p: vec3f,
+  @location(1) n: vec3f,
+  @location(2) uv: vec2f
+) -> VOut {
+  var o: VOut;
+  let wp = u.model * vec4f(p, 1.0);
+  o.pos = u.vp * wp;
+  o.uv = uv;
+  o.n = normalize((u.model * vec4f(n, 0.0)).xyz);
+  return o;
+}
+@fragment fn fs(v: VOut) -> @location(0) vec4f {
+  let albedo = textureSample(tex, texSampler, v.uv) * materialColor;
+  let L = normalize(vec3f(-0.35, 0.85, 0.45));
+  let nd = max(dot(normalize(v.n), L), 0.0);
+  let shade = 0.32 + 0.68 * nd;
+  return vec4f(albedo.rgb * shade, albedo.a);
+}`;
+const texturedModule=device.createShaderModule({code:texturedShader});
+const shaderInfo=await texturedModule.getCompilationInfo();
+if(shaderInfo.messages.some(m=>m.type==='error')){
+  throw Error(shaderInfo.messages.filter(m=>m.type==='error').map(m=>`TEXTURED WGSL ${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
+}
+const bgl=device.createBindGroupLayout({entries:[
+  {binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}},
+  {binding:1,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},
+  {binding:2,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'filtering'}},
+  {binding:3,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'float',viewDimension:'2d'}}
+]});
+const layout=device.createPipelineLayout({bindGroupLayouts:[bgl]});
+const pipe=device.createRenderPipeline({
+  layout,
+  vertex:{module:texturedModule,entryPoint:'vs',buffers:[{arrayStride:stride,attributes:[
+    {shaderLocation:0,format:'float32x3',offset:0},
+    {shaderLocation:1,format:'float32x3',offset:12},
+    {shaderLocation:2,format:'float32x2',offset:24}
+  ]}]},
+  fragment:{module:texturedModule,entryPoint:'fs',targets:[{format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}}}]},
+  primitive:{topology:'triangle-list',cullMode:'none'},
+  depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}
+});
 
-async function makeTexture(name){const bytes=b64ToBytes(ASSETS[name]);const bmp=await createImageBitmap(new Blob([bytes],{type:name.endsWith('.png')?'image/png':'image/bmp'}));const tex=device.createTexture({size:[bmp.width,bmp.height,1],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});device.queue.copyExternalImageToTexture({source:bmp},{texture:tex},{width:bmp.width,height:bmp.height});return tex;}
-const texCache={};for(const [k] of Object.entries(ASSETS)){if(k==='仆人.pmx')continue;texCache[k.replace(/^tex[\\/]/,'')]=await makeTexture(k);}
-const fallbackTex=device.createTexture({size:[1,1],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});device.queue.writeTexture({texture:fallbackTex},new Uint8Array([255,255,255,255]),{bytesPerRow:4},{width:1,height:1});
-function textureFor(i){if(i<0||!pmx.textures[i])return fallbackTex;return texCache[pmx.textures[i].replace(/^tex[\\/]/,'')]||fallbackTex;}
-const groups=pmx.materials.map(m=>{const bind=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:{buffer:camBuf}},{binding:1,resource:{buffer:boneBuf}},{binding:2,resource:sampler},{binding:3,resource:textureFor(m.tex).createView()},{binding:4,resource:{buffer:matBuf}}]});return {...m,bind};});
+function makeSolidTexture(r,g,b,a=255){
+  const tex=device.createTexture({size:{width:1,height:1},format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});
+  device.queue.writeTexture({texture:tex},new Uint8Array([r,g,b,a]),{bytesPerRow:4},{width:1,height:1,depthOrArrayLayers:1});
+  return tex;
+}
+const whiteTexture=makeSolidTexture(255,255,255,255);
+const textureCache=new Map();
+async function getTexture(index){
+  if(index<0 || index>=pmx.textures.length) return whiteTexture;
+  const name=pmx.textures[index];
+  if(!name) return whiteTexture;
+  if(textureCache.has(name)) return textureCache.get(name);
+  const data=ASSETS[name];
+  if(!data){
+    console.warn('テクスチャがASSETSにありません:',name);
+    textureCache.set(name,whiteTexture); return whiteTexture;
+  }
+  try{
+    const raw=atob(data), bytes=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+    const ext=(name.split('.').pop()||'png').toLowerCase();
+    const mime=ext==='jpg'||ext==='jpeg'?'image/jpeg':ext==='bmp'?'image/bmp':'image/png';
+    const bitmap=await createImageBitmap(new Blob([bytes],{type:mime}));
+    const tex=device.createTexture({size:{width:bitmap.width,height:bitmap.height},format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});
+    device.queue.copyExternalImageToTexture({source:bitmap},{texture:tex},{width:bitmap.width,height:bitmap.height});
+    textureCache.set(name,tex);
+    return tex;
+  }catch(err){
+    console.warn('テクスチャ読込失敗:',name,err);
+    textureCache.set(name,whiteTexture); return whiteTexture;
+  }
+}
+const materialBinds=[];
+for(const g of pmx.materials){
+  const tex=await getTexture(g.tex);
+  const color=new Float32Array(g.diffuse);
+  device.queue.writeBuffer(matBuf,0,color);
+  materialBinds.push(device.createBindGroup({layout:bgl,entries:[
+    {binding:0,resource:{buffer:camBuf}},
+    {binding:1,resource:{buffer:matBuf}},
+    {binding:2,resource:sampler},
+    {binding:3,resource:tex.createView()}
+  ]}));
+}
+loading.textContent=`テクスチャ読込完了：${pmx.materials.length}材質 / ${textureCache.size}テクスチャ。スキニングなし表示中…`;
+
+function modelMat(x,y,z,sx,sy,sz,r=0){
+  const c=Math.cos(r),s=Math.sin(r);
+  return new Float32Array([c*sx,0,-s*sx,0,0,sy,0,0,s*sz,0,c*sz,0,x,y,z,1]);
+}
+const debugModelScale=0.12;
+const debugModelHeight=pmx.bounds.mx[1]-pmx.bounds.mn[1];
+const debugModelCenterX=(pmx.bounds.mn[0]+pmx.bounds.mx[0])*0.5;
+const debugModelCenterZ=(pmx.bounds.mn[2]+pmx.bounds.mx[2])*0.5;
+const debugModelBottom=pmx.bounds.mn[1];
+const debugModelOffsetY=-debugModelBottom;
+function debugModelMatrix(){
+  const moving=Math.hypot(player.vx,player.vz)>0.15;
+  const facing=moving?Math.atan2(player.vx,-player.vz)+Math.PI:cameraYaw+Math.PI;
+  return modelMat(player.x-debugModelCenterX*debugModelScale,player.y||0+debugModelOffsetY*debugModelScale,player.z-debugModelCenterZ*debugModelScale,debugModelScale,debugModelScale,debugModelScale,facing);
+}
+function drawTexturedModel(pass,vp,matrix){
+  device.queue.writeBuffer(camBuf,0,vp);
+  device.queue.writeBuffer(camBuf,64,matrix);
+  pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');
+  for(let i=0;i<pmx.materials.length;i++){
+    const g=pmx.materials[i]; if(g.faceCount<=0)continue;
+    pass.setBindGroup(0,materialBinds[i]);
+    pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0);
+  }
+}
+
+// GPU validation errorsをsubmitまで遅延させず捕まえる。
+device.addEventListener('uncapturederror',e=>{
+  const msgText=e.error?.message||String(e.error||e);
+  console.error('WebGPU uncaptured error:',msgText);
+  loading.textContent='WebGPU描画エラー: '+msgText;
+  loading.hidden=false;
+});
 
 // ---------- game ----------
 const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key.toLowerCase()==='r')reset()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
@@ -136,28 +278,38 @@ function setAnimBones(){for(const b of pmx.bones)b.rot=[0,0,0];const m=Math.hypo
 function qToMat(q){return mr(q[0],q[1],q[2]);}
 function boneMatrices(){setAnimBones();const out=new Float32Array(pmx.bones.length*16),world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],parent=b.parent;const localPos=parent>=0?mt(b.pos[0]-pmx.bones[parent].pos[0],b.pos[1]-pmx.bones[parent].pos[1],b.pos[2]-pmx.bones[parent].pos[2]):mt(b.pos[0],b.pos[1],b.pos[2]);const pose=mm(localPos,qToMat(b.rot));world[i]=parent>=0?mm(world[parent],pose):pose;const skin=mm(world[i],invBind[i]);out.set(skin,i*16);}return out;}
 
-// Cube renderer for arena/enemies
-const cubeVerts=new Float32Array([-1,-1,-1,1,-1,-1,1,1,-1,-1,-1,-1,1,1,-1,-1,1,-1,-1,-1,1,1,1,1,1,-1,1,-1,1,1,-1,1,-1,-1,1,-1,1,1,-1,1,-1,1,-1,-1,-1,-1,1,-1,1,-1,1,-1,1,-1,1,1,-1,1,1,1,1,1,-1,-1,-1,-1,-1,1,1,-1,1,-1,-1,-1,1,-1,1,1,-1,-1,1,-1,1,-1,1,-1,1,1,-1,1,1,1,1,-1,1,1]);
-// Instead of reusing the original complex instancing, draw a small number of arena cubes with the same simple pipeline via a second pipeline.
-const cubeShader=`struct C{vp:mat4x4f};@group(0)@binding(0)var<uniform> c:C;struct O{@builtin(position)p:vec4f};@vertex fn v(@location(0)x:vec3f,@push_constant pc:vec4f)->O{var o:O;return o}`;
-// Arena uses a lightweight separate pipeline built below.
-const cubeBase=new Float32Array([-1,-1,-1,1,-1,-1,1,1,-1,-1,1,-1,-1,-1,1,1,-1,1,1,1,1,-1,1,1]);
-const cubeIndex=new Uint16Array([0,1,2,0,2,3,4,6,5,4,7,6,0,4,5,0,5,1,1,5,6,1,6,2,2,6,7,2,7,3,4,0,3,4,3,7]);
-const cubeVB=device.createBuffer({size:cubeBase.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(cubeVB,0,cubeBase);const cubeIB=device.createBuffer({size:cubeIndex.byteLength,usage:GPUBufferUsage.INDEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(cubeIB,0,cubeIndex);
-const cubeUB=device.createBuffer({size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});const cubeColor=device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
-const cubeMod=device.createShaderModule({code:`struct U{vp:mat4x4f;model:mat4x4f};@group(0)@binding(0)var<uniform>u:U;@group(0)@binding(1)var<uniform>col:vec4f;struct O{@builtin(position)p:vec4f;@location(0)c:vec4f};@vertex fn vs(@location(0)p:vec3f)->O{var o:O;o.p=u.vp*u.model*vec4f(p,1);o.c=col;return o}@fragment fn fs(i:O)->@location(0)vec4f{return i.c}`});
-const cubeBGL=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});const cubePipe=device.createRenderPipeline({layout:device.createPipelineLayout({bindGroupLayouts:[cubeBGL]}),vertex:{module:cubeMod,entryPoint:'vs',buffers:[{arrayStride:12,attributes:[{shaderLocation:0,format:'float32x3',offset:0}]}]},fragment:{module:cubeMod,entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});const cubeBind=device.createBindGroup({layout:cubeBGL,entries:[{binding:0,resource:{buffer:cubeUB}},{binding:1,resource:{buffer:cubeColor}}]});
-function modelMat(x,y,z,sx,sy,sz,r=0){const c=Math.cos(r),s=Math.sin(r);return new Float32Array([c*sx,0,-s*sx,0,0,sy,0,0,s*sz,0,c*sz,0,x,y,z,1]);}
-function drawCube(pass,vp,m,c){device.queue.writeBuffer(cubeUB,0,vp);device.queue.writeBuffer(cubeUB,64,m);device.queue.writeBuffer(cubeColor,0,new Float32Array(c));pass.setPipeline(cubePipe);pass.setBindGroup(0,cubeBind);pass.setVertexBuffer(0,cubeVB);pass.setIndexBuffer(cubeIB,'uint16');pass.drawIndexed(36);}
+function render(){
+  const aspect=canvas.width/canvas.height;
+  const camDistance=10.5;
+  const targetY=Math.max(1.0,debugModelHeight*debugModelScale*0.55);
+  const fx=Math.sin(cameraYaw)*Math.cos(cameraPitch);
+  const fy=-Math.sin(cameraPitch);
+  const fz=-Math.cos(cameraYaw)*Math.cos(cameraPitch);
+  const camX=player.x-fx*camDistance;
+  const camY=targetY-fy*camDistance;
+  const camZ=player.z-fz*camDistance;
+  const vp=mm(
+    persp(Math.PI/3,aspect,.1,300),
+    lookAt([camX,camY,camZ],[player.x+fx*3,targetY+fy*3,player.z+fz*3])
+  );
 
-function render(){const aspect=canvas.width/canvas.height;const camDistance=10.5,targetY=1.0;const fx=Math.sin(cameraYaw)*Math.cos(cameraPitch),fy=-Math.sin(cameraPitch),fz=-Math.cos(cameraYaw)*Math.cos(cameraPitch);const camX=player.x-fx*camDistance,camY=targetY-fy*camDistance,camZ=player.z-fz*camDistance;const vp=mm(persp(Math.PI/3,aspect,.1,300),lookAt([camX,camY,camZ],[player.x+fx*3,targetY+fy*3,player.z+fz*3]));
- const bm=boneMatrices();device.queue.writeBuffer(boneBuf,0,bm);device.queue.writeBuffer(camBuf,0,vp);device.queue.writeBuffer(camBuf,64,modelMat(player.x,rootOffset[1],player.z,modelScale,modelScale,modelScale,Math.atan2(player.vx,-player.vz)+Math.PI));
- const enc=device.createCommandEncoder();const pass=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.025,g:.035,b:.075,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
- // floor and walls
- drawCube(pass,vp,modelMat(0,-1,0,ARENA_SIZE,.5,ARENA_SIZE),[.08,.11,.17,1]);drawCube(pass,vp,modelMat(-ARENA_SIZE,0,0,.5,1,ARENA_SIZE),[.13,.18,.28,1]);drawCube(pass,vp,modelMat(ARENA_SIZE,0,0,.5,1,ARENA_SIZE),[.13,.18,.28,1]);drawCube(pass,vp,modelMat(0,0,-ARENA_SIZE,ARENA_SIZE,1,.5),[.13,.18,.28,1]);drawCube(pass,vp,modelMat(0,0,ARENA_SIZE,ARENA_SIZE,1,.5),[.13,.18,.28,1]);
- for(const e of enemies){const d=Math.hypot(e.x-player.x,e.z-player.z);drawCube(pass,vp,modelMat(e.x,0,e.z,.5*e.s,.5*e.s,.5*e.s,time*2),d<2.5?[1,.18,.08,1]:[.9,.28,.08,1]);}
- pass.setPipeline(pipeline);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(const g of groups){const col=g.diffuse;device.queue.writeBuffer(matBuf,0,new Float32Array(col));pass.setBindGroup(0,g.bind);pass.drawIndexed(g.faceCount,g.faceCount?1:0,g.faceOffset);}
- pass.end();device.queue.submit([enc.finish()]);}
+  const enc=device.createCommandEncoder();
+  const pass=enc.beginRenderPass({
+    colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.025,g:.035,b:.075,a:1},loadOp:'clear',storeOp:'store'}],
+    depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}
+  });
 
-reset();loading.textContent='アルレッキーノ描画準備完了';setTimeout(()=>loading.hidden=true,900);let last=performance.now();function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+  // 床・壁
+  function cube(matrix,color){
+    // Debug versionでは床もアルレッキーノと同じ最小パイプラインを使用する。
+    // 小さな立方体をCPU側で描く代わりに、PMXとは別の簡易頂点列を作る。
+  }
+
+  // まずモデルだけを表示する。敵・床はモデル確認後に戻す。
+  drawTexturedModel(pass,vp,debugModelMatrix());
+  pass.end();
+  device.queue.submit([enc.finish()]);
+}
+
+reset(); loading.textContent=`PMX解析完了：頂点 ${vertexCount.toLocaleString()} / index ${pmx.indices.length.toLocaleString()} / 材質 ${pmx.materials.length} / ボーン ${pmx.bones.length}。テクスチャ表示テスト中…`; loading.hidden=false;let last=performance.now();function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
 </script></body></html>
