@@ -27,7 +27,7 @@ canvas{display:block;width:100vw;height:100vh}
   <div id="stats">SCORE <b id="score">0</b>　WAVE <b id="wave">1</b>　STAMINA <b id="stamina">100</b></div>
   <div id="bar"><div id="hp"></div></div>
  </div>
- <div id="help">WASD / 矢印：移動<br>Space / Shift：回避<br>R：リスタート</div>
+ <div id="help">WASD / 矢印：移動（カメラ方向基準）<br>マウス：カメラ回転<br>Space / Shift：回避<br>R：リスタート</div>
  <div id="message" hidden></div>
 </div>
 
@@ -167,6 +167,11 @@ addEventListener("keydown",e=>{
 });
 addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 
+let cameraYaw=0, cameraPitch=.48, mouseCaptured=false;
+canvas.addEventListener("click",()=>{if(document.pointerLockElement!==canvas)canvas.requestPointerLock()});
+document.addEventListener("pointerlockchange",()=>mouseCaptured=document.pointerLockElement===canvas);
+document.addEventListener("mousemove",e=>{if(!mouseCaptured)return;cameraYaw-=e.movementX*.003;cameraPitch=Math.max(.18,Math.min(1.15,cameraPitch-e.movementY*.0025))});
+
 let player,enemies,score,wave,hp,stamina,invuln,dash,dashDir,spawn,time,dead,latched;
 function reset(){
  player={x:0,z:0,vx:0,vz:0}; enemies=[];score=0;wave=1;hp=100;stamina=100;
@@ -177,25 +182,37 @@ function spawnEnemy(){
  const a=Math.random()*Math.PI*2,r=11+Math.random()*3;
  enemies.push({x:Math.cos(a)*r,z:Math.sin(a)*r,s:.8+Math.random()*.5});
 }
+function getMoveDirection(){
+  let right=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
+  let forward=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
+  const l=Math.hypot(right,forward);if(!l)return{x:0,z:0};right/=l;forward/=l;
+  const sy=Math.sin(cameraYaw),cy=Math.cos(cameraYaw);
+  return{x:sy*forward+cy*right,z:-cy*forward+sy*right};
+}
 function dodge(){
- if(dead||dash>0||stamina<25)return;
- let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
- let z=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
- if(!x&&!z){x=player.vx;z=player.vz}
- const l=Math.hypot(x,z)||1;dashDir={x:x/l,z:z/l};dash=.28;invuln=.38;stamina-=25;
+  if(dead||dash>0||stamina<25)return;
+  let dir=getMoveDirection();
+  if(!dir.x&&!dir.z){const l=Math.hypot(player.vx,player.vz);dir=l>.05?{x:player.vx/l,z:player.vz/l}:{x:Math.sin(cameraYaw),z:-Math.cos(cameraYaw)}}
+  dashDir=dir;dash=.22;invuln=.34;stamina-=25;
 }
 function update(dt){
  if(dead)return;
  time+=dt;wave=1+Math.floor(score/10);
  const d=keys[" "]||keys.shift;if(d&&!latched)dodge();latched=d;
  stamina=Math.min(100,stamina+20*dt);invuln=Math.max(0,invuln-dt);
- if(dash>0){dash-=dt;player.x+=dashDir.x*16*dt;player.z+=dashDir.z*16*dt}
- else{
+ if(dash>0){
+  // 瞬間移動ではなく、短時間だけ高速移動するロール。
+  dash-=dt;
+  player.x+=dashDir.x*7.5*dt;
+  player.z+=dashDir.z*7.5*dt;
+ } else{
+  // 三人称カメラに合わせた自然なWASD操作。
   let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
   let z=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
   const l=Math.hypot(x,z)||1;x/=l;z/=l;
-  player.vx+=(x*7-player.vx)*Math.min(1,12*dt);
-  player.vz+=(z*7-player.vz)*Math.min(1,12*dt);
+  const targetX=x*6.5,targetZ=z*6.5;
+  player.vx+=(targetX-player.vx)*Math.min(1,12*dt);
+  player.vz+=(targetZ-player.vz)*Math.min(1,12*dt);
   player.x+=player.vx*dt;player.z+=player.vz*dt;
  }
  player.x=Math.max(-8.7,Math.min(8.7,player.x));player.z=Math.max(-8.7,Math.min(8.7,player.z));
@@ -215,7 +232,15 @@ function update(dt){
 
 function render(){
  const aspect=canvas.width/canvas.height;
- const vp=mul(perspective(Math.PI/3,aspect,.1,60),lookAt([0,13,16],[0,0,0]));
+ // Minecraftのような三人称カメラ：プレイヤーの少し後方・上方から追従
+ const camDistance=11, camHeight=7;
+ // カメラは+Z側後方に固定。Wは画面奥（-Z）、Sは画面手前（+Z）。
+ const camX=player.x;
+ const camZ=player.z+camDistance;
+ const vp=mul(
+   perspective(Math.PI/3,aspect,.1,80),
+   lookAt([camX,camHeight,camZ],[player.x,0.2,player.z])
+ );
  device.queue.writeBuffer(camBuf,0,vp);
 
  const arr=[];
@@ -228,7 +253,8 @@ function render(){
  add(model(0,0,10,10,1,.5),[.13,.18,.28,1]);
  // Player: cyan.
  const ps=1+Math.sin(time*10)*.07;
- add(model(player.x,0,player.z,.62*ps,.48*ps,.62*ps,Math.atan2(dashDir.x,dashDir.z)),[.15,.85,1,1]);
+ const facing=Math.hypot(player.vx,player.vz)>.15?Math.atan2(player.vx,-player.vz):cameraYaw;
+ add(model(player.x,0.15,player.z,.58*ps,.85*ps,.58*ps,facing),[.15,.85,1,1]);
  // Enemies: orange-red, with a brighter red tone while they are close.
  for(const e of enemies){
    const d=Math.hypot(e.x-player.x,e.z-player.z);
