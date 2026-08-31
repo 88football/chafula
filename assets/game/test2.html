@@ -265,16 +265,15 @@ const idx={
 function setRot(i,x=0,y=0,z=0){if(i>=0)pmx.bones[i].rot=[x,y,z]}
 function applyAnim(){
   for(const b of pmx.bones)b.rot=[0,0,0];
-
   const speed=Math.hypot(player.vx,player.vz);
   const moving=speed>0.15;
   const run=actionState==='run';
   const dodgeState=actionState==='dodge';
   const t=animTime;
-
-  const forwardInput=(keys['keyw']||keys['w']||keys['arrowup']?1:0)-(keys['keys']||keys['s']||keys['arrowdown']?1:0);
-  const strafeInput=(keys['keyd']||keys['d']||keys['arrowright']?1:0)-(keys['keya']||keys['a']||keys['arrowleft']?1:0);
+  const forwardInput=(keys['KeyW'.toLowerCase()]||keys['w']||keys['arrowup']?1:0) - (keys['KeyS'.toLowerCase()]||keys['s']||keys['arrowdown']?1:0);
+  const strafeInput=(keys['KeyD'.toLowerCase()]||keys['d']||keys['arrowright']?1:0) - (keys['KeyA'.toLowerCase()]||keys['a']||keys['arrowleft']?1:0);
   const lateral=Math.abs(strafeInput)>Math.abs(forwardInput) && Math.abs(strafeInput)>0;
+  // 左右移動時だけ歩行周期を左右反転。前後移動の正常なモーションは変更しない。
   const gaitMirror=lateral?(strafeInput>0?-1:1):1;
   const phase=gaitMirror*t*(run?9.6:7.2);
   const s=Math.sin(phase), c=Math.cos(phase);
@@ -290,8 +289,7 @@ function applyAnim(){
     setRot(idx.upper3,-0.10*pull,0,0);
     setRot(idx.waist,-0.20*pull,0,0.02*pull);
     setRot(idx.leftLeg,-0.34*pull,0,-0.10*pull); setRot(idx.rightLeg,0.26*pull,0,0.10*pull);
-    setRot(idx.leftKnee,0.42*pull,0,0); setRot(idx.rightKnee,0.34*pull,0,0);
-    setRot(idx.leftAnkle,-0.16*pull,0,0); setRot(idx.rightAnkle,-0.10*pull,0,0);
+    setRot(idx.leftKnee,0.38*pull,0,0); setRot(idx.rightKnee,0.30*pull,0,0);
     setRot(idx.leftArm,-0.52*pull,0,0.10*pull); setRot(idx.rightArm,-0.52*pull,0,-0.10*pull);
     setRot(idx.leftElbow,0.34*pull,0,0); setRot(idx.rightElbow,0.34*pull,0,0);
     return;
@@ -309,54 +307,38 @@ function applyAnim(){
 
   const legAmp=run?0.62:0.38;
   const armAmp=run?0.46:0.30;
-  const kneeLift=run?0.58:0.38;
-  const ankleLift=run?0.23:0.16;
+  const kneeAmp=run?0.42:0.22;
+  const ankleAmp=run?0.15:0.08;
   const bob=run?0.060:0.030;
   const roll=run?0.040:0.022;
-  const sideLean=lateral?-0.045*strafeInput:0;
 
-  // 足IK風の接地補正：各足を「接地→離地→振り出し」に分け、
-  // 接地中は膝と足首を安定させ、離地時だけ膝を曲げます。
-  // 完全なPMX IKではなく、現在のCPUボーンポーズ上での接地近似です。
-  const leftPhase=(phase+Math.PI)%Math.PI*1.0/Math.PI;
-  const rightPhase=(phase)%Math.PI*1.0/Math.PI;
-  const leftLift=Math.max(0,Math.sin(phase));
-  const rightLift=Math.max(0,-Math.sin(phase));
-  const leftStance=1-leftLift;
-  const rightStance=1-rightLift;
+  const sideLean=lateral ? -0.045*strafeInput : 0;
+  setRot(idx.leftLeg,-legAmp*s,0,roll*s + sideLean*0.25);
+  setRot(idx.rightLeg, legAmp*s,0,-roll*s + sideLean*0.25);
+  setRot(idx.leftKnee, Math.max(0,kneeAmp*s),0,0);
+  setRot(idx.rightKnee, Math.max(0,-kneeAmp*s),0,0);
+  setRot(idx.leftAnkle,-ankleAmp*s,0,0);
+  setRot(idx.rightAnkle,ankleAmp*s,0,0);
+  setRot(idx.leftToe,0,0,Math.max(0,ankleAmp*0.8*s));
+  setRot(idx.rightToe,0,0,Math.max(0,-ankleAmp*0.8*s));
 
-  // 太腿：歩幅を作る。足が接地する側は回転量を少し抑えて滑りを減らす。
-  setRot(idx.leftLeg,-legAmp*s*0.88,0,roll*s + sideLean*0.25);
-  setRot(idx.rightLeg, legAmp*s*0.88,0,-roll*s + sideLean*0.25);
-
-  // 膝：振り出し側だけ曲げる。走行時は大きめ。
-  const leftKnee=Math.max(0,kneeLift*s);
-  const rightKnee=Math.max(0,-kneeLift*s);
-  setRot(idx.leftKnee,leftKnee,0,0);
-  setRot(idx.rightKnee,rightKnee,0,0);
-
-  // 足首：接地側ではつま先を地面へ向け、振り出し側ではつま先を上げる。
-  setRot(idx.leftAnkle, -ankleLift*s + 0.07*leftStance,0,0);
-  setRot(idx.rightAnkle, ankleLift*s + 0.07*rightStance,0,0);
-  setRot(idx.leftToe,0,0,Math.max(0,0.06*(-s)));
-  setRot(idx.rightToe,0,0,Math.max(0,0.06*s));
-
-  // 脚の接地感を補うため、腰と上半身は脚の位相に合わせて小さく上下・左右へ連動。
   setRot(idx.leftArm, armAmp*s,0,-0.035*s);
   setRot(idx.rightArm,-armAmp*s,0,0.035*s);
-  setRot(idx.leftElbow,Math.max(0,kneeLift*0.62*s),0,0);
-  setRot(idx.rightElbow,Math.max(0,-kneeLift*0.62*s),0,0);
+  setRot(idx.leftElbow, Math.max(0, kneeAmp*0.65*s),0,0);
+  setRot(idx.rightElbow, Math.max(0,-kneeAmp*0.65*s),0,0);
   setRot(idx.leftWrist,0,0,0.04*s); setRot(idx.rightWrist,0,0,-0.04*s);
 
-  setRot(idx.waist,lean+0.028*c,0,0.018*s+sideLean);
-  setRot(idx.upper,lean*1.05+0.040*c,0,0.024*s+sideLean*0.65);
-  setRot(idx.upper2,lean*0.72+0.025*c,0,0.016*s);
-  setRot(idx.upper3,lean*0.45+0.014*c,0,0.010*s);
+  setRot(idx.waist, lean+0.028*c,0,0.018*s + sideLean);
+  setRot(idx.upper, lean*1.05+0.040*c,0,0.024*s + sideLean*0.65);
+  setRot(idx.upper2, lean*0.72+0.025*c,0,0.016*s);
+  setRot(idx.upper3, lean*0.45+0.014*c,0,0.010*s);
   setRot(idx.leftShoulder,0.028*s,0,0.018*c);
   setRot(idx.rightShoulder,-0.028*s,0,-0.018*c);
   setRot(idx.head,0,-0.018*s,0.008*c);
-  if(idx.waist>=0)pmx.bones[idx.waist].rot[0]+=bob*c;
+  // 上下動は腰・上半身の微小回転で表現し、PMX原点を直接上下させない。
+  if(idx.waist>=0) pmx.bones[idx.waist].rot[0]+=bob*c;
 }
+
 function boneMatrices(){applyAnim();const out=new Float32Array(pmx.bones.length*16),world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const localPos=p>=0?mt(b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]):mt(b.pos[0],b.pos[1],b.pos[2]);const pose=mm(localPos,mr(b.rot[0],b.rot[1],b.rot[2]));world[i]=p>=0?mm(world[p],pose):pose;out.set(mm(world[i],invBind[i]),i*16);}return out;}
 
 const groundVerts=new Float32Array([-1,0,-1, 1,0,-1, 1,0,1, -1,0,-1, 1,0,1, -1,0,1]);
@@ -416,13 +398,20 @@ function render(){
  device.queue.writeBuffer(camBuf,0,vp);device.queue.writeBuffer(camBuf,64,modelMatrix());device.queue.writeBuffer(boneBuf,0,boneMatrices());
  const enc=device.createCommandEncoder();const pass=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.025,g:.035,b:.075,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
  // ground
- pass.setPipeline(gpipe);pass.setBindGroup(0,gbind);pass.setVertexBuffer(0,groundVB);const groundMat=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,-1,0,1]);device.queue.writeBuffer(camBuf,64,groundMat);pass.draw(6);
+ pass.setPipeline(gpipe);pass.setBindGroup(0,gbind);pass.setVertexBuffer(0,groundVB);const groundMat=new Float32Array([
+  100,0,0,0,
+  0,1,0,0,
+  0,0,100,0,
+  0,-0.03,0,1
+]);
+device.queue.writeBuffer(camBuf,64,groundMat);
+pass.draw(6);
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
  debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${idx.leftLeg>=0?'左足✓':'左足—'} ${idx.rightLeg>=0?'右足✓':'右足—'} ${idx.leftArm>=0?'左腕✓':'左腕—'} ${idx.rightArm>=0?'右腕✓':'右腕—'}`;
 }
-reset();loading.textContent=`アルレッキーノ準備完了：${pmx.bones.length}ボーン GPUスキニング`;let last=performance.now();function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+reset();loading.textContent=`アルレッキーノ準備完了：${pmx.bones.length}ボーン GPUスキニング / 地面表示ON`;let last=performance.now();function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
 </script>
 </body>
 </html>
