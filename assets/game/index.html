@@ -167,15 +167,20 @@ addEventListener("keydown",e=>{
 });
 addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 
-let cameraYaw=0, cameraPitch=.48, mouseCaptured=false;
+let cameraYaw=0,cameraPitch=.48,mouseCaptured=false;
 canvas.addEventListener("click",()=>{if(document.pointerLockElement!==canvas)canvas.requestPointerLock()});
 document.addEventListener("pointerlockchange",()=>mouseCaptured=document.pointerLockElement===canvas);
-document.addEventListener("mousemove",e=>{if(!mouseCaptured)return;cameraYaw-=e.movementX*.003;cameraPitch=Math.max(.18,Math.min(1.15,cameraPitch-e.movementY*.0025))});
+document.addEventListener("mousemove",e=>{
+ if(!mouseCaptured)return;
+ cameraYaw-=e.movementX*.003;
+ cameraPitch=Math.max(.18,Math.min(1.15,cameraPitch-e.movementY*.0025));
+});
 
 let player,enemies,score,wave,hp,stamina,invuln,dash,dashDir,spawn,time,dead,latched;
 function reset(){
  player={x:0,z:0,vx:0,vz:0}; enemies=[];score=0;wave=1;hp=100;stamina=100;
  invuln=0;dash=0;dashDir={x:0,z:1};spawn=.5;time=0;dead=false;latched=false;
+ cameraYaw=0;cameraPitch=.48;
  msg.hidden=true;
 }
 function spawnEnemy(){
@@ -183,17 +188,22 @@ function spawnEnemy(){
  enemies.push({x:Math.cos(a)*r,z:Math.sin(a)*r,s:.8+Math.random()*.5});
 }
 function getMoveDirection(){
-  let right=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
-  let forward=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
-  const l=Math.hypot(right,forward);if(!l)return{x:0,z:0};right/=l;forward/=l;
-  const sy=Math.sin(cameraYaw),cy=Math.cos(cameraYaw);
-  return{x:sy*forward+cy*right,z:-cy*forward+sy*right};
+ let right=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
+ let forward=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);
+ const l=Math.hypot(right,forward);
+ if(!l)return{x:0,z:0};
+ right/=l;forward/=l;
+ const sy=Math.sin(cameraYaw),cy=Math.cos(cameraYaw);
+ return{x:sy*forward+cy*right,z:-cy*forward+sy*right};
 }
 function dodge(){
-  if(dead||dash>0||stamina<25)return;
-  let dir=getMoveDirection();
-  if(!dir.x&&!dir.z){const l=Math.hypot(player.vx,player.vz);dir=l>.05?{x:player.vx/l,z:player.vz/l}:{x:Math.sin(cameraYaw),z:-Math.cos(cameraYaw)}}
-  dashDir=dir;dash=.22;invuln=.34;stamina-=25;
+ if(dead||dash>0||stamina<25)return;
+ let dir=getMoveDirection();
+ if(!dir.x&&!dir.z){
+  const speed=Math.hypot(player.vx,player.vz);
+  dir=speed>.05?{x:player.vx/speed,z:player.vz/speed}:{x:Math.sin(cameraYaw),z:-Math.cos(cameraYaw)};
+ }
+ dashDir=dir;dash=.22;invuln=.34;stamina-=25;
 }
 function update(dt){
  if(dead)return;
@@ -206,11 +216,8 @@ function update(dt){
   player.x+=dashDir.x*7.5*dt;
   player.z+=dashDir.z*7.5*dt;
  } else{
-  // 三人称カメラに合わせた自然なWASD操作。
-  let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
-  let z=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
-  const l=Math.hypot(x,z)||1;x/=l;z/=l;
-  const targetX=x*6.5,targetZ=z*6.5;
+  const dir=getMoveDirection();
+  const targetX=dir.x*6.5,targetZ=dir.z*6.5;
   player.vx+=(targetX-player.vx)*Math.min(1,12*dt);
   player.vz+=(targetZ-player.vz)*Math.min(1,12*dt);
   player.x+=player.vx*dt;player.z+=player.vz*dt;
@@ -232,14 +239,17 @@ function update(dt){
 
 function render(){
  const aspect=canvas.width/canvas.height;
- // Minecraftのような三人称カメラ：プレイヤーの少し後方・上方から追従
- const camDistance=11, camHeight=7;
- // カメラは+Z側後方に固定。Wは画面奥（-Z）、Sは画面手前（+Z）。
- const camX=player.x;
- const camZ=player.z+camDistance;
+ // マウスで回転する三人称カメラ
+ const camDistance=11,targetY=.2;
+ const fx=Math.sin(cameraYaw)*Math.cos(cameraPitch);
+ const fy=-Math.sin(cameraPitch);
+ const fz=-Math.cos(cameraYaw)*Math.cos(cameraPitch);
+ const camX=player.x-fx*camDistance;
+ const camY=targetY-fy*camDistance;
+ const camZ=player.z-fz*camDistance;
  const vp=mul(
    perspective(Math.PI/3,aspect,.1,80),
-   lookAt([camX,camHeight,camZ],[player.x,0.2,player.z])
+   lookAt([camX,camY,camZ],[player.x+fx*3,targetY+fy*3,player.z+fz*3])
  );
  device.queue.writeBuffer(camBuf,0,vp);
 
@@ -253,7 +263,8 @@ function render(){
  add(model(0,0,10,10,1,.5),[.13,.18,.28,1]);
  // Player: cyan.
  const ps=1+Math.sin(time*10)*.07;
- const facing=Math.hypot(player.vx,player.vz)>.15?Math.atan2(player.vx,-player.vz):cameraYaw;
+ const speed=Math.hypot(player.vx,player.vz);
+ const facing=speed>.15?Math.atan2(player.vx,-player.vz):cameraYaw;
  add(model(player.x,0.15,player.z,.58*ps,.85*ps,.58*ps,facing),[.15,.85,1,1]);
  // Enemies: orange-red, with a brighter red tone while they are close.
  for(const e of enemies){
