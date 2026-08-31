@@ -24,7 +24,7 @@ canvas{display:block;width:100vw;height:100vh}
 <canvas id="gpu"></canvas>
 <div id="ui">
  <div id="top"><div id="title">DODGE ARENA</div><div id="stats">SCORE <b id="score">0</b>　WAVE <b id="wave">1</b>　STAMINA <b id="stamina">100</b></div><div id="bar"><div id="hp"></div></div></div>
- <div id="help">WASD / 矢印：移動（カメラ方向基準）<br>マウス：カメラ回転（クリックで有効）<br>Space / Shift：回避<br>R：リスタート</div>
+ <div id="help">WASD / 矢印：移動（カメラ方向基準）<br>マウス：カメラ回転<br>Space / Shift：回避<br>R：リスタート</div>
  <div id="message" hidden></div>
  <div id="loading">WebGPUを初期化中…</div>
  <div id="debug"></div>
@@ -252,7 +252,7 @@ let animTime=0;
 function findBone(...names){for(const n of names){const i=pmx.boneMap.get(n);if(i!==undefined)return i}return -1}
 const idx={leftLeg:findBone('左足','左腿'),rightLeg:findBone('右足','右腿'),leftArm:findBone('左腕','左手臂'),rightArm:findBone('右腕','右手臂'),leftElbow:findBone('左ひじ','左肘'),rightElbow:findBone('右ひじ','右肘'),waist:findBone('腰'),upper:findBone('上半身'),upper2:findBone('上半身2','上半身２')};
 function setRot(i,x,y,z){if(i>=0)pmx.bones[i].rot=[x,y,z]}
-function applyAnim(){for(const b of pmx.bones)b.rot=[0,0,0];const speed=Math.hypot(player.vx,player.vz);const moving=speed>.2;const dashing=dash>0;const s=Math.sin(animTime*(dashing?12:moving?8:2.2));const a=dashing?.7:moving?.34:.025; if(moving){setRot(idx.leftLeg,-a*s,0,0);setRot(idx.rightLeg,a*s,0,0);setRot(idx.leftArm,a*.72*s,0,0);setRot(idx.rightArm,-a*.72*s,0,0);setRot(idx.leftElbow,Math.max(0,.22*s),0,0);setRot(idx.rightElbow,Math.max(0,-.22*s),0,0);if(dashing){setRot(idx.waist,-.18,0,0);setRot(idx.upper,-.2,0,0);setRot(idx.upper2,-.1,0,0)}}else{setRot(idx.upper,.02*Math.cos(animTime),0,.015*Math.sin(animTime));setRot(idx.upper2,.01*Math.cos(animTime),0,0)}}
+function applyAnim(){for(const b of pmx.bones)b.rot=[0,0,0];const speed=Math.hypot(player.vx,player.vz);const moving=speed>.2;const dashing=dash>0;const phase=animTime*(dashing?10.0:moving?7.0:1.6);const s=Math.sin(phase);const c=Math.cos(phase);const a=dashing?.58:moving?.30:.018; if(moving){setRot(idx.leftLeg,-a*s,0,0);setRot(idx.rightLeg,a*s,0,0);setRot(idx.leftArm,a*.72*s,0,0);setRot(idx.rightArm,-a*.72*s,0,0);setRot(idx.leftElbow,Math.max(0,.18*(0.5+0.5*s)),0,0);setRot(idx.rightElbow,Math.max(0,.18*(0.5-0.5*s)),0,0);if(dashing){setRot(idx.waist,-.18,0,0);setRot(idx.upper,-.2,0,0);setRot(idx.upper2,-.1,0,0)}}else{setRot(idx.upper,.02*Math.cos(animTime),0,.015*Math.sin(animTime));setRot(idx.upper2,.01*Math.cos(animTime),0,0)}}
 function boneMatrices(){applyAnim();const out=new Float32Array(pmx.bones.length*16),world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const localPos=p>=0?mt(b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]):mt(b.pos[0],b.pos[1],b.pos[2]);const pose=mm(localPos,mr(b.rot[0],b.rot[1],b.rot[2]));world[i]=p>=0?mm(world[p],pose):pose;out.set(mm(world[i],invBind[i]),i*16);}return out;}
 
 const groundVerts=new Float32Array([-1,0,-1, 1,0,-1, 1,0,1, -1,0,-1, 1,0,1, -1,0,1]);
@@ -260,36 +260,14 @@ const groundVB=device.createBuffer({size:groundVerts.byteLength,usage:GPUBufferU
 const groundShader=`struct U { vp: mat4x4f, model: mat4x4f }; struct O { @builtin(position) p: vec4f, @location(0) c: vec4f }; @group(0) @binding(0) var<uniform> u:U; @vertex fn vs(@location(0)p:vec3f)->O{var o:O;o.p=u.vp*u.model*vec4f(p,1);o.c=vec4f(.06,.09,.14,1);return o;} @fragment fn fs(i:O)->@location(0)vec4f{return i.c;}`;
 const gsm=device.createShaderModule({code:groundShader});const gbgl=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]});const glayout=device.createPipelineLayout({bindGroupLayouts:[gbgl]});const gpipe=device.createRenderPipeline({layout:glayout,vertex:{module:gsm,entryPoint:'vs',buffers:[{arrayStride:12,attributes:[{shaderLocation:0,format:'float32x3',offset:0}]}]},fragment:{module:gsm,entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});const gbind=device.createBindGroup({layout:gbgl,entries:[{binding:0,resource:{buffer:camBuf}}]});
 
-const keys=Object.create(null);
-addEventListener('keydown',e=>{
-  if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','ShiftLeft','ShiftRight'].includes(e.code)) e.preventDefault();
-  keys[e.code]=true;
-  keys[e.key.toLowerCase()]=true;
-  if(e.code==='KeyR') reset();
-});
-addEventListener('keyup',e=>{
-  keys[e.code]=false;
-  keys[e.key.toLowerCase()]=false;
-});
+const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key.toLowerCase()==='r')reset()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 let cameraYaw=0,cameraPitch=.48,mouseCaptured=false;canvas.addEventListener('click',()=>{if(document.pointerLockElement!==canvas)canvas.requestPointerLock()});document.addEventListener('pointerlockchange',()=>mouseCaptured=document.pointerLockElement===canvas);document.addEventListener('mousemove',e=>{if(!mouseCaptured)return;cameraYaw+=e.movementX*.003;cameraPitch=Math.max(.18,Math.min(1.15,cameraPitch+e.movementY*.0025));});
 let player,enemies,score,wave,hp,stamina,invuln,dash,dashDir,spawn,time,dead,latched;
 function reset(){player={x:0,z:0,vx:0,vz:0};enemies=[];score=0;wave=1;hp=100;stamina=100;invuln=0;dash=0;dashDir={x:0,z:1};spawn=.5;time=0;animTime=0;dead=false;latched=false;cameraYaw=0;cameraPitch=.48;msg.hidden=true}
-function getMoveDirection(){
-  let right=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
-  let forward=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
-  const l=Math.hypot(right,forward);
-  if(l<0.0001)return{x:0,z:0};
-  right/=l;
-  forward/=l;
-  const sy=Math.sin(cameraYaw),cy=Math.cos(cameraYaw);
-  return {
-    x: sy*forward + cy*right,
-    z: -cy*forward + sy*right
-  };
-}
+function getMoveDirection(){let right=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),forward=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);const l=Math.hypot(right,forward);if(!l)return{x:0,z:0};right/=l;forward/=l;const sy=Math.sin(cameraYaw),cy=Math.cos(cameraYaw);return{x:sy*forward+cy*right,z:-cy*forward+sy*right}}
 function dodge(){if(dead||dash>0||stamina<25)return;let d=getMoveDirection();if(!d.x&&!d.z){const sp=Math.hypot(player.vx,player.vz);d=sp>.05?{x:player.vx/sp,z:player.vz/sp}:{x:Math.sin(cameraYaw),z:-Math.cos(cameraYaw)}}dashDir=d;dash=.30;invuln=.42;stamina-=25}
-function update(dt){if(dead)return;time+=dt;wave=1+Math.floor(score/10);const d=keys.Space||keys.ShiftLeft||keys.ShiftRight;if(d&&!latched)dodge();latched=d;stamina=Math.min(100,stamina+20*dt);invuln=Math.max(0,invuln-dt);if(dash>0){dash-=dt;player.x+=dashDir.x*15*dt;player.z+=dashDir.z*15*dt}else{const dir=getMoveDirection(),tx=dir.x*6.5,tz=dir.z*6.5;player.vx+=(tx-player.vx)*Math.min(1,12*dt);player.vz+=(tz-player.vz)*Math.min(1,12*dt);player.x+=player.vx*dt;player.z+=player.vz*dt}player.x=Math.max(-98,Math.min(98,player.x));player.z=Math.max(-98,Math.min(98,player.z));animTime+=dt*(Math.hypot(player.vx,player.vz)>.2?(dash>0?14:8):2.5);scoreEl.textContent=score;waveEl.textContent=wave;staminaEl.textContent=Math.round(stamina);hpEl.style.width=hp+'%';}
-function modelMatrix(){const moving=Math.hypot(player.vx,player.vz)>.15;const facing=(Math.hypot(player.vx,player.vz)>.15)?Math.atan2(player.vx,-player.vz):cameraYaw+Math.PI;return new Float32Array([Math.cos(facing)*modelScale,0,-Math.sin(facing)*modelScale,0,0,modelScale,0,0,Math.sin(facing)*modelScale,0,Math.cos(facing)*modelScale,0,player.x-centerX*modelScale,-bottom*modelScale,player.z-centerZ*modelScale,1]);}
+function update(dt){if(dead)return;time+=dt;wave=1+Math.floor(score/10);const d=keys[' ']||keys.shift;if(d&&!latched)dodge();latched=d;stamina=Math.min(100,stamina+20*dt);invuln=Math.max(0,invuln-dt);if(dash>0){dash-=dt;player.x+=dashDir.x*15*dt;player.z+=dashDir.z*15*dt}else{const dir=getMoveDirection(),tx=dir.x*6.5,tz=dir.z*6.5;player.vx+=(tx-player.vx)*Math.min(1,12*dt);player.vz+=(tz-player.vz)*Math.min(1,12*dt);player.x+=player.vx*dt;player.z+=player.vz*dt}player.x=Math.max(-98,Math.min(98,player.x));player.z=Math.max(-98,Math.min(98,player.z));animTime+=dt;scoreEl.textContent=score;waveEl.textContent=wave;staminaEl.textContent=Math.round(stamina);hpEl.style.width=hp+'%';}
+function modelMatrix(){const moving=Math.hypot(player.vx,player.vz)>.15;const facing=moving?Math.atan2(player.vx,-player.vz):cameraYaw;return new Float32Array([Math.cos(facing)*modelScale,0,-Math.sin(facing)*modelScale,0,0,modelScale,0,0,Math.sin(facing)*modelScale,0,Math.cos(facing)*modelScale,0,player.x-centerX*modelScale,-bottom*modelScale,player.z-centerZ*modelScale,1]);}
 function render(){
  const aspect=canvas.width/canvas.height,targetY=Math.max(1,modelHeight*.58),fx=Math.sin(cameraYaw)*Math.cos(cameraPitch),fy=-Math.sin(cameraPitch),fz=-Math.cos(cameraYaw)*Math.cos(cameraPitch),camDistance=10.5;
  const camX=player.x-fx*camDistance,camY=targetY-fy*camDistance,camZ=player.z-fz*camDistance;const vp=mm(persp(Math.PI/3,aspect,.1,300),lookAt([camX,camY,camZ],[player.x+fx*3,targetY+fy*3,player.z+fz*3]));
@@ -300,7 +278,7 @@ function render(){
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
- debugEl.textContent=`PMX: ${pmx.name}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n${idx.leftLeg>=0?'左足✓':'左足—'} ${idx.rightLeg>=0?'右足✓':'右足—'} ${idx.leftArm>=0?'左腕✓':'左腕—'} ${idx.rightArm>=0?'右腕✓':'右腕—'}`;
+ debugEl.textContent=`PMX: ${pmx.name}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${idx.leftLeg>=0?'左足✓':'左足—'} ${idx.rightLeg>=0?'右足✓':'右足—'} ${idx.leftArm>=0?'左腕✓':'左腕—'} ${idx.rightArm>=0?'右腕✓':'右腕—'}`;
 }
 reset();loading.textContent=`アルレッキーノ準備完了：${pmx.bones.length}ボーン GPUスキニング`;let last=performance.now();function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
 </script>
