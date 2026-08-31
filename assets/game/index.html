@@ -1,111 +1,348 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Neon Drop - WebGPU</title>
-<style>
-*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#79acd4;font-family:system-ui,sans-serif;color:white}
-canvas{width:100%;height:100%;display:block}
-#hud{position:fixed;inset:0;pointer-events:none;text-shadow:0 2px 5px #0009}
-.tl{position:absolute;top:18px;left:20px;display:flex;gap:10px}.face{width:55px;height:55px;border:3px solid white;border-radius:13px;background:#168de0;display:grid;place-items:center;font-size:25px;font-weight:900}
-.name{font-weight:900}.small{font-size:11px;opacity:.8}.bar{width:220px;height:9px;background:#101827aa;border:1px solid #fff6;border-radius:8px;margin-top:5px;overflow:hidden}.bar i{display:block;height:100%;background:#43e87e}.shield{height:6px}.shield i{background:#32a9ff}
-.tr{position:absolute;right:20px;top:18px;text-align:right}.score{font-size:26px;font-weight:1000}
-.cross{position:absolute;left:50%;top:50%;width:25px;height:25px;transform:translate(-50%,-50%)}.cross:before,.cross:after{content:"";position:absolute;background:white;box-shadow:0 0 5px #000}.cross:before{width:2px;height:23px;left:11px;top:1px}.cross:after{width:23px;height:2px;left:1px;top:11px}
-.bottom{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:7px}.slot{width:61px;height:61px;border:2px solid #fff8;border-radius:10px;background:#111a2cbb;display:grid;place-items:center;font-weight:900;font-size:20px}.active{background:#2477e0cc!important;border-color:white!important}.slot small{font-size:8px}
-.help{position:absolute;right:20px;bottom:18px;text-align:right;font-size:12px;line-height:1.6}.toast{position:absolute;top:18%;left:50%;transform:translateX(-50%);font-size:28px;font-weight:1000;opacity:0;transition:.15s}
-.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}.center h1{font-size:55px;margin:0}.center p{margin:5px}.hidden{display:none}
-</style>
+  <meta charset="UTF-8">
+  <title>WebGPU 3rd Person Action</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #111; font-family: sans-serif; }
+    canvas { width: 100vw; height: 100vh; display: block; }
+    #ui {
+      position: absolute; top: 10px; left: 10px; color: white;
+      text-shadow: 1px 1px 2px black; pointer-events: none;
+    }
+  </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<div id="hud">
- <div class="tl"><div class="face">N</div><div><b>NOVA RUNNER</b><div class="small">ARENA SURVIVOR</div><div class="bar"><i id="hp"></i></div><div class="bar shield"><i id="sh"></i></div></div></div>
- <div class="tr"><div class="score" id="score">0</div><div class="small">SCORE　 WAVE <b id="wave">1</b></div><div class="small">STAMINA <b id="stam">100</b></div></div>
- <div class="cross"></div><div class="toast" id="toast">DODGE!</div>
- <div class="bottom"><div class="slot active">⚡<small>SHIFT</small></div><div class="slot">1<small>BLASTER</small></div><div class="slot">2<small>ITEM</small></div></div>
- <div class="help">WASD / 矢印　移動<br>SPACE / SHIFT　回避ロール<br>R　リスタート</div>
- <div class="center hidden" id="center"></div>
-</div>
-<script type="module">
-const canvas=document.querySelector("#c"), center=document.querySelector("#center");
-function error(s){center.classList.remove("hidden");center.innerHTML="<h1>WebGPU ERROR</h1><p>"+s+"</p>"}
-if(!navigator.gpu){error("WebGPUに対応していません。Chrome / Edge最新版を使用してください。");throw Error("no WebGPU")}
-const adapter=await navigator.gpu.requestAdapter();if(!adapter){error("GPUアダプターを取得できませんでした。");throw Error("no adapter")}
-const device=await adapter.requestDevice();const ctx=canvas.getContext("webgpu"),fmt=navigator.gpu.getPreferredCanvasFormat();let depth;
-function resize(){let d=Math.min(devicePixelRatio||1,2);canvas.width=Math.max(1,innerWidth*d);canvas.height=Math.max(1,innerHeight*d);ctx.configure({device,format:fmt,alphaMode:"opaque"});if(depth)depth.destroy();depth=device.createTexture({size:[canvas.width,canvas.height],format:"depth24plus",usage:GPUTextureUsage.RENDER_ATTACHMENT})}
-addEventListener("resize",resize);resize();
+  <div id="ui">
+    <h2>WebGPU TPS Dodge Demo</h2>
+    <p>移動: <b>WASD</b> | 回避: <b>Space</b> | 視点移動: <b>マウスドラッグ</b></p>
+  </div>
+  <canvas id="canvas"></canvas>
 
-const wgsl=`
-struct Cam{vp:mat4x4f}
-@group(0) @binding(0) var<uniform> cam:Cam;
-struct Out{@builtin(position) pos:vec4f;@location(0) color:vec4f}
-@vertex fn vs(@location(0) p:vec3f,@location(1) m0:vec4f,@location(2) m1:vec4f,@location(3) m2:vec4f,@location(4) m3:vec4f,@location(5) color:vec4f)->Out{
- var o:Out;let m=mat4x4f(m0,m1,m2,m3);o.pos=cam.vp*m*vec4f(p,1);o.color=color;return o
-}
-@fragment fn fs(i:Out)->@location(0)vec4f{return i.color}`;
-const mod=device.createShaderModule({code:wgsl});
-const pipe=device.createRenderPipeline({layout:"auto",
- vertex:{module:mod,buffers:[
-  {arrayStride:12,attributes:[{shaderLocation:0,format:"float32x3",offset:0}]},
-  {arrayStride:80,stepMode:"instance",attributes:[
-   {shaderLocation:1,format:"float32x4",offset:0},{shaderLocation:2,format:"float32x4",offset:16},
-   {shaderLocation:3,format:"float32x4",offset:32},{shaderLocation:4,format:"float32x4",offset:48},
-   {shaderLocation:5,format:"float32x4",offset:64}]}
- ]},
- fragment:{module:mod,targets:[{format:fmt}]},
- primitive:{topology:"triangle-list",cullMode:"none"},
- depthStencil:{format:"depth24plus",depthWriteEnabled:true,depthCompare:"less"}});
+  <script type="module">
+    import { mat4, vec3 } from 'https://cdn.skypack.dev/gl-matrix';
 
-const V=new Float32Array([
--1,-1,-1, 1,-1,-1, 1,1,-1, -1,-1,-1, 1,1,-1,-1,1,-1,
--1,-1,1, 1,1,1, 1,-1,1, -1,-1,1,-1,1,1,1,1,1,
--1,-1,-1,-1,1,1,-1,1,-1, -1,-1,-1,-1,-1,1,-1,1,1,
-1,-1,-1,1,1,1,1,-1,1, 1,-1,-1,1,1,-1,1,1,1,
--1,-1,-1,1,-1,1, -1,-1,-1,1,-1,1, -1,-1,1,1,-1,1,
--1,1,-1,1,1,-1, -1,1,-1,1,1,-1, -1,1,1,1,1,1]);
-const vb=device.createBuffer({size:V.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(vb,0,V);
-const cam=device.createBuffer({size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
-const bg=device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:cam}}]});
-const inst=device.createBuffer({size:400*80,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
+    const canvas = document.getElementById('canvas');
+    if (!navigator.gpu) {
+      alert("WebGPUはこのブラウザでサポートされていません。");
+      throw new Error("WebGPU not supported");
+    }
 
-function mul(a,b){let o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];return o}
-function persp(fov,asp,n,f){let q=1/Math.tan(fov/2);return new Float32Array([q/asp,0,0,0,0,q,0,0,0,0,(f+n)/(n-f),-1,0,0,2*f*n/(n-f),0])}
-function look(eye,target){let z=norm(sub(eye,target)),x=norm(cross([0,1,0],z)),y=cross(z,x);return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1])}
-function mat(x,y,z,sx,sy,sz,r=0){let c=Math.cos(r),s=Math.sin(r);return new Float32Array([c*sx,0,-s*sx,0,0,sy,0,0,s*sz,0,c*sz,0,x,y,z,1])}
-function sub(a,b){return[a[0]-b[0],a[1]-b[1],a[2]-b[2]]}function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}function norm(a){let l=Math.hypot(...a)||1;return[a[0]/l,a[1]/l,a[2]/l]}
+    const adapter = await navigator.gpu.requestAdapter();
+    const device = await adapter.requestDevice();
+    const context = canvas.getContext('webgpu');
+    const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
-const keys={};addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(e.key.toLowerCase()))e.preventDefault();if(e.key.toLowerCase()=="r")reset()});addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
-let P,E,score,wave,hp,shield,stam,dash,inv,dx,dz,spawn,t,dead,latched;
-function reset(){P={x:0,z:0,vx:0,vz:0};E=[];score=0;wave=1;hp=100;shield=100;stam=100;dash=0;inv=0;dx=0;dz=-1;spawn=.4;t=0;dead=false;latched=false;center.classList.add("hidden")}
-function toast(s){let x=document.querySelector("#toast");x.textContent=s;x.style.opacity=1;clearTimeout(toast.x);toast.x=setTimeout(()=>x.style.opacity=0,400)}
-function dodge(){if(dead||dash>0||stam<30)return;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),z=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);if(!x&&!z){x=P.vx;z=P.vz}let l=Math.hypot(x,z)||1;dx=x/l;dz=z/l;dash=.32;inv=.42;stam-=30;toast("DODGE!")}
-function spawnEnemy(){let a=Math.random()*6.283,r=10.5+Math.random()*4;E.push({x:Math.cos(a)*r,z:Math.sin(a)*r,s:.8+Math.random()*.5})}
-function update(dt){
- if(dead)return;t+=dt;wave=1+Math.floor(score/12);stam=Math.min(100,stam+18*dt);inv=Math.max(0,inv-dt);
- let want=keys[" "]||keys.shift;if(want&&!latched)dodge();latched=want;
- if(dash>0){dash-=dt;P.x+=dx*17*dt;P.z+=dz*17*dt}else{let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),z=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0),l=Math.hypot(x,z)||1;x/=l;z/=l;P.vx+=(x*7-P.vx)*Math.min(1,10*dt);P.vz+=(z*7-P.vz)*Math.min(1,10*dt);P.x+=P.vx*dt;P.z+=P.vz*dt}
- P.x=Math.max(-8.5,Math.min(8.5,P.x));P.z=Math.max(-8.5,Math.min(8.5,P.z));
- spawn-=dt;if(spawn<=0){spawnEnemy();spawn=Math.max(.3,1-wave*.04)}
- for(let i=E.length-1;i>=0;i--){let e=E[i],x=P.x-e.x,z=P.z-e.z,l=Math.hypot(x,z)||1;e.x+=x/l*(1.35+wave*.12)*e.s*dt;e.z+=z/l*(1.35+wave*.12)*e.s*dt;
-  if(dash>0&&l<1.6){E.splice(i,1);score++;toast("ELIM +1");continue}
-  if(l<1.05&&inv<=0){if(shield>0)shield=Math.max(0,shield-30);else hp-=22;inv=.65;toast("HIT!");if(hp<=0){hp=0;dead=true;center.classList.remove("hidden");center.innerHTML="<h1>ELIMINATED</h1><p>Rキーで再スタート</p>"}}}
- if(Math.floor(t)!=Math.floor(t-dt))score++;
- document.querySelector("#score").textContent=score;document.querySelector("#wave").textContent=wave;document.querySelector("#stam").textContent=Math.round(stam);document.querySelector("#hp").style.width=hp+"%";document.querySelector("#sh").style.width=shield+"%";
-}
-function render(){
- device.queue.writeBuffer(cam,0,mul(persp(Math.PI/3,canvas.width/canvas.height,.1,60),look([0,9,14],[0,0,0])));
- let A=[],C=[];const add=(m,c)=>{A.push(m);C.push(c)};
- add(mat(0,-1,0,10,.5,10),[.24,.34,.45,1]);
- for(let i=-9;i<=9;i+=2){add(mat(i,-.46,0,.025,.025,9.5),[.08,.18,.30,1]);add(mat(0,-.46,i,9.5,.025,.025),[.08,.18,.30,1])}
- add(mat(-10,0,0,.5,1,10),[.12,.20,.30,1]);add(mat(10,0,0,.5,1,10),[.12,.20,.30,1]);add(mat(0,0,-10,10,1,.5),[.12,.20,.30,1]);add(mat(0,0,10,10,1,.5),[.12,.20,.30,1]);
- [[-6,1,-4,1.5,2,1.2,[.08,.65,.95,1]],[5,.8,-3,1.3,1.6,1.4,[.95,.35,.12,1]],[-5,.6,5,1.2,1.2,1.2,[.55,.22,.90,1]],[5,1,5,1.5,2,1.1,[.95,.75,.12,1]]].forEach(q=>add(mat(q[0],q[1]/2,q[2],q[3],q[4],q[5]),q[6]));
- let bob=Math.sin(t*8)*.06,r=Math.atan2(P.vx,P.vz);add(mat(P.x,1.25+bob,P.z,.5,.72,.36,r),[.05,.45,.95,1]);add(mat(P.x,2.25+bob,P.z,.36,.36,.36,r),[1,.75,.48,1]);add(mat(P.x-.4,1.3+bob,P.z,.16,.6,.18,r),[.04,.15,.32,1]);add(mat(P.x+.4,1.3+bob,P.z,.16,.6,.18,r),[.04,.15,.32,1]);add(mat(P.x-.2,.52,P.z,.17,.5,.17,r),[.08,.08,.13,1]);add(mat(P.x+.2,.52,P.z,.17,.5,.17,r),[.08,.08,.13,1]);
- if(dash>0)for(let k=1;k<4;k++)add(mat(P.x-dx*k*.45,.9,P.z-dz*k*.45,.52,.65,.4,r),[.05,.85,1,.55]);
- for(let e of E){let r=Math.atan2(P.x-e.x,P.z-e.z);add(mat(e.x,.8,e.z,.55,.8,.55,r),[.9,.10,.07,1]);add(mat(e.x,1.75,e.z,.4,.4,.4,r),[1,.48,.05,1]);add(mat(e.x,2.25,e.z,.16,.16,.16,r),[1,1,.18,1])}
- let raw=new Float32Array(A.length*20);for(let i=0;i<A.length;i++){raw.set(A[i],i*20);raw.set(C[i],i*20+16)}device.queue.writeBuffer(inst,0,raw);
- let enc=device.createCommandEncoder(),pass=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.25,g:.48,b:.72,a:1},loadOp:"clear",storeOp:"store"}],depthStencilAttachment:{view:depth.createView(),depthClearValue:1,depthLoadOp:"clear",depthStoreOp:"store"}});
- pass.setPipeline(pipe);pass.setBindGroup(0,bg);pass.setVertexBuffer(0,vb);pass.setVertexBuffer(1,inst);pass.draw(36,A.length);pass.end();device.queue.submit([enc.finish()]);
-}
-reset();let last=performance.now();function loop(now){let dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
-</script>
-</body></html>
+    function resize() {
+      canvas.width = window.innerWidth * window.devicePixelRatio;
+      canvas.height = window.innerHeight * window.devicePixelRatio;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    context.configure({ device, format: presentationFormat, alphaMode: 'premultiplied' });
+
+    // WGSL シェーダー
+    const shaderModule = device.createShaderModule({
+      code: `
+        struct Uniforms {
+          viewProjectionMatrix : mat4x4<f32>,
+          modelMatrix : mat4x4<f32>,
+          color : vec4<f32>,
+        }
+        @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+        struct VertexOutput {
+          @builtin(position) Position : vec4<f32>,
+          @location(0) fragPosition : vec3<f32>,
+        }
+
+        @vertex
+        fn vs_main(@location(0) position : vec3<f32>) -> VertexOutput {
+          var output : VertexOutput;
+          let worldPosition = uniforms.modelMatrix * vec4<f32>(position, 1.0);
+          output.Position = uniforms.viewProjectionMatrix * worldPosition;
+          output.fragPosition = worldPosition.xyz;
+          return output;
+        }
+
+        @fragment
+        fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {
+          // 簡易ライティング (平行光源)
+          let lightDir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+          let N = normalize(cross(dpdx(in.fragPosition), dpdy(in.fragPosition)));
+          let diff = max(dot(N, lightDir), 0.2);
+          return vec4<f32>(uniforms.color.rgb * diff, uniforms.color.a);
+        }
+      `
+    });
+
+    // 直方体のメッシュデータ作成
+    function createBoxData(width, height, depth) {
+      const w = width / 2, h = height / 2, d = depth / 2;
+      const vertices = new Float32Array([
+        // Front
+        -w,-h, d,  w,-h, d,  w, h, d, -w, h, d,
+        // Back
+        -w,-h,-d, -w, h,-d,  w, h,-d,  w,-h,-d,
+        // Top
+        -w, h,-d, -w, h, d,  w, h, d,  w, h,-d,
+        // Bottom
+        -w,-h,-d,  w,-h,-d,  w,-h, d, -w,-h, d,
+        // Right
+         w,-h,-d,  w, h,-d,  w, h, d,  w,-h, d,
+        // Left
+        -w,-h,-d, -w,-h, d, -w, h, d, -w, h,-d,
+      ]);
+      const indices = new Uint16Array([
+        0,1,2, 0,2,3,    4,5,6, 4,6,7,    8,9,10, 8,10,11,
+        12,13,14, 12,14,15, 16,17,18, 16,18,19, 20,21,22, 20,22,23
+      ]);
+      return { vertices, indices };
+    }
+
+    const cubeData = createBoxData(1, 2, 1); // プレイヤー用
+    const groundData = createBoxData(100, 0.2, 100); // 地面用
+
+    function createBuffer(data, usage) {
+      const buffer = device.createBuffer({
+        size: (data.byteLength + 3) & ~3,
+        usage,
+        mappedAtCreation: true,
+      });
+      if (data instanceof Float32Array) new Float32Array(buffer.getMappedRange()).set(data);
+      else if (data instanceof Uint16Array) new Uint16Array(buffer.getMappedRange()).set(data);
+      buffer.unmap();
+      return buffer;
+    }
+
+    const playerVB = createBuffer(cubeData.vertices, GPUBufferUsage.VERTEX);
+    const playerIB = createBuffer(cubeData.indices, GPUBufferUsage.INDEX);
+    const groundVB = createBuffer(groundData.vertices, GPUBufferUsage.VERTEX);
+    const groundIB = createBuffer(groundData.indices, GPUBufferUsage.INDEX);
+
+    // パイプライン設定
+    const pipeline = device.createRenderPipeline({
+      layout: 'auto',
+      vertex: {
+        module: shaderModule,
+        entryPoint: 'vs_main',
+        buffers: [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] }]
+      },
+      fragment: {
+        module: shaderModule,
+        entryPoint: 'fs_main',
+        targets: [{ format: presentationFormat }]
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      depthStencil: { depthWriteEnabled: true, depthCompare: 'less', format: 'depth24plus' }
+    });
+
+    // ユニフォームバッファ設定 (64バイト matrix * 2 + 16バイト color)
+    const uniformBufferSize = 64 + 64 + 16;
+    const playerUniformBuffer = device.createBuffer({ size: uniformBufferSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const groundUniformBuffer = device.createBuffer({ size: uniformBufferSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+    const playerBindGroup = device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: playerUniformBuffer } }]
+    });
+    const groundBindGroup = device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: groundUniformBuffer } }]
+    });
+
+    // ゲーム状態
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let cameraYaw = 0;
+    let cameraPitch = 0.3;
+
+    window.addEventListener('mousedown', e => { isDragging = true; previousMousePosition = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+      cameraYaw -= deltaX * 0.005;
+      cameraPitch = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, cameraPitch + deltaY * 0.005));
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    // プレイヤーパラメータ
+    const player = {
+      pos: vec3.fromValues(0, 1, 0),
+      rotY: 0,
+      isDodging: false,
+      dodgeTimer: 0,
+      dodgeDuration: 0.35, // 回避にかかる時間（秒）
+      dodgeDir: vec3.create(),
+      dodgeSpeed: 20.0,
+      normalSpeed: 8.0,
+      rollAngle: 0
+    };
+
+    let depthTexture = null;
+    let lastTime = performance.now();
+
+    // メインループ
+    function frame(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      // 1. 移動 logic
+      const moveDir = vec3.create();
+      if (keys['KeyW']) moveDir[2] -= 1;
+      if (keys['KeyS']) moveDir[2] += 1;
+      if (keys['KeyA']) moveDir[0] -= 1;
+      if (keys['KeyD']) moveDir[0] += 1;
+
+      if (vec3.length(moveDir) > 0) {
+        vec3.normalize(moveDir, moveDir);
+        // カメラの向きに合わせて移動方向を回転
+        const rotatedDir = vec3.create();
+        rotatedDir[0] = moveDir[0] * Math.cos(cameraYaw) - moveDir[2] * Math.sin(cameraYaw);
+        rotatedDir[2] = moveDir[0] * Math.sin(cameraYaw) + moveDir[2] * Math.cos(cameraYaw);
+        vec3.copy(moveDir, rotatedDir);
+
+        if (!player.isDodging) {
+          player.rotY = Math.atan2(moveDir[0], moveDir[2]);
+        }
+      }
+
+      // 回避開始判定
+      if (keys['Space'] && !player.isDodging) {
+        player.isDodging = true;
+        player.dodgeTimer = player.dodgeDuration;
+        // 移動入力がなければ前方に回避
+        if (vec3.length(moveDir) === 0) {
+          vec3.set(player.dodgeDir, Math.sin(player.rotY), 0, Math.cos(player.rotY));
+        } else {
+          vec3.copy(player.dodgeDir, moveDir);
+        }
+      }
+
+      // 物理・位置更新
+      if (player.isDodging) {
+        player.dodgeTimer -= dt;
+        const speed = player.dodgeSpeed;
+        vec3.scaleAndDrop(player.pos, player.pos, player.dodgeDir, speed * dt);
+        
+        // ローリング回転（X軸回転）
+        const progress = 1 - (player.dodgeTimer / player.dodgeDuration);
+        player.rollAngle = progress * Math.PI * 2;
+
+        if (player.dodgeTimer <= 0) {
+          player.isDodging = false;
+          player.rollAngle = 0;
+        }
+      } else if (vec3.length(moveDir) > 0) {
+        vec3.scaleAndDrop(player.pos, player.pos, moveDir, player.normalSpeed * dt);
+      }
+
+      // 2. カメラ計算 (TPSカメラ)
+      const cameraDistance = 8.0;
+      const cameraOffset = vec3.fromValues(
+        Math.sin(cameraYaw) * Math.cos(cameraPitch) * cameraDistance,
+        Math.sin(cameraPitch) * cameraDistance,
+        Math.cos(cameraYaw) * Math.cos(cameraPitch) * cameraDistance
+      );
+      const cameraPos = vec3.create();
+      const cameraTarget = vec3.fromValues(player.pos[0], player.pos[1] + 1.0, player.pos[2]);
+      vec3.add(cameraPos, cameraTarget, cameraOffset);
+
+      const viewMatrix = mat4.create();
+      mat4.lookAt(viewMatrix, cameraPos, cameraTarget, [0, 1, 0]);
+
+      const projectionMatrix = mat4.create();
+      mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 1000.0);
+
+      const viewProjectionMatrix = mat4.create();
+      mat4.multiply(viewProjectionMatrix, projectionMatrix, viewMatrix);
+
+      // 3. 行列更新＆書き込み
+      // 地面
+      const groundModel = mat4.create();
+      mat4.translate(groundModel, groundModel, [0, -0.1, 0]);
+      updateUniforms(groundUniformBuffer, viewProjectionMatrix, groundModel, [0.2, 0.6, 0.2, 1.0]);
+
+      // プレイヤー
+      const playerModel = mat4.create();
+      mat4.translate(playerModel, playerModel, player.pos);
+      mat4.rotateY(playerModel, playerModel, player.rotY);
+      if (player.isDodging) {
+        mat4.rotateX(playerModel, playerModel, player.rollAngle); // 回避時のロール回転
+      }
+      // 回避中は色を変更（シアン）
+      const playerColor = player.isDodging ? [0.0, 1.0, 1.0, 1.0] : [0.8, 0.2, 0.2, 1.0];
+      updateUniforms(playerUniformBuffer, viewProjectionMatrix, playerModel, playerColor);
+
+      // 4. 描画レンダリング
+      if (!depthTexture || depthTexture.width !== canvas.width || depthTexture.height !== canvas.height) {
+        if (depthTexture) depthTexture.destroy();
+        depthTexture = device.createTexture({
+          size: [canvas.width, canvas.height],
+          format: 'depth24plus',
+          usage: GPUTextureUsage.RENDER_ATTACHMENT
+        });
+      }
+
+      const commandEncoder = device.createCommandEncoder();
+      const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0.1, g: 0.1, b: 0.15, a: 1.0 },
+          loadOp: 'clear',
+          storeOp: 'store'
+        }],
+        depthStencilAttachment: {
+          view: depthTexture.createView(),
+          depthClearValue: 1.0,
+          depthLoadOp: 'clear',
+          depthStoreOp: 'store'
+        }
+      });
+
+      renderPass.setPipeline(pipeline);
+
+      // 地面描画
+      renderPass.setBindGroup(0, groundBindGroup);
+      renderPass.setVertexBuffer(0, groundVB);
+      renderPass.setIndexBuffer(groundIB, 'uint16');
+      renderPass.drawIndexed(groundData.indices.length);
+
+      // プレイヤー描画
+      renderPass.setBindGroup(0, playerBindGroup);
+      renderPass.setVertexBuffer(0, playerVB);
+      renderPass.setIndexBuffer(playerIB, 'uint16');
+      renderPass.drawIndexed(cubeData.indices.length);
+
+      renderPass.end();
+      device.queue.submit([commandEncoder.finish()]);
+
+      requestAnimationFrame(frame);
+    }
+
+    function updateUniforms(buffer, vpMatrix, modelMatrix, color) {
+      const data = new Float32Array(16 + 16 + 4);
+      data.set(vpMatrix, 0);
+      data.set(modelMatrix, 16);
+      data.set(color, 32);
+      device.queue.writeBuffer(buffer, 0, data);
+    }
+
+    // vec3の計算補助用
+    vec3.scaleAndDrop = function(out, a, b, scale) {
+      out[0] = a[0] + b[0] * scale;
+      out[1] = a[1] + b[1] * scale;
+      out[2] = a[2] + b[2] * scale;
+    };
+
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
