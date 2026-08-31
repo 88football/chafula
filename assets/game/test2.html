@@ -382,7 +382,7 @@ function modelMatrix(){
   const speed=Math.hypot(player.vx,player.vz);
   // モデルの正面はローカル -Z。実際のワールド移動ベクトルから直接向きを決める。
   // W=(0,-Z) -> 0rad、S=(0,+Z) -> PI、D=(+X,0) -> +PI/2、A=(-X,0) -> -PI/2。
-  const facing=speed>.15?Math.atan2(player.vx,-player.vz):cameraYaw;
+  const facing=speed>.15?-Math.atan2(player.vx,-player.vz):cameraYaw;
   const c=Math.cos(facing),ss=Math.sin(facing);
   return new Float32Array([
     c*modelScale,0,-ss*modelScale,0,
