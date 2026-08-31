@@ -270,7 +270,12 @@ function applyAnim(){
   const run=actionState==='run';
   const dodgeState=actionState==='dodge';
   const t=animTime;
-  const phase=t*(run?9.6:7.2);
+  const forwardInput=(keys['KeyW'.toLowerCase()]||keys['w']||keys['arrowup']?1:0) - (keys['KeyS'.toLowerCase()]||keys['s']||keys['arrowdown']?1:0);
+  const strafeInput=(keys['KeyD'.toLowerCase()]||keys['d']||keys['arrowright']?1:0) - (keys['KeyA'.toLowerCase()]||keys['a']||keys['arrowleft']?1:0);
+  const lateral=Math.abs(strafeInput)>Math.abs(forwardInput) && Math.abs(strafeInput)>0;
+  // 左右移動時だけ歩行周期を左右反転。前後移動の正常なモーションは変更しない。
+  const gaitMirror=lateral?(strafeInput<0?-1:1):1;
+  const phase=gaitMirror*t*(run?9.6:7.2);
   const s=Math.sin(phase), c=Math.cos(phase);
   const breath=Math.sin(t*1.7);
   const lean=run?0.14:(moving?0.055:0);
@@ -307,8 +312,9 @@ function applyAnim(){
   const bob=run?0.060:0.030;
   const roll=run?0.040:0.022;
 
-  setRot(idx.leftLeg,-legAmp*s,0,roll*s);
-  setRot(idx.rightLeg, legAmp*s,0,-roll*s);
+  const sideLean=lateral ? -0.045*strafeInput : 0;
+  setRot(idx.leftLeg,-legAmp*s,0,roll*s + sideLean*0.25);
+  setRot(idx.rightLeg, legAmp*s,0,-roll*s + sideLean*0.25);
   setRot(idx.leftKnee, Math.max(0,kneeAmp*s),0,0);
   setRot(idx.rightKnee, Math.max(0,-kneeAmp*s),0,0);
   setRot(idx.leftAnkle,-ankleAmp*s,0,0);
@@ -322,8 +328,8 @@ function applyAnim(){
   setRot(idx.rightElbow, Math.max(0,-kneeAmp*0.65*s),0,0);
   setRot(idx.leftWrist,0,0,0.04*s); setRot(idx.rightWrist,0,0,-0.04*s);
 
-  setRot(idx.waist, lean+0.028*c,0,0.018*s);
-  setRot(idx.upper, lean*1.05+0.040*c,0,0.024*s);
+  setRot(idx.waist, lean+0.028*c,0,0.018*s + sideLean);
+  setRot(idx.upper, lean*1.05+0.040*c,0,0.024*s + sideLean*0.65);
   setRot(idx.upper2, lean*0.72+0.025*c,0,0.016*s);
   setRot(idx.upper3, lean*0.45+0.014*c,0,0.010*s);
   setRot(idx.leftShoulder,0.028*s,0,0.018*c);
