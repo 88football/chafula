@@ -199,14 +199,16 @@ function update(dt){
   player.x+=player.vx*dt;player.z+=player.vz*dt;
  }
  player.x=Math.max(-8.7,Math.min(8.7,player.x));player.z=Math.max(-8.7,Math.min(8.7,player.z));
- spawn-=dt;if(spawn<=0){spawnEnemy();spawn=Math.max(.28,1.1-wave*.055)}
+ spawn-=dt;
+ if(spawn<=0 && enemies.length<3){spawnEnemy();spawn=Math.max(.28,1.1-wave*.055)}
+ else if(enemies.length>=3){spawn=.25}
  for(let i=enemies.length-1;i>=0;i--){
   const e=enemies[i],dx=player.x-e.x,dz=player.z-e.z,l=Math.hypot(dx,dz)||1;
   e.x+=dx/l*(1.45+wave*.13)*e.s*dt;e.z+=dz/l*(1.45+wave*.13)*e.s*dt;
   if(dash>0&&l<1.5){enemies.splice(i,1);score++;continue}
   if(l<1.15&&invuln<=0){hp-=25;invuln=.7;if(hp<=0){hp=0;dead=true;msg.hidden=false;msg.innerHTML="<h1>GAME OVER</h1><p>Rキーで再挑戦</p>"}}
  }
- if(enemies.length>90)enemies.splice(0,enemies.length-90);
+ // 敵は同時に最大3体まで。
  if(Math.floor(time)!==Math.floor(time-dt))score++;
  scoreEl.textContent=score;waveEl.textContent=wave;staminaEl.textContent=Math.round(stamina);hpEl.style.width=hp+"%";
 }
