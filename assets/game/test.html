@@ -66,7 +66,7 @@ function parsePMX(buf){
   bi.set(ids,i*4);bw.set(ws,i*4);r.f32();
  }
  const ic=r.i32();const indices=new Uint32Array(ic);for(let i=0;i<ic;i++)indices[i]=r.idx(vIS);
- const tc=r.i32();const textures=[];for(let i=0;i<tc;i++)textures.push(str().replaceAll('\\','/').replace(/^.*\//,''));
+ const tc=r.i32();const textures=[];for(let i=0;i<tc;i++)textures.push(str().replaceAll('\\','/').replace(/^\.\//,''));
  const mc=r.i32(), materials=[];let faceOffset=0;
  for(let i=0;i<mc;i++){
   const mn=str(),men=str();const diffuse=[r.f32(),r.f32(),r.f32(),r.f32()];r.bytes(12);r.f32();r.bytes(12);const flags=r.u8();r.bytes(16);r.f32();const ti=r.idx(tIS),si=r.idx(tIS);r.u8();const toonFlag=r.u8();const toi=toonFlag===0?r.idx(tIS):r.i8();const memo=str();const fc=r.i32();materials.push({name:mn,tex:ti,alpha:diffuse[3],diffuse,flags,faceOffset,faceCount:fc});faceOffset+=fc;}
@@ -183,7 +183,7 @@ const pipe=device.createRenderPipeline({
 });
 
 function makeSolidTexture(r,g,b,a=255){
-  const tex=device.createTexture({size:{width:1,height:1},format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});
+  const tex=device.createTexture({size:{width:1,height:1},format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});
   device.queue.writeTexture({texture:tex},new Uint8Array([r,g,b,a]),{bytesPerRow:4},{width:1,height:1,depthOrArrayLayers:1});
   return tex;
 }
@@ -191,29 +191,44 @@ const whiteTexture=makeSolidTexture(255,255,255,255);
 const textureCache=new Map();
 async function getTexture(index){
   if(index<0 || index>=pmx.textures.length) return whiteTexture;
-  const name=pmx.textures[index];
+  const name=(pmx.textures[index]||'').replaceAll('\\','/').replace(/^\.\//,'');
   if(!name) return whiteTexture;
   if(textureCache.has(name)) return textureCache.get(name);
-  const data=ASSETS[name];
-  if(!data){
-    console.warn('テクスチャがASSETSにありません:',name);
-    textureCache.set(name,whiteTexture); return whiteTexture;
-  }
+
+  let data=ASSETS[name];
+  let blob=null;
   try{
-    const raw=atob(data), bytes=new Uint8Array(raw.length);
-    for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-    const ext=(name.split('.').pop()||'png').toLowerCase();
-    const mime=ext==='jpg'||ext==='jpeg'?'image/jpeg':ext==='bmp'?'image/bmp':'image/png';
-    const bitmap=await createImageBitmap(new Blob([bytes],{type:mime}));
-    const tex=device.createTexture({size:{width:bitmap.width,height:bitmap.height},format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});
-    device.queue.copyExternalImageToTexture({source:bitmap},{texture:tex},{width:bitmap.width,height:bitmap.height});
+    if(data){
+      const raw=atob(data), bytes=new Uint8Array(raw.length);
+      for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+      blob=new Blob([bytes]);
+    }else{
+      const url=new URL(name, location.href);
+      const res=await fetch(url);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      blob=await res.blob();
+    }
+    const bitmap=await createImageBitmap(blob);
+    const tex=device.createTexture({
+      size:{width:bitmap.width,height:bitmap.height},
+      format:'rgba8unorm',
+      usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    device.queue.copyExternalImageToTexture(
+      {source:bitmap},
+      {texture:tex},
+      {width:bitmap.width,height:bitmap.height}
+    );
     textureCache.set(name,tex);
     return tex;
   }catch(err){
     console.warn('テクスチャ読込失敗:',name,err);
-    textureCache.set(name,whiteTexture); return whiteTexture;
+    missingTextures.push(name);
+    textureCache.set(name,whiteTexture);
+    return whiteTexture;
   }
 }
+const missingTextures=[];
 const materialBinds=[];
 for(const g of pmx.materials){
   const tex=await getTexture(g.tex);
@@ -226,7 +241,7 @@ for(const g of pmx.materials){
     {binding:3,resource:tex.createView()}
   ]}));
 }
-loading.textContent=`テクスチャ読込完了：${pmx.materials.length}材質 / ${textureCache.size}テクスチャ。スキニングなし表示中…`;
+loading.textContent=`テクスチャ読込完了：${pmx.materials.length}材質 / ${textureCache.size}テクスチャ。スキニングなし表示中…` + (missingTextures.length ? `\n見つからないテクスチャ：${missingTextures.length}個` : '');
 
 function modelMat(x,y,z,sx,sy,sz,r=0){
   const c=Math.cos(r),s=Math.sin(r);
