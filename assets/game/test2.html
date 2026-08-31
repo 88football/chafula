@@ -540,7 +540,7 @@ function render(){
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
- debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${idx.leftLeg>=0?'左足✓':'左足—'} ${idx.rightLeg>=0?'右足✓':'右足—'} ${idx.leftArm>=0?'左腕✓':'左腕—'} ${idx.rightArm>=0?'右腕✓':'右腕—'}`;
+ debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${findBoneIndex('左足')!==undefined?'左足✓':'左足—'} ${findBoneIndex('右足')!==undefined?'右足✓':'右足—'} ${findBoneIndex('左腕')!==undefined?'左腕✓':'左腕—'} ${findBoneIndex('右腕')!==undefined?'右腕✓':'右腕—'}`;
 }
 reset();
 await initMotions();
