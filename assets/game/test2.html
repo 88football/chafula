@@ -457,7 +457,7 @@ const gsm=device.createShaderModule({code:groundShader});const gbgl=device.creat
 
 const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;keys[e.code.toLowerCase()]=true;if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key.toLowerCase()==='r')reset()});addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.code.toLowerCase()]=false});
 let cameraYaw=0,cameraPitch=.48,mouseCaptured=false;canvas.addEventListener('click',()=>{if(document.pointerLockElement!==canvas)canvas.requestPointerLock()});document.addEventListener('pointerlockchange',()=>mouseCaptured=document.pointerLockElement===canvas);document.addEventListener('mousemove',e=>{if(!mouseCaptured)return;cameraYaw+=e.movementX*.003;cameraPitch=Math.max(.18,Math.min(1.15,cameraPitch+e.movementY*.0025));});
-let player,enemies,score,wave,hp,stamina,invuln,dash,dashDir,spawn,time,dead,latched,actionState,actionTime,lastMoveAngle;
+let player,enemies,score,wave,hp,stamina,invuln,dash,dashDir,spawn,time,animTime=0,dead,latched,actionState,actionTime,lastMoveAngle;
 function reset(){
   player={x:0,z:0,vx:0,vz:0};
   enemies=[];score=0;wave=1;hp=100;stamina=100;invuln=0;
