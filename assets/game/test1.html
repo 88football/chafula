@@ -269,24 +269,18 @@ function dodge(){if(dead||dash>0||stamina<25)return;let d=getMoveDirection();if(
 function update(dt){if(dead)return;time+=dt;wave=1+Math.floor(score/10);const d=keys[' ']||keys.shift;if(d&&!latched)dodge();latched=d;stamina=Math.min(100,stamina+20*dt);invuln=Math.max(0,invuln-dt);if(dash>0){dash-=dt;player.x+=dashDir.x*15*dt;player.z+=dashDir.z*15*dt}else{const dir=getMoveDirection(),tx=dir.x*6.5,tz=dir.z*6.5;player.vx+=(tx-player.vx)*Math.min(1,12*dt);player.vz+=(tz-player.vz)*Math.min(1,12*dt);player.x+=player.vx*dt;player.z+=player.vz*dt}player.x=Math.max(-98,Math.min(98,player.x));player.z=Math.max(-98,Math.min(98,player.z));animTime+=dt;scoreEl.textContent=score;waveEl.textContent=wave;staminaEl.textContent=Math.round(stamina);hpEl.style.width=hp+'%';}
 function modelMatrix(){
   const speed=Math.hypot(player.vx,player.vz);
-  let facing=cameraYaw;
-  if(speed>.15){
-    // 移動方向へ向く。左右ストレイフ時にモデルの前後が反転する問題を補正。
-    const forwardX=Math.sin(cameraYaw), forwardZ=-Math.cos(cameraYaw);
-    const rightX=Math.cos(cameraYaw), rightZ=Math.sin(cameraYaw);
-    const f=player.vx*forwardX+player.vz*forwardZ;
-    const r=player.vx*rightX+player.vz*rightZ;
-    facing=Math.atan2(r,-f);
-    // 左右成分が支配的なときだけ、モデルの前後軸補正を入れる。
-    if(Math.abs(r)>Math.abs(f)*1.15) facing+=Math.PI;
-  }
+  // モデルの正面はローカル -Z。実際のワールド移動ベクトルから直接向きを決める。
+  // W=(0,-Z) -> 0rad、S=(0,+Z) -> PI、D=(+X,0) -> +PI/2、A=(-X,0) -> -PI/2。
+  const facing=speed>.15?Math.atan2(player.vx,-player.vz):cameraYaw;
+  const c=Math.cos(facing),ss=Math.sin(facing);
   return new Float32Array([
-    Math.cos(facing)*modelScale,0,-Math.sin(facing)*modelScale,0,
+    c*modelScale,0,-ss*modelScale,0,
     0,modelScale,0,0,
-    Math.sin(facing)*modelScale,0,Math.cos(facing)*modelScale,0,
+    ss*modelScale,0,c*modelScale,0,
     player.x-centerX*modelScale,-bottom*modelScale,player.z-centerZ*modelScale,1
   ]);
 }
+
 function render(){
  const aspect=canvas.width/canvas.height,targetY=Math.max(1,modelHeight*.58),fx=Math.sin(cameraYaw)*Math.cos(cameraPitch),fy=-Math.sin(cameraPitch),fz=-Math.cos(cameraYaw)*Math.cos(cameraPitch),camDistance=10.5;
  const camX=player.x-fx*camDistance,camY=targetY-fy*camDistance,camZ=player.z-fz*camDistance;const vp=mm(persp(Math.PI/3,aspect,.1,300),lookAt([camX,camY,camZ],[player.x+fx*3,targetY+fy*3,player.z+fz*3]));
