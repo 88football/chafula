@@ -247,7 +247,7 @@ for(const g of pmx.materials){
 }
 loading.textContent=`アルレッキーノ読み込み完了　${pmx.materials.length}材質 / ${pmx.textures.length}テクスチャ / ${pmx.bones.length}ボーン`+(missing.length?`\n未取得テクスチャ ${missing.length}件`:'');
 
-function findBone(...names){for(const name of names){const i=pmx.boneMap.get(name);if(i!==undefined)return i;}const normalized=new Map();for(const [k,v] of pmx.boneMap){normalized.set(k.replace(/[ 　]/g,''),v);}for(const name of names){const i=normalized.get(String(name).replace(/[ 　]/g,''));if(i!==undefined)return i;}return -1;}
+const findBone=(...names)=>{for(const name of names){const i=pmx.boneMap.get(name);if(i!==undefined)return i;}const normalized=new Map();for(const [k,v] of pmx.boneMap){normalized.set(k.replace(/[ 　]/g,''),v);}for(const name of names){const i=normalized.get(String(name).replace(/[ 　]/g,''));if(i!==undefined)return i;}return -1;};
 const modelScale=.12;const modelHeight=(pmx.bounds.mx[1]-pmx.bounds.mn[1])*modelScale;const centerX=(pmx.bounds.mn[0]+pmx.bounds.mx[0])*.5,centerZ=(pmx.bounds.mn[2]+pmx.bounds.mx[2])*.5,bottom=pmx.bounds.mn[1];
 let animTime=0;
 const idx={
