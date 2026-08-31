@@ -249,42 +249,87 @@ loading.textContent=`アルレッキーノ読み込み完了　${pmx.materials.l
 
 const modelScale=.12;const modelHeight=(pmx.bounds.mx[1]-pmx.bounds.mn[1])*modelScale;const centerX=(pmx.bounds.mn[0]+pmx.bounds.mx[0])*.5,centerZ=(pmx.bounds.mn[2]+pmx.bounds.mx[2])*.5,bottom=pmx.bounds.mn[1];
 let animTime=0;
-function findBone(...names){for(const n of names){const i=pmx.boneMap.get(n);if(i!==undefined)return i}return -1}
-const idx={leftLeg:findBone('左足','左腿'),rightLeg:findBone('右足','右腿'),leftArm:findBone('左腕','左手臂'),rightArm:findBone('右腕','右手臂'),leftElbow:findBone('左ひじ','左肘'),rightElbow:findBone('右ひじ','右肘'),waist:findBone('腰'),upper:findBone('上半身'),upper2:findBone('上半身2','上半身２'),leftShoulder:findBone('左肩','左肩C'),rightShoulder:findBone('右肩','右肩C')};
-function setRot(i,x,y,z){if(i>=0)pmx.bones[i].rot=[x,y,z]}
+const idx={
+  leftLeg:findBone('左足','左腿'), rightLeg:findBone('右足','右腿'),
+  leftKnee:findBone('左ひざ','左膝'), rightKnee:findBone('右ひざ','右膝'),
+  leftAnkle:findBone('左足首','左脚首'), rightAnkle:findBone('右足首','右脚首'),
+  leftToe:findBone('左つま先','左脚先'), rightToe:findBone('右つま先','右脚先'),
+  leftArm:findBone('左腕','左手臂'), rightArm:findBone('右腕','右手臂'),
+  leftElbow:findBone('左ひじ','左肘'), rightElbow:findBone('右ひじ','右肘'),
+  leftWrist:findBone('左手首','左腕手首'), rightWrist:findBone('右手首','右腕手首'),
+  waist:findBone('腰'), upper:findBone('上半身'), upper2:findBone('上半身2','上半身２'), upper3:findBone('上半身3','上半身３'),
+  neck:findBone('首'), head:findBone('頭'),
+  leftShoulder:findBone('左肩','左肩C'), rightShoulder:findBone('右肩','右肩C')
+};
+function setRot(i,x=0,y=0,z=0){if(i>=0)pmx.bones[i].rot=[x,y,z]}
 function applyAnim(){
   for(const b of pmx.bones)b.rot=[0,0,0];
   const speed=Math.hypot(player.vx,player.vz);
-  const locomotion=actionState==='walk'||actionState==='run';
-  const phase=actionState==='idle'?animTime*1.3:actionState==='walk'?animTime*7.0:actionState==='run'?animTime*10.0:actionState==='dodge'?actionTime*16.0:animTime*1.3;
-  const s=Math.sin(phase),c=Math.cos(phase);
-  const set=(i,x,y,z)=>setRot(i,x,y,z);
-  if(actionState==='idle'){
-    set(idx.upper,.012*c,0,.010*s);set(idx.upper2,.008*c,0,.006*s);
-    set(idx.leftShoulder||-1,.01*s,0,0);set(idx.rightShoulder||-1,-.01*s,0,0);
-    set(idx.waist,.008*c,0,0);
+  const moving=speed>0.15;
+  const run=actionState==='run';
+  const dodgeState=actionState==='dodge';
+  const t=animTime;
+  const phase=t*(run?9.6:7.2);
+  const s=Math.sin(phase), c=Math.cos(phase);
+  const breath=Math.sin(t*1.7);
+  const lean=run?0.14:(moving?0.055:0);
+
+  if(dodgeState){
+    const p=Math.min(1,actionTime/0.30);
+    const inOut=p<0.18?p/0.18:p<0.62?1:(1-p)/0.38;
+    const pull=Math.max(0,inOut);
+    setRot(idx.upper,-0.28*pull,0,0);
+    setRot(idx.upper2,-0.18*pull,0,0);
+    setRot(idx.upper3,-0.10*pull,0,0);
+    setRot(idx.waist,-0.20*pull,0,0.02*pull);
+    setRot(idx.leftLeg,-0.34*pull,0,-0.10*pull); setRot(idx.rightLeg,0.26*pull,0,0.10*pull);
+    setRot(idx.leftKnee,0.38*pull,0,0); setRot(idx.rightKnee,0.30*pull,0,0);
+    setRot(idx.leftArm,-0.52*pull,0,0.10*pull); setRot(idx.rightArm,-0.52*pull,0,-0.10*pull);
+    setRot(idx.leftElbow,0.34*pull,0,0); setRot(idx.rightElbow,0.34*pull,0,0);
     return;
   }
-  if(actionState==='walk'||actionState==='run'){
-    const amp=actionState==='run'?.52:.30;
-    const armAmp=actionState==='run'?.38:.22;
-    set(idx.leftLeg,-amp*s,0,0);set(idx.rightLeg,amp*s,0,0);
-    set(idx.leftArm,armAmp*s,0,0);set(idx.rightArm,-armAmp*s,0,0);
-    const kneeBase=actionState==='run'?.24:.12;
-    set(idx.leftElbow,kneeBase*(.5+.5*s),0,0);set(idx.rightElbow,kneeBase*(.5-.5*s),0,0);
-    set(idx.waist,.045+(.035*c),0,.018*s);
-    set(idx.upper,.055+(.055*c),0,.025*s);set(idx.upper2,.025*c,0,.012*s);
+
+  if(!moving){
+    setRot(idx.waist,0.008*breath,0,0.010*breath);
+    setRot(idx.upper,0.012*breath,0,0.008*c);
+    setRot(idx.upper2,0.008*breath,0,0.006*s);
+    setRot(idx.upper3,0.004*breath,0,0.004*s);
+    setRot(idx.leftShoulder,0.010*s,0,0); setRot(idx.rightShoulder,-0.010*s,0,0);
+    setRot(idx.head,0,0.008*s,0);
     return;
   }
-  if(actionState==='dodge'){
-    const p=Math.min(1,actionTime/.30);
-    const hit=p<.18? p/.18 : p<.55?1 : 1-(p-.55)/.45;
-    set(idx.leftLeg,-.35*hit,0,-.12*hit);set(idx.rightLeg,.28*hit,0,.12*hit);
-    set(idx.leftArm,-.50*hit,0,.12*hit);set(idx.rightArm,-.50*hit,0,-.12*hit);
-    set(idx.leftElbow,.25*hit,0,0);set(idx.rightElbow,.25*hit,0,0);
-    set(idx.waist,-.22*hit,0,0);set(idx.upper,-.30*hit,0,0);set(idx.upper2,-.16*hit,0,0);
-    return;
-  }
+
+  const legAmp=run?0.62:0.38;
+  const armAmp=run?0.46:0.30;
+  const kneeAmp=run?0.42:0.22;
+  const ankleAmp=run?0.15:0.08;
+  const bob=run?0.060:0.030;
+  const roll=run?0.040:0.022;
+
+  setRot(idx.leftLeg,-legAmp*s,0,roll*s);
+  setRot(idx.rightLeg, legAmp*s,0,-roll*s);
+  setRot(idx.leftKnee, Math.max(0,kneeAmp*s),0,0);
+  setRot(idx.rightKnee, Math.max(0,-kneeAmp*s),0,0);
+  setRot(idx.leftAnkle,-ankleAmp*s,0,0);
+  setRot(idx.rightAnkle,ankleAmp*s,0,0);
+  setRot(idx.leftToe,0,0,Math.max(0,ankleAmp*0.8*s));
+  setRot(idx.rightToe,0,0,Math.max(0,-ankleAmp*0.8*s));
+
+  setRot(idx.leftArm, armAmp*s,0,-0.035*s);
+  setRot(idx.rightArm,-armAmp*s,0,0.035*s);
+  setRot(idx.leftElbow, Math.max(0, kneeAmp*0.65*s),0,0);
+  setRot(idx.rightElbow, Math.max(0,-kneeAmp*0.65*s),0,0);
+  setRot(idx.leftWrist,0,0,0.04*s); setRot(idx.rightWrist,0,0,-0.04*s);
+
+  setRot(idx.waist, lean+0.028*c,0,0.018*s);
+  setRot(idx.upper, lean*1.05+0.040*c,0,0.024*s);
+  setRot(idx.upper2, lean*0.72+0.025*c,0,0.016*s);
+  setRot(idx.upper3, lean*0.45+0.014*c,0,0.010*s);
+  setRot(idx.leftShoulder,0.028*s,0,0.018*c);
+  setRot(idx.rightShoulder,-0.028*s,0,-0.018*c);
+  setRot(idx.head,0,-0.018*s,0.008*c);
+  // 上下動は腰・上半身の微小回転で表現し、PMX原点を直接上下させない。
+  if(idx.waist>=0) pmx.bones[idx.waist].rot[0]+=bob*c;
 }
 
 function boneMatrices(){applyAnim();const out=new Float32Array(pmx.bones.length*16),world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const localPos=p>=0?mt(b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]):mt(b.pos[0],b.pos[1],b.pos[2]);const pose=mm(localPos,mr(b.rot[0],b.rot[1],b.rot[2]));world[i]=p>=0?mm(world[p],pose):pose;out.set(mm(world[i],invBind[i]),i*16);}return out;}
@@ -330,7 +375,7 @@ function modelMatrix(){
   const speed=Math.hypot(player.vx,player.vz);
   // モデルの正面はローカル -Z。実際のワールド移動ベクトルから直接向きを決める。
   // W=(0,-Z) -> 0rad、S=(0,+Z) -> PI、D=(+X,0) -> +PI/2、A=(-X,0) -> -PI/2。
-  const facing=speed>.15?Math.atan2(-player.vx,-player.vz):cameraYaw;
+  const facing=speed>.15?Math.atan2(player.vx,-player.vz):cameraYaw;
   const c=Math.cos(facing),ss=Math.sin(facing);
   return new Float32Array([
     c*modelScale,0,-ss*modelScale,0,
