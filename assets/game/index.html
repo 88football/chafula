@@ -10,6 +10,11 @@
       position: absolute; top: 10px; left: 10px; color: white;
       text-shadow: 1px 1px 2px black; pointer-events: none;
     }
+    #error {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #ff5555; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 8px;
+      display: none; text-align: center; font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -17,18 +22,119 @@
     <h2>WebGPU TPS Dodge Demo</h2>
     <p>移動: <b>WASD</b> | 回避: <b>Space</b> | 視点移動: <b>マウスドラッグ</b></p>
   </div>
+  <div id="error">WebGPUが利用できません。<br>ブラウザ設定でハードウェアアクセラレーションが有効か確認してください。</div>
   <canvas id="canvas"></canvas>
 
   <script type="module">
-    import { mat4, vec3 } from 'https://cdn.skypack.dev/gl-matrix';
+    // --- 簡易行列演算ライブラリ (外部依存排除用) ---
+    const Mat4 = {
+      create: () => new Float32Array(16),
+      identity: (out) => {
+        out.fill(0);
+        out[0] = 1; out[5] = 1; out[10] = 1; out[15] = 1;
+        return out;
+      },
+      perspective: (out, fovy, aspect, near, far) => {
+        const f = 1.0 / Math.tan(fovy / 2);
+        out.fill(0);
+        out[0] = f / aspect;
+        out[5] = f;
+        out[10] = far / (near - far);
+        out[11] = -1;
+        out[14] = (far * near) / (near - far);
+        return out;
+      },
+      lookAt: (out, eye, center, up) => {
+        let z0 = eye[0] - center[0], z1 = eye[1] - center[1], z2 = eye[2] - center[2];
+        let len = 1 / (Math.hypot(z0, z1, z2) || 1);
+        z0 *= len; z1 *= len; z2 *= len;
+        let x0 = up[1] * z2 - up[2] * z1, x1 = up[2] * z0 - up[0] * z2, x2 = up[0] * z1 - up[1] * z0;
+        len = 1 / (Math.hypot(x0, x1, x2) || 1);
+        x0 *= len; x1 *= len; x2 *= len;
+        let y0 = z1 * x2 - z2 * x1, y1 = z2 * x0 - z0 * x2, y2 = z0 * x1 - z1 * x0;
+        out[0] = x0; out[1] = y0; out[2] = z0; out[3] = 0;
+        out[4] = x1; out[5] = y1; out[6] = z1; out[7] = 0;
+        out[8] = x2; out[9] = y2; out[10] = z2; out[11] = 0;
+        out[12] = -(x0 * eye[0] + x1 * eye[1] + x2 * eye[2]);
+        out[13] = -(y0 * eye[0] + y1 * eye[1] + y2 * eye[2]);
+        out[14] = -(z0 * eye[0] + z1 * eye[1] + z2 * eye[2]);
+        out[15] = 1;
+        return out;
+      },
+      multiply: (out, a, b) => {
+        const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+        const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+        const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+        let b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
+        out[0] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+        out[1] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+        out[2] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+        out[3] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+        b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
+        out[4] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+        out[5] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+        out[6] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+        out[7] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+        b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
+        out[8] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+        out[9] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+        out[10] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+        out[11] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+        b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
+        out[12] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+        out[13] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+        out[14] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+        out[15] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+        return out;
+      },
+      translate: (out, a, v) => {
+        let x = v[0], y = v[1], z = v[2];
+        if (a === out) {
+          out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
+          out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];
+          out[14] = a[2] * x + a[6] * y + a[10] * z + a[14];
+          out[15] = a[3] * x + a[7] * y + a[11] * z + a[15];
+        }
+        return out;
+      },
+      rotateY: (out, a, rad) => {
+        let s = Math.sin(rad), c = Math.cos(rad);
+        let a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+        let a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        out[0] = a00 * c - a20 * s; out[1] = a01 * c - a21 * s;
+        out[2] = a02 * c - a22 * s; out[3] = a03 * c - a23 * s;
+        out[8] = a00 * s + a20 * c; out[9] = a01 * s + a21 * c;
+        out[10] = a02 * s + a22 * c; out[11] = a03 * s + a23 * c;
+        return out;
+      },
+      rotateX: (out, a, rad) => {
+        let s = Math.sin(rad), c = Math.cos(rad);
+        let a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+        let a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        out[4] = a10 * c + a20 * s; out[5] = a11 * c + a21 * s;
+        out[6] = a12 * c + a22 * s; out[7] = a13 * c + a23 * s;
+        out[8] = a20 * c - a10 * s; out[9] = a21 * c - a11 * s;
+        out[10] = a22 * c - a12 * s; out[11] = a23 * c - a13 * s;
+        return out;
+      }
+    };
 
+    // --- メイン処理 ---
     const canvas = document.getElementById('canvas');
+    const errorDiv = document.getElementById('error');
+
     if (!navigator.gpu) {
-      alert("WebGPUはこのブラウザでサポートされていません。");
+      errorDiv.style.display = 'block';
       throw new Error("WebGPU not supported");
     }
 
     const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      errorDiv.style.display = 'block';
+      throw new Error("No WebGPU adapter found");
+    }
+
     const device = await adapter.requestDevice();
     const context = canvas.getContext('webgpu');
     const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -42,7 +148,6 @@
 
     context.configure({ device, format: presentationFormat, alphaMode: 'premultiplied' });
 
-    // WGSL シェーダー
     const shaderModule = device.createShaderModule({
       code: `
         struct Uniforms {
@@ -68,7 +173,6 @@
 
         @fragment
         fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {
-          // 簡易ライティング (平行光源)
           let lightDir = normalize(vec3<f32>(0.5, 1.0, 0.3));
           let N = normalize(cross(dpdx(in.fragPosition), dpdy(in.fragPosition)));
           let diff = max(dot(N, lightDir), 0.2);
@@ -77,21 +181,14 @@
       `
     });
 
-    // 直方体のメッシュデータ作成
     function createBoxData(width, height, depth) {
       const w = width / 2, h = height / 2, d = depth / 2;
       const vertices = new Float32Array([
-        // Front
         -w,-h, d,  w,-h, d,  w, h, d, -w, h, d,
-        // Back
         -w,-h,-d, -w, h,-d,  w, h,-d,  w,-h,-d,
-        // Top
         -w, h,-d, -w, h, d,  w, h, d,  w, h,-d,
-        // Bottom
         -w,-h,-d,  w,-h,-d,  w,-h, d, -w,-h, d,
-        // Right
          w,-h,-d,  w, h,-d,  w, h, d,  w,-h, d,
-        // Left
         -w,-h,-d, -w,-h, d, -w, h, d, -w, h,-d,
       ]);
       const indices = new Uint16Array([
@@ -101,8 +198,8 @@
       return { vertices, indices };
     }
 
-    const cubeData = createBoxData(1, 2, 1); // プレイヤー用
-    const groundData = createBoxData(100, 0.2, 100); // 地面用
+    const cubeData = createBoxData(1, 2, 1);
+    const groundData = createBoxData(100, 0.2, 100);
 
     function createBuffer(data, usage) {
       const buffer = device.createBuffer({
@@ -121,7 +218,6 @@
     const groundVB = createBuffer(groundData.vertices, GPUBufferUsage.VERTEX);
     const groundIB = createBuffer(groundData.indices, GPUBufferUsage.INDEX);
 
-    // パイプライン設定
     const pipeline = device.createRenderPipeline({
       layout: 'auto',
       vertex: {
@@ -138,7 +234,6 @@
       depthStencil: { depthWriteEnabled: true, depthCompare: 'less', format: 'depth24plus' }
     });
 
-    // ユニフォームバッファ設定 (64バイト matrix * 2 + 16バイト color)
     const uniformBufferSize = 64 + 64 + 16;
     const playerUniformBuffer = device.createBuffer({ size: uniformBufferSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const groundUniformBuffer = device.createBuffer({ size: uniformBufferSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -152,7 +247,6 @@
       entries: [{ binding: 0, resource: { buffer: groundUniformBuffer } }]
     });
 
-    // ゲーム状態
     const keys = {};
     window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
@@ -173,14 +267,13 @@
       previousMousePosition = { x: e.clientX, y: e.clientY };
     });
 
-    // プレイヤーパラメータ
     const player = {
-      pos: vec3.fromValues(0, 1, 0),
+      pos: [0, 1, 0],
       rotY: 0,
       isDodging: false,
       dodgeTimer: 0,
-      dodgeDuration: 0.35, // 回避にかかる時間（秒）
-      dodgeDir: vec3.create(),
+      dodgeDuration: 0.35,
+      dodgeDir: [0, 0, 0],
       dodgeSpeed: 20.0,
       normalSpeed: 8.0,
       rollAngle: 0
@@ -189,99 +282,81 @@
     let depthTexture = null;
     let lastTime = performance.now();
 
-    // メインループ
     function frame(now) {
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
-      // 1. 移動 logic
-      const moveDir = vec3.create();
-      if (keys['KeyW']) moveDir[2] -= 1;
-      if (keys['KeyS']) moveDir[2] += 1;
-      if (keys['KeyA']) moveDir[0] -= 1;
-      if (keys['KeyD']) moveDir[0] += 1;
+      let moveX = 0, moveZ = 0;
+      if (keys['KeyW']) moveZ -= 1;
+      if (keys['KeyS']) moveZ += 1;
+      if (keys['KeyA']) moveX -= 1;
+      if (keys['KeyD']) moveX += 1;
 
-      if (vec3.length(moveDir) > 0) {
-        vec3.normalize(moveDir, moveDir);
-        // カメラの向きに合わせて移動方向を回転
-        const rotatedDir = vec3.create();
-        rotatedDir[0] = moveDir[0] * Math.cos(cameraYaw) - moveDir[2] * Math.sin(cameraYaw);
-        rotatedDir[2] = moveDir[0] * Math.sin(cameraYaw) + moveDir[2] * Math.cos(cameraYaw);
-        vec3.copy(moveDir, rotatedDir);
-
+      const len = Math.hypot(moveX, moveZ);
+      let rotMoveX = 0, rotMoveZ = 0;
+      if (len > 0) {
+        moveX /= len; moveZ /= len;
+        rotMoveX = moveX * Math.cos(cameraYaw) - moveZ * Math.sin(cameraYaw);
+        rotMoveZ = moveX * Math.sin(cameraYaw) + moveZ * Math.cos(cameraYaw);
         if (!player.isDodging) {
-          player.rotY = Math.atan2(moveDir[0], moveDir[2]);
+          player.rotY = Math.atan2(rotMoveX, rotMoveZ);
         }
       }
 
-      // 回避開始判定
       if (keys['Space'] && !player.isDodging) {
         player.isDodging = true;
         player.dodgeTimer = player.dodgeDuration;
-        // 移動入力がなければ前方に回避
-        if (vec3.length(moveDir) === 0) {
-          vec3.set(player.dodgeDir, Math.sin(player.rotY), 0, Math.cos(player.rotY));
+        if (len === 0) {
+          player.dodgeDir = [Math.sin(player.rotY), 0, Math.cos(player.rotY)];
         } else {
-          vec3.copy(player.dodgeDir, moveDir);
+          player.dodgeDir = [rotMoveX, 0, rotMoveZ];
         }
       }
 
-      // 物理・位置更新
       if (player.isDodging) {
         player.dodgeTimer -= dt;
-        const speed = player.dodgeSpeed;
-        vec3.scaleAndDrop(player.pos, player.pos, player.dodgeDir, speed * dt);
-        
-        // ローリング回転（X軸回転）
-        const progress = 1 - (player.dodgeTimer / player.dodgeDuration);
-        player.rollAngle = progress * Math.PI * 2;
+        player.pos[0] += player.dodgeDir[0] * player.dodgeSpeed * dt;
+        player.pos[2] += player.dodgeDir[2] * player.dodgeSpeed * dt;
+        player.rollAngle = (1 - (player.dodgeTimer / player.dodgeDuration)) * Math.PI * 2;
 
         if (player.dodgeTimer <= 0) {
           player.isDodging = false;
           player.rollAngle = 0;
         }
-      } else if (vec3.length(moveDir) > 0) {
-        vec3.scaleAndDrop(player.pos, player.pos, moveDir, player.normalSpeed * dt);
+      } else if (len > 0) {
+        player.pos[0] += rotMoveX * player.normalSpeed * dt;
+        player.pos[2] += rotMoveZ * player.normalSpeed * dt;
       }
 
-      // 2. カメラ計算 (TPSカメラ)
       const cameraDistance = 8.0;
-      const cameraOffset = vec3.fromValues(
-        Math.sin(cameraYaw) * Math.cos(cameraPitch) * cameraDistance,
-        Math.sin(cameraPitch) * cameraDistance,
-        Math.cos(cameraYaw) * Math.cos(cameraPitch) * cameraDistance
-      );
-      const cameraPos = vec3.create();
-      const cameraTarget = vec3.fromValues(player.pos[0], player.pos[1] + 1.0, player.pos[2]);
-      vec3.add(cameraPos, cameraTarget, cameraOffset);
+      const camX = player.pos[0] + Math.sin(cameraYaw) * Math.cos(cameraPitch) * cameraDistance;
+      const camY = player.pos[1] + 1.0 + Math.sin(cameraPitch) * cameraDistance;
+      const camZ = player.pos[2] + Math.cos(cameraYaw) * Math.cos(cameraPitch) * cameraDistance;
 
-      const viewMatrix = mat4.create();
-      mat4.lookAt(viewMatrix, cameraPos, cameraTarget, [0, 1, 0]);
+      const viewMatrix = Mat4.create();
+      Mat4.lookAt(viewMatrix, [camX, camY, camZ], [player.pos[0], player.pos[1] + 1.0, player.pos[2]], [0, 1, 0]);
 
-      const projectionMatrix = mat4.create();
-      mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 1000.0);
+      const projectionMatrix = Mat4.create();
+      Mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 1000.0);
 
-      const viewProjectionMatrix = mat4.create();
-      mat4.multiply(viewProjectionMatrix, projectionMatrix, viewMatrix);
+      const viewProjectionMatrix = Mat4.create();
+      Mat4.multiply(viewProjectionMatrix, projectionMatrix, viewMatrix);
 
-      // 3. 行列更新＆書き込み
-      // 地面
-      const groundModel = mat4.create();
-      mat4.translate(groundModel, groundModel, [0, -0.1, 0]);
+      // 地面描画データ準備
+      const groundModel = Mat4.identity(Mat4.create());
+      Mat4.translate(groundModel, groundModel, [0, -0.1, 0]);
       updateUniforms(groundUniformBuffer, viewProjectionMatrix, groundModel, [0.2, 0.6, 0.2, 1.0]);
 
-      // プレイヤー
-      const playerModel = mat4.create();
-      mat4.translate(playerModel, playerModel, player.pos);
-      mat4.rotateY(playerModel, playerModel, player.rotY);
+      // プレイヤー描画データ準備
+      const playerModel = Mat4.identity(Mat4.create());
+      Mat4.translate(playerModel, playerModel, player.pos);
+      Mat4.rotateY(playerModel, playerModel, player.rotY);
       if (player.isDodging) {
-        mat4.rotateX(playerModel, playerModel, player.rollAngle); // 回避時のロール回転
+        Mat4.rotateX(playerModel, playerModel, player.rollAngle);
       }
-      // 回避中は色を変更（シアン）
       const playerColor = player.isDodging ? [0.0, 1.0, 1.0, 1.0] : [0.8, 0.2, 0.2, 1.0];
       updateUniforms(playerUniformBuffer, viewProjectionMatrix, playerModel, playerColor);
 
-      // 4. 描画レンダリング
       if (!depthTexture || depthTexture.width !== canvas.width || depthTexture.height !== canvas.height) {
         if (depthTexture) depthTexture.destroy();
         depthTexture = device.createTexture({
@@ -309,13 +384,11 @@
 
       renderPass.setPipeline(pipeline);
 
-      // 地面描画
       renderPass.setBindGroup(0, groundBindGroup);
       renderPass.setVertexBuffer(0, groundVB);
       renderPass.setIndexBuffer(groundIB, 'uint16');
       renderPass.drawIndexed(groundData.indices.length);
 
-      // プレイヤー描画
       renderPass.setBindGroup(0, playerBindGroup);
       renderPass.setVertexBuffer(0, playerVB);
       renderPass.setIndexBuffer(playerIB, 'uint16');
@@ -334,13 +407,6 @@
       data.set(color, 32);
       device.queue.writeBuffer(buffer, 0, data);
     }
-
-    // vec3の計算補助用
-    vec3.scaleAndDrop = function(out, a, b, scale) {
-      out[0] = a[0] + b[0] * scale;
-      out[1] = a[1] + b[1] * scale;
-      out[2] = a[2] + b[2] * scale;
-    };
 
     requestAnimationFrame(frame);
   </script>
