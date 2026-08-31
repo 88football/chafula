@@ -247,7 +247,7 @@ for(const g of pmx.materials){
 }
 loading.textContent=`アルレッキーノ読み込み完了　${pmx.materials.length}材質 / ${pmx.textures.length}テクスチャ / ${pmx.bones.length}ボーン`+(missing.length?`\n未取得テクスチャ ${missing.length}件`:'');
 
-const findBone=(...names)=>{for(const name of names){const i=pmx.boneMap.get(name);if(i!==undefined)return i;}const normalized=new Map();for(const [k,v] of pmx.boneMap){normalized.set(k.replace(/[ 　]/g,''),v);}for(const name of names){const i=normalized.get(String(name).replace(/[ 　]/g,''));if(i!==undefined)return i;}return -1;};
+function findBone(...names){for(const name of names){const i=pmx.boneMap.get(name);if(i!==undefined)return i;}const normalized=new Map();for(const [k,v] of pmx.boneMap){normalized.set(k.replace(/[ 　]/g,''),v);}for(const name of names){const i=normalized.get(String(name).replace(/[ 　]/g,''));if(i!==undefined)return i;}return -1;}
 const modelScale=.12;const modelHeight=(pmx.bounds.mx[1]-pmx.bounds.mn[1])*modelScale;const centerX=(pmx.bounds.mn[0]+pmx.bounds.mx[0])*.5,centerZ=(pmx.bounds.mn[2]+pmx.bounds.mx[2])*.5,bottom=pmx.bounds.mn[1];
 let animTime=0;
 const idx={
@@ -274,7 +274,7 @@ function applyAnim(){
   const strafeInput=(keys['KeyD'.toLowerCase()]||keys['d']||keys['arrowright']?1:0) - (keys['KeyA'.toLowerCase()]||keys['a']||keys['arrowleft']?1:0);
   const lateral=Math.abs(strafeInput)>Math.abs(forwardInput) && Math.abs(strafeInput)>0;
   // 左右移動時だけ歩行周期を左右反転。前後移動の正常なモーションは変更しない。
-  const gaitMirror=lateral?(strafeInput<0?-1:1):1;
+  const gaitMirror=lateral?(strafeInput>0?-1:1):1;
   const phase=gaitMirror*t*(run?9.6:7.2);
   const s=Math.sin(phase), c=Math.cos(phase);
   const breath=Math.sin(t*1.7);
