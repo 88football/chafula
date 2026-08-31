@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>今Native WebGPU Arlecchino Dodge Arena - GPU Skinning</title>
+<title>Native WebGPU Arlecchino Dodge Arena - GPU Skinning</title>
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070912;color:#fff;font-family:system-ui,sans-serif}
 canvas{display:block;width:100vw;height:100vh}
@@ -398,20 +398,16 @@ function render(){
  device.queue.writeBuffer(camBuf,0,vp);device.queue.writeBuffer(camBuf,64,modelMatrix());device.queue.writeBuffer(boneBuf,0,boneMatrices());
  const enc=device.createCommandEncoder();const pass=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.025,g:.035,b:.075,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
  // ground
- pass.setPipeline(gpipe);pass.setBindGroup(0,gbind);pass.setVertexBuffer(0,groundVB);const groundMat=new Float32Array([
-  100,0,0,0,
-  0,1,0,0,
-  0,0,100,0,
-  0,-0.03,0,1
-]);
-device.queue.writeBuffer(camBuf,64,groundMat);
-pass.draw(6);
+ pass.setPipeline(gpipe);pass.setBindGroup(0,gbind);pass.setVertexBuffer(0,groundVB);
+ const groundY=-bottom*modelScale-0.035;
+ const groundMat=new Float32Array([100,0,0,0,0,1,0,0,0,0,100,0,player.x,groundY,player.z,1]);
+ device.queue.writeBuffer(camBuf,64,groundMat);pass.draw(6);
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
  debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${idx.leftLeg>=0?'左足✓':'左足—'} ${idx.rightLeg>=0?'右足✓':'右足—'} ${idx.leftArm>=0?'左腕✓':'左腕—'} ${idx.rightArm>=0?'右腕✓':'右腕—'}`;
 }
-reset();loading.textContent=`アルレッキーノ準備完了：${pmx.bones.length}ボーン GPUスキニング / 地面表示ON`;let last=performance.now();function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+reset();loading.textContent=`アルレッキーノ準備完了：${pmx.bones.length}ボーン GPUスキニング`;let last=performance.now();function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
 </script>
 </body>
 </html>
