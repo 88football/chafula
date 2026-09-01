@@ -288,16 +288,7 @@ function qSlerp(a,b,t){
   const s1=Math.sin(t*th)/st;
   return [ax*s0+bx*s1,ay*s0+by*s1,az*s0+bz*s1,aw*s0+bw*s1];
 }
-function quatToMat(q){
-  q=qNormalize(q);
-  const x=q[0],y=q[1],z=q[2],w=q[3];
-  return new Float32Array([
-    1-2*y*y-2*z*z, 2*x*y-2*z*w, 2*x*z+2*y*w, 0,
-    2*x*y+2*z*w, 1-2*x*x-2*z*z, 2*y*z-2*x*w, 0,
-    2*x*z-2*y*w, 2*y*z+2*x*w, 1-2*x*x-2*y*y, 0,
-    0,0,0,1
-  ]);
-}
+function quatToMat(q){q=qNormalize(q);const x=q[0],y=q[1],z=q[2],w=q[3];return new Float32Array([1-2*(y*y+z*z),2*(x*y+z*w),2*(x*z-y*w),0,2*(x*y-z*w),1-2*(x*x+z*z),2*(y*z+x*w),0,2*(x*z+y*w),2*(y*z-x*w),1-2*(x*x+y*y),0,0,0,0,1]);}
 function eulerToQuat(x,y,z){
   const cx=Math.cos(x/2),sx=Math.sin(x/2),cy=Math.cos(y/2),sy=Math.sin(y/2),cz=Math.cos(z/2),sz=Math.sin(z/2);
   return qNormalize([
@@ -317,6 +308,7 @@ const findBoneIndex=(name)=>{
   if(i!==undefined) return i;
   return normalizedBoneMap.get(normalizeBoneName(name));
 };
+const deformMirrorPairs=[['左足','左足D'],['左ひざ','左ひざD'],['左足首','左足首D'],['右足','右足D'],['右ひざ','右ひざD'],['右足首','右足首D']].map(([a,b])=>[findBoneIndex(a),findBoneIndex(b)]).filter(([a,b])=>a!==undefined&&b!==undefined&&a>=0&&b>=0);
 
 function parseVMD(buffer){
   const r=new DataView(buffer);
@@ -383,7 +375,7 @@ function poseForState(state,elapsed){
   set(['左肩'],0.01,0,0.025*Math.sin(t*1.6));set(['右肩'],-0.01,0,-0.025*Math.sin(t*1.6));set(['上半身'],0.01*Math.sin(t*1.6),0,0.006*Math.cos(t*1.6));return pose;
 }
 function blendPose(a,b,t){const out=new Array(pmx.bones.length);for(let i=0;i<out.length;i++){const pa=a?.[i]||makePose(),pb=b?.[i]||makePose();out[i]=makePose(qSlerp(pa.q,pb.q,t),lerp3(pa.p,pb.p,t));}return out;}
-function applyMotionPose(){const target=poseForState(activeMotionState,motionStateTime);let pose=target;if(motionBlendFrom&&motionBlendElapsed<MOTION_BLEND)pose=blendPose(motionBlendFrom,target,Math.min(1,motionBlendElapsed/MOTION_BLEND));for(let i=0;i<pmx.bones.length;i++){pmx.bones[i].poseQ=pose[i]?.q||[0,0,0,1];pmx.bones[i].poseP=pose[i]?.p||[0,0,0];}}
+function applyMotionPose(){const target=poseForState(activeMotionState,motionStateTime);let pose=target;if(motionBlendFrom&&motionBlendElapsed<MOTION_BLEND)pose=blendPose(motionBlendFrom,target,Math.min(1,motionBlendElapsed/MOTION_BLEND));for(let i=0;i<pmx.bones.length;i++){pmx.bones[i].poseQ=pose[i]?.q||[0,0,0,1];pmx.bones[i].poseP=pose[i]?.p||[0,0,0];}for(const [src,dst] of deformMirrorPairs){pmx.bones[dst].poseQ=pmx.bones[src].poseQ.slice();}}
 async function initMotions(){loading.textContent='移動VMDを読み込み中…';const [walk,run,dashVmd]=await Promise.all([loadVMD(MOTION_PATHS.walk),loadVMD(MOTION_PATHS.run),loadVMD(MOTION_PATHS.dash)]);motions.walk=walk;motions.run=run;motions.dash=dashVmd;loading.textContent=`移動VMD読込完了：歩き ${walk.tracks.size} / 走り ${run.tracks.size} / ダッシュ ${dashVmd.tracks.size} ボーン`;}
 
 function matToQuat(m){
@@ -398,7 +390,7 @@ function qInv(q){return[-q[0],-q[1],-q[2],q[3]];}
 function qFromTo(a,b){const va=norm(a),vb=norm(b),d=Math.max(-1,Math.min(1,dot(va,vb)));if(d>.9999)return[0,0,0,1];if(d<-.9999){let axis=cross([1,0,0],va);if(Math.hypot(...axis)<.001)axis=cross([0,1,0],va);axis=norm(axis);return[axis[0],axis[1],axis[2],0];}const c=cross(va,vb);return qNormalize([c[0],c[1],c[2],1+d]);}
 function buildWorld(){const world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();const pp=b.poseP||[0,0,0];const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(b.poseQ||[0,0,0,1]));world[i]=p>=0?mm(world[p],lm):lm;}return world;}
 function solveFootIK(world,ikName){const ik=findBoneIndex(ikName);if(ik===undefined||ik<0)return false;const def=pmx.bones[ik].ik;if(!def||def.links.length<2)return false;const ankle=def.target;if(ankle<0)return false;const target=mulPoint(world[ik],[0,0,0]);for(let iter=0;iter<6;iter++){for(const joint of def.links){const jp=mulPoint(world[joint],[0,0,0]),ep=mulPoint(world[ankle],[0,0,0]);const d=qFromTo(sub(ep,jp),sub(target,jp));const parent=pmx.bones[joint].parent;const jw=matToQuat(world[joint]);const desired=qMul(d,jw);const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];pmx.bones[joint].poseQ=qMul(qInv(pw),desired);world.splice(0,world.length,...buildWorld());}const ep=mulPoint(world[ankle],[0,0,0]);if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<.03)break;}return true;}
-function boneMatrices(){applyMotionPose();let world=buildWorld();solveFootIK(world,'左足ＩＫ');solveFootIK(world,'右足ＩＫ');world=buildWorld();const out=new Float32Array(pmx.bones.length*16);for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);return out;}
+function boneMatrices(){applyMotionPose();const world=buildWorld();const out=new Float32Array(pmx.bones.length*16);for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);return out;}
 
 const groundVerts=new Float32Array([-1,0,-1, 1,0,-1, 1,0,1, -1,0,-1, 1,0,1, -1,0,1]);
 const groundVB=device.createBuffer({size:groundVerts.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(groundVB,0,groundVerts);
