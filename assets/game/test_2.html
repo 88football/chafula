@@ -2297,9 +2297,39 @@ fn fs(
               (rollDeg * Math.PI) / 180,
             );
 
+            const baseP = sampled[lowerBodyIndex]?.p?.slice() || [0, 0, 0];
+
+            /*
+             * 腰の上下動を回転だけでなく「下半身」のY移動として追加する。
+             * これにより、走っている間に骨盤そのものが上下し、
+             * 腰→脚へつながるランニングらしいバウンスをはっきり見せる。
+             *
+             * 振幅はPMXローカル単位。モデルScale=0.12なので、
+             * 走りでは約0.19ワールド、回避では約0.26ワールド程度の上下幅。
+             */
+            let bobAmp = 0.0;
+            let bobFreq = waistFreq;
+            if (state === "runStart") {
+              bobAmp = 1.15;
+              bobFreq = 2.05;
+            } else if (state === "run") {
+              bobAmp = 1.60;
+              bobFreq = 2.15;
+            } else if (state === "dodge") {
+              bobAmp = 2.20;
+              bobFreq = 1.75;
+            } else {
+              bobAmp = 0.55;
+              bobFreq = 1.40;
+            }
+
+            const bobPhase = elapsed * Math.PI * 2 * bobFreq;
+            const bobY = Math.sin(bobPhase + Math.PI * 0.5) * bobAmp;
+            baseP[1] += bobY;
+
             sampled[lowerBodyIndex] = makePose(
               qMul(q, waistExtra),
-              sampled[lowerBodyIndex]?.p?.slice() || [0, 0, 0],
+              baseP,
             );
           }
 
