@@ -2139,7 +2139,15 @@ fn fs(
 
           const sampled = sampleVMD(motion, frame);
 
-          /* 走り出しだけ脚・膝の振れ幅を強調 */
+          /*
+           * 走り出しは「脚全体の振り」を明確にする。
+           *
+           * 指定VMDは膝そのものに回転キーがほとんど入っておらず、
+           * 「下半身」と左右の「足」（大腿側）が主な脚の原動力。
+           * そのため、膝だけを増幅するのではなく、股関節の土台→
+           * 大腿部→足首の順に強くし、さらに左右の大腿を交互に
+           * 振り出す補助回転を加える。
+           */
           if (state === "runStart") {
             const amplify = (names, amount) => {
               const bi = findBoneIndex(...names);
@@ -2149,24 +2157,46 @@ fn fs(
                 sampled[bi].p,
               );
             };
+
+            /* 骨盤・股関節の土台を大きく */
+            amplify(["下半身"], 2.35);
+
+            /* 大腿＝実際の股関節から脚を振る主要ボーン */
+            amplify(["左足", "左足D"], 2.75);
+            amplify(["右足", "右足D"], 2.75);
+
+            /* 念のため存在する場合だけ膝・足首も増幅 */
+            amplify(["左ひざ", "左ひざD", "左膝", "左膝D"], 2.40);
+            amplify(["右ひざ", "右ひざD", "右膝", "右膝D"], 2.40);
+            amplify(["左足首", "左足首D"], 2.05);
+            amplify(["右足首", "右足首D"], 2.05);
+
             /*
-             * 股関節の元になっている「下半身」を先に強く動かす。
-             * ここを弱くしたままだと、膝や足先だけを拡大しても
-             * 上半身が傾いた走り出し姿勢に脚が追従しにくい。
+             * 股関節から前後へ脚を振り出す補助回転。
+             * 30fのワンショットを位相として使い、左右を逆相にする。
+             * frame はこの直前で30fps基準に計算されている。
              */
-            amplify(["下半身"], 1.70);
+            const phase = ((frame - motion.minFrame) / 30) * Math.PI * 2;
+            const stride = Math.sin(phase * 1.0);
+            const extraHip = 0.28 * stride;
 
-            /* 脚の付け根から大腿部へつながる動きを強調 */
-            amplify(["左足", "左足D"], 1.55);
-            amplify(["右足", "右足D"], 1.55);
+            const addLocalRotation = (names, x, y = 0, z = 0) => {
+              const bi = findBoneIndex(...names);
+              if (bi === undefined || bi < 0 || !sampled[bi]) return;
+              const extraQ = eulerToQuat(x, y, z);
+              sampled[bi] = makePose(
+                qMul(extraQ, sampled[bi].q),
+                sampled[bi].p,
+              );
+            };
 
-            /* 膝の屈伸をさらに大きく */
-            amplify(["左ひざ", "左ひざD", "左膝", "左膝D"], 1.90);
-            amplify(["右ひざ", "右ひざD", "右膝", "右膝D"], 1.90);
+            /* 左右の股関節を逆方向へ大きく振る */
+            addLocalRotation(["左足", "左足D"], extraHip);
+            addLocalRotation(["右足", "右足D"], -extraHip);
 
-            /* 接地側の足首も十分に振る */
-            amplify(["左足首", "左足首D"], 1.65);
-            amplify(["右足首", "右足首D"], 1.65);
+            /* 接地側の足首も少し追従させる */
+            addLocalRotation(["左足首", "左足首D"], -0.10 * stride);
+            addLocalRotation(["右足首", "右足首D"], 0.10 * stride);
           }
 
           return sampled;
