@@ -111,15 +111,14 @@ function parsePMX(buf){
  for(let i=0;i<bc;i++){
   const bn=str(),ben=str(),p=[r.f32(),r.f32(),r.f32()],parent=r.idx(bIS),layer=r.i32(),flags=r.u16();
   if(flags&1)r.idx(bIS);else r.bytes(12);
-  let inheritBone=-1,inheritWeight=0;
-  if(flags&0x100){inheritBone=r.idx(bIS);inheritWeight=r.f32()}
+  if(flags&0x100){r.idx(bIS);r.f32()}
   if(flags&0x200){r.idx(bIS);r.f32()}
   if(flags&0x400)r.bytes(12);
   if(flags&0x800)r.bytes(24);
   if(flags&0x2000)r.idx(bIS);
   let ik=null;
   if(flags&0x20){const target=r.idx(bIS),loops=r.i32(),limit=r.f32();const lc=r.i32();const links=[];for(let j=0;j<lc;j++){const li=r.idx(bIS);const lim=r.u8();if(lim)r.bytes(24);links.push(li);}ik={target,loops,limit,links};}
-  const b={name:bn,en:ben,pos:p,parent,flags,inheritBone,inheritWeight,rot:[0,0,0],poseQ:[0,0,0,1],poseP:[0,0,0],ik};bones.push(b);boneMap.set(bn,i);
+  const b={name:bn,en:ben,pos:p,parent,flags,rot:[0,0,0],poseQ:[0,0,0,1],poseP:[0,0,0],ik};bones.push(b);boneMap.set(bn,i);
  }
  return {name,vertices:pos,normals:nor,uv,bi,bw,indices,textures,materials,bones,boneMap,bounds:boundsOf(pos)};
 }
@@ -309,7 +308,7 @@ const findBoneIndex=(name)=>{
   if(i!==undefined) return i;
   return normalizedBoneMap.get(normalizeBoneName(name));
 };
-const deformMirrorPairs=[['左足','左足D'],['左ひざ','左ひざD'],['左足首','左足首D'],['右足','右足D'],['右ひざ','右ひざD'],['右足首','右足首D']].map(([a,b])=>[findBoneIndex(a),findBoneIndex(b)]).filter(([a,b])=>a!==undefined&&b!==undefined&&a>=0&&b>=0);
+const footRig={left:{ik:findBoneIndex('左足ＩＫ'),hip:findBoneIndex('左足D'),knee:findBoneIndex('左ひざD'),ankle:findBoneIndex('左足首D'),srcHip:findBoneIndex('左足'),srcKnee:findBoneIndex('左ひざ'),srcAnkle:findBoneIndex('左足首')},right:{ik:findBoneIndex('右足ＩＫ'),hip:findBoneIndex('右足D'),knee:findBoneIndex('右ひざD'),ankle:findBoneIndex('右足首D'),srcHip:findBoneIndex('右足'),srcKnee:findBoneIndex('右ひざ'),srcAnkle:findBoneIndex('右足首')}};
 
 function parseVMD(buffer){
   const r=new DataView(buffer);
@@ -376,7 +375,23 @@ function poseForState(state,elapsed){
   set(['左肩'],0.01,0,0.025*Math.sin(t*1.6));set(['右肩'],-0.01,0,-0.025*Math.sin(t*1.6));set(['上半身'],0.01*Math.sin(t*1.6),0,0.006*Math.cos(t*1.6));return pose;
 }
 function blendPose(a,b,t){const out=new Array(pmx.bones.length);for(let i=0;i<out.length;i++){const pa=a?.[i]||makePose(),pb=b?.[i]||makePose();out[i]=makePose(qSlerp(pa.q,pb.q,t),lerp3(pa.p,pb.p,t));}return out;}
-function applyMotionPose(){const target=poseForState(activeMotionState,motionStateTime);let pose=target;if(motionBlendFrom&&motionBlendElapsed<MOTION_BLEND)pose=blendPose(motionBlendFrom,target,Math.min(1,motionBlendElapsed/MOTION_BLEND));for(let i=0;i<pmx.bones.length;i++){pmx.bones[i].poseQ=pose[i]?.q||[0,0,0,1];pmx.bones[i].poseP=pose[i]?.p||[0,0,0];}}
+function applyMotionPose(){
+  const target=poseForState(activeMotionState,motionStateTime);
+  let pose=target;
+  if(motionBlendFrom&&motionBlendElapsed<MOTION_BLEND)pose=blendPose(motionBlendFrom,target,Math.min(1,motionBlendElapsed/MOTION_BLEND));
+  for(let i=0;i<pmx.bones.length;i++){
+    pmx.bones[i].poseQ=pose[i]?.q||[0,0,0,1];
+    pmx.bones[i].poseP=pose[i]?.p||[0,0,0];
+  }
+  // このモデルの実メッシュはD系脚ボーンで変形するため、まず通常脚ボーンの姿勢をD系へコピーする。
+  for(const side of [footRig.left,footRig.right]){
+    if(!side)continue;
+    if(side.srcHip>=0&&side.hip>=0)pmx.bones[side.hip].poseQ=pmx.bones[side.srcHip].poseQ.slice();
+    if(side.srcKnee>=0&&side.knee>=0)pmx.bones[side.knee].poseQ=pmx.bones[side.srcKnee].poseQ.slice();
+    if(side.srcAnkle>=0&&side.ankle>=0)pmx.bones[side.ankle].poseQ=pmx.bones[side.srcAnkle].poseQ.slice();
+  }
+}
+
 async function initMotions(){loading.textContent='移動VMDを読み込み中…';const [walk,run,dashVmd]=await Promise.all([loadVMD(MOTION_PATHS.walk),loadVMD(MOTION_PATHS.run),loadVMD(MOTION_PATHS.dash)]);motions.walk=walk;motions.run=run;motions.dash=dashVmd;loading.textContent=`移動VMD読込完了：歩き ${walk.tracks.size} / 走り ${run.tracks.size} / ダッシュ ${dashVmd.tracks.size} ボーン`;}
 
 function matToQuat(m){
@@ -389,30 +404,32 @@ function matToQuat(m){
 function qMul(a,b){return qNormalize([a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]]);}
 function qInv(q){return[-q[0],-q[1],-q[2],q[3]];}
 function qFromTo(a,b){const va=norm(a),vb=norm(b),d=Math.max(-1,Math.min(1,dot(va,vb)));if(d>.9999)return[0,0,0,1];if(d<-.9999){let axis=cross([1,0,0],va);if(Math.hypot(...axis)<.001)axis=cross([0,1,0],va);axis=norm(axis);return[axis[0],axis[1],axis[2],0];}const c=cross(va,vb);return qNormalize([c[0],c[1],c[2],1+d]);}
-function buildWorld(){
-  const world=[];
-  for(let i=0;i<pmx.bones.length;i++){
-    const b=pmx.bones[i],p=b.parent;
-    const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();
-    const pp=b.poseP||[0,0,0];
-    let q=b.poseQ||[0,0,0,1];
-    // PMXの「回転付与」を正しく反映。
-    // アルレッキーノの足D系ボーンは通常の足ボーンを1.0で回転継承しているため、
-    // ここで継承元のローカル回転を合成する。装飾ボーンを直接コピーしない。
-    if(b.inheritBone>=0 && b.inheritWeight!==0){
-      const src=pmx.bones[b.inheritBone];
-      const srcQ=src?.poseQ||[0,0,0,1];
-      const w=Math.max(-1,Math.min(1,b.inheritWeight));
-      const inherited=qSlerp([0,0,0,1],srcQ,Math.abs(w));
-      q=w<0?qMul(qInv(inherited),q):qMul(inherited,q);
+function buildWorld(){const world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();const pp=b.poseP||[0,0,0];const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(b.poseQ||[0,0,0,1]));world[i]=p>=0?mm(world[p],lm):lm;}return world;}
+function solveDeformFootIK(world,side){
+  if(!side||side.ik<0||side.hip<0||side.knee<0||side.ankle<0)return false;
+  const target=mulPoint(world[side.ik],[0,0,0]);
+  const chain=[side.knee,side.hip];
+  for(let iter=0;iter<14;iter++){
+    for(const joint of chain){
+      const jp=mulPoint(world[joint],[0,0,0]);
+      const ep=mulPoint(world[side.ankle],[0,0,0]);
+      const a=sub(ep,jp), b=sub(target,jp);
+      if(Math.hypot(...a)<1e-5||Math.hypot(...b)<1e-5)continue;
+      const delta=qFromTo(a,b);
+      const jw=matToQuat(world[joint]);
+      const desired=qMul(delta,jw);
+      const parent=pmx.bones[joint].parent;
+      const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];
+      pmx.bones[joint].poseQ=qMul(qInv(pw),desired);
+      world.splice(0,world.length,...buildWorld());
     }
-    const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(q));
-    world[i]=p>=0?mm(world[p],lm):lm;
+    const ep=mulPoint(world[side.ankle],[0,0,0]);
+    if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<0.015)break;
   }
-  return world;
+  return true;
 }
-function solveFootIK(world,ikName){const ik=findBoneIndex(ikName);if(ik===undefined||ik<0)return false;const def=pmx.bones[ik].ik;if(!def||def.links.length<2)return false;const ankle=def.target;if(ankle<0)return false;const target=mulPoint(world[ik],[0,0,0]);for(let iter=0;iter<6;iter++){for(const joint of def.links){const jp=mulPoint(world[joint],[0,0,0]),ep=mulPoint(world[ankle],[0,0,0]);const d=qFromTo(sub(ep,jp),sub(target,jp));const parent=pmx.bones[joint].parent;const jw=matToQuat(world[joint]);const desired=qMul(d,jw);const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];pmx.bones[joint].poseQ=qMul(qInv(pw),desired);world.splice(0,world.length,...buildWorld());}const ep=mulPoint(world[ankle],[0,0,0]);if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<.03)break;}return true;}
-function boneMatrices(){applyMotionPose();const world=buildWorld();const out=new Float32Array(pmx.bones.length*16);for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);return out;}
+
+function boneMatrices(){applyMotionPose();const world=buildWorld();solveDeformFootIK(world,footRig.left);solveDeformFootIK(world,footRig.right);const out=new Float32Array(pmx.bones.length*16);for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);return out;}
 
 const groundVerts=new Float32Array([-1,0,-1, 1,0,-1, 1,0,1, -1,0,-1, 1,0,1, -1,0,1]);
 const groundVB=device.createBuffer({size:groundVerts.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(groundVB,0,groundVerts);
@@ -504,7 +521,7 @@ function render(){
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
- debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${findBoneIndex('左足')>=0?'左足✓':'左足—'} ${findBoneIndex('右足')>=0?'右足✓':'右足—'} ${findBoneIndex('左足D')>=0?'左足D✓':'左足D—'} ${findBoneIndex('右足D')>=0?'右足D✓':'右足D—'} ${findBoneIndex('左腕')>=0?'左腕✓':'左腕—'} ${findBoneIndex('右腕')>=0?'右腕✓':'右腕—'}`;
+ debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${findBoneIndex('左足')>=0?'左足✓':'左足—'} ${findBoneIndex('右足')>=0?'右足✓':'右足—'} ${findBoneIndex('左腕')>=0?'左腕✓':'左腕—'} ${findBoneIndex('右腕')>=0?'右腕✓':'右腕—'}`;
 }
 reset();
 await initMotions();
