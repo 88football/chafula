@@ -2262,6 +2262,7 @@ fn fs(
            * VMDの元モーションを置き換えず、現在のポーズへ微量に重ねる。
            */
           const lowerBodyIndex = findBoneIndex("下半身");
+          const upperBodyIndex = findBoneIndex("上半身");
           if (lowerBodyIndex !== undefined && lowerBodyIndex >= 0) {
             let waistAmp = 1.0;
             let waistFreq = 2.15;
@@ -2331,6 +2332,25 @@ fn fs(
               qMul(q, waistExtra),
               baseP,
             );
+
+            /* 上半身・胴体も骨盤の上下動へ連動させる。
+             * 胸まで同じ量を動かすと不自然になるため、65%だけ追従。 */
+            if (upperBodyIndex !== undefined && upperBodyIndex >= 0) {
+              const upper = sampled[upperBodyIndex] || makePose();
+              const upperP = upper.p?.slice() || [0, 0, 0];
+              upperP[1] += bobY * 0.65;
+
+              const torsoExtra = eulerToQuat(
+                (pitchDeg * 0.45 * Math.PI) / 180,
+                0,
+                (rollDeg * 0.28 * Math.PI) / 180,
+              );
+
+              sampled[upperBodyIndex] = makePose(
+                qMul(upper.q || [0, 0, 0, 1], torsoExtra),
+                upperP,
+              );
+            }
           }
 
           return sampled;
