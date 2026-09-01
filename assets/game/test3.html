@@ -416,22 +416,20 @@ function qToEulerXYZ(q){
   return [roll,pitch,yaw];
 }
 function clamp(a,x,min,max){return Math.max(min,Math.min(max,x));}
-function getIKLinkLimit(side,joint){
-  if(!side||side.ik<0)return null;
-  const ik=pmx.bones[side.ik]?.ik;
-  if(!ik||!Array.isArray(ik.links))return null;
-  const link=ik.links.find(x=>x.bone===joint);
-  return link&&link.limited?link:null;
-}
-function applyIKLimit(side,joint,q){
-  const lim=getIKLinkLimit(side,joint);
-  if(!lim)return q;
+function applyIKLimit(joint, q){
   const e=qToEulerXYZ(q);
-  return eulerToQuat(
-    clamp(e[0],lim.min[0],lim.max[0]),
-    clamp(e[1],lim.min[1],lim.max[1]),
-    clamp(e[2],lim.min[2],lim.max[2])
-  );
+  const lim=pmx.bones[joint]?.ikLimit;
+  let x=e[0], y=e[1], z=e[2];
+  if(lim){
+    x=clamp(x,lim.min[0],lim.max[0]);
+    y=clamp(y,lim.min[1],lim.max[1]);
+    z=clamp(z,lim.min[2],lim.max[2]);
+  }
+  // このモデルの膝は後方側(-X)だけを許可する。
+  // 前方(+X)へ折れる解は、VMD/IKの補正によらず0へ切り詰める。
+  const n=pmx.bones[joint]?.name||'';
+  if(n.includes('ひざD') || n.includes('膝D')) x=Math.min(0,x);
+  return eulerToQuat(x,y,z);
 }
 function solveDeformFootIK(world,side){
   if(!side||side.ik<0||side.hip<0||side.knee<0||side.ankle<0)return false;
@@ -451,7 +449,7 @@ function solveDeformFootIK(world,side){
       const parent=pmx.bones[joint].parent;
       const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];
       let local=qMul(qInv(pw),desired);
-      local=applyIKLimit(side,joint,local);
+      local=applyIKLimit(joint,local);
       pmx.bones[joint].poseQ=local;
       world.splice(0,world.length,...buildWorld());
     }
