@@ -501,7 +501,8 @@ function render(){
  const camX=player.x-fx*camDistance,camY=targetY-fy*camDistance,camZ=player.z-fz*camDistance;const vp=mm(persp(Math.PI/3,aspect,.1,300),lookAt([camX,camY,camZ],[player.x+fx*3,targetY+fy*3,player.z+fz*3]));
  device.queue.writeBuffer(camBuf,0,vp);device.queue.writeBuffer(camBuf,64,modelMatrix());device.queue.writeBuffer(boneBuf,0,boneMatrices());
  const enc=device.createCommandEncoder();const pass=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.025,g:.035,b:.075,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
- // ground drawing is disabled here because this version does not define a ground pipeline.
+ // ground
+ pass.setPipeline(gpipe);pass.setBindGroup(0,gbind);pass.setVertexBuffer(0,groundVB);const groundMat=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,-1,0,1]);device.queue.writeBuffer(camBuf,64,groundMat);pass.draw(6);
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
