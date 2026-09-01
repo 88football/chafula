@@ -405,17 +405,21 @@ function qMul(a,b){return qNormalize([a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[
 function qInv(q){return[-q[0],-q[1],-q[2],q[3]];}
 function qFromTo(a,b){const va=norm(a),vb=norm(b),d=Math.max(-1,Math.min(1,dot(va,vb)));if(d>.9999)return[0,0,0,1];if(d<-.9999){let axis=cross([1,0,0],va);if(Math.hypot(...axis)<.001)axis=cross([0,1,0],va);axis=norm(axis);return[axis[0],axis[1],axis[2],0];}const c=cross(va,vb);return qNormalize([c[0],c[1],c[2],1+d]);}
 function buildWorld(){const world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();const pp=b.poseP||[0,0,0];const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(b.poseQ||[0,0,0,1]));world[i]=p>=0?mm(world[p],lm):lm;}return world;}
+const IK_ITERATIONS=8;
+const IK_STEP=.55;
 function solveDeformFootIK(world,side){
   if(!side||side.ik<0||side.hip<0||side.knee<0||side.ankle<0)return false;
   const target=mulPoint(world[side.ik],[0,0,0]);
   const chain=[side.knee,side.hip];
-  for(let iter=0;iter<14;iter++){
+  for(let iter=0;iter<IK_ITERATIONS;iter++){
     for(const joint of chain){
       const jp=mulPoint(world[joint],[0,0,0]);
       const ep=mulPoint(world[side.ankle],[0,0,0]);
       const a=sub(ep,jp), b=sub(target,jp);
       if(Math.hypot(...a)<1e-5||Math.hypot(...b)<1e-5)continue;
-      const delta=qFromTo(a,b);
+      let delta=qFromTo(a,b);
+      // 一度に大きく膝を曲げない。VMD姿勢から徐々にIK補正する。
+      delta=qSlerp([0,0,0,1],delta,IK_STEP);
       const jw=matToQuat(world[joint]);
       const desired=qMul(delta,jw);
       const parent=pmx.bones[joint].parent;
@@ -424,7 +428,7 @@ function solveDeformFootIK(world,side){
       world.splice(0,world.length,...buildWorld());
     }
     const ep=mulPoint(world[side.ankle],[0,0,0]);
-    if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<0.015)break;
+    if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<0.025)break;
   }
   return true;
 }
