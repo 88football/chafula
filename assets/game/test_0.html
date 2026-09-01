@@ -2234,7 +2234,7 @@ fn fs(
              * 0fで最も強く、12fで通常の走りへ近づける。
              * 左右は同じ前方向へ曲げる。
              */
-            /* 股関節の最終補正は足IK後に適用するため、ここでは加算しない。 */
+            const hipBendDeg = 68 * Math.max(0, 1 - Math.min(1, elapsed / (12 / 30)));
 
             /* 下半身にも軽く連動させ、股関節だけが折れるのを防ぐ。 */
             const lowerBody = findBoneIndex("下半身");
