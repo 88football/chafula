@@ -2149,17 +2149,26 @@ fn fs(
             const loopFrames = Math.max(1, motion.maxFrame - motion.minFrame);
             const rawFrame = (elapsed * 30) % loopFrames;
             const baseFrame = motion.minFrame + rawFrame;
-            const LOOP_BLEND_FRAMES = Math.min(4, loopFrames * 0.25);
+            const LOOP_BLEND_FRAMES = Math.min(3, loopFrames * 0.20);
 
             if (rawFrame >= loopFrames - LOOP_BLEND_FRAMES) {
+              /*
+               * ループ終端では「最後の姿勢」と「ループ先頭の姿勢」を
+               * 固定した開始姿勢へ収束させる。
+               * 旧方式のように、ブレンド中に先頭+4fへ進めてしまうと、
+               * ラップ直後に0fへ戻った瞬間に逆方向の段差が発生する。
+               *
+               * ここでは終端→0fを連続的に補間し、
+               * 次のフレームは0fの直後へ自然につなげる。
+               */
               const t =
                 (rawFrame - (loopFrames - LOOP_BLEND_FRAMES)) /
                 Math.max(0.001, LOOP_BLEND_FRAMES);
               const endPose = sampleVMD(motion, baseFrame);
-              const wrappedFrame = motion.minFrame +
-                (rawFrame - (loopFrames - LOOP_BLEND_FRAMES));
-              const startPose = sampleVMD(motion, wrappedFrame);
-              sampled = blendPose(endPose, startPose, t);
+              const startPose = sampleVMD(motion, motion.minFrame);
+              /* smoothstepで速度変化を緩和 */
+              const s = t * t * (3 - 2 * t);
+              sampled = blendPose(endPose, startPose, s);
             } else {
               sampled = sampleVMD(motion, baseFrame);
             }
