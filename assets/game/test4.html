@@ -148,7 +148,34 @@ for(let i=0;i<pmx.bones.length;i++){
  bindWorld[i]=p>=0?mm(bindWorld[p],local):local; invBind[i]=invRigid(bindWorld[i]);
 }
 
+const footAccessoryCandidates={left:[],right:[]};
+
 // Vertex buffer: position, normal, uv, bone indices, bone weights = 64 bytes.
+
+// 足首周辺の装飾候補を、バインドポーズ上の頂点ウェイトから自動抽出します。
+// 主脚ボーンは除外し、左右それぞれの足首の近傍にある補助ボーンだけを対象にします。
+function makeFootAccessoryCandidates(side){
+  const anchor=bindWorld[side.ankle]; if(!anchor) return [];
+  const ap=mulPoint(anchor,[0,0,0]);
+  const excluded=new Set([side.hip,side.knee,side.ankle,side.srcHip,side.srcKnee,side.srcAnkle,side.ik]);
+  const score=new Map();
+  const radius=1.8;
+  for(let vi=0;vi<pmx.vertices.length/3;vi++){
+    const px=pmx.vertices[vi*3],py=pmx.vertices[vi*3+1],pz=pmx.vertices[vi*3+2];
+    const dx=px-ap[0],dy=py-ap[1],dz=pz-ap[2];
+    if(dx*dx+dy*dy+dz*dz>radius*radius) continue;
+    for(let k=0;k<4;k++){
+      const bi=pmx.bi[vi*4+k],w=pmx.bw[vi*4+k];
+      if(w<0.18||excluded.has(bi)) continue;
+      score.set(bi,(score.get(bi)||0)+w);
+    }
+  }
+  return [...score.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]);
+}
+
+footAccessoryCandidates.left=makeFootAccessoryCandidates(footRig.left);
+footAccessoryCandidates.right=makeFootAccessoryCandidates(footRig.right);
+
 const stride=64,vc=pmx.vertices.length/3;const raw=new ArrayBuffer(vc*stride),dv=new DataView(raw);
 for(let i=0;i<vc;i++){
  const o=i*stride;
@@ -389,6 +416,15 @@ function applyMotionPose(){
     if(side.srcHip>=0&&side.hip>=0)pmx.bones[side.hip].poseQ=pmx.bones[side.srcHip].poseQ.slice();
     if(side.srcKnee>=0&&side.knee>=0)pmx.bones[side.knee].poseQ=pmx.bones[side.srcKnee].poseQ.slice();
     if(side.srcAnkle>=0&&side.ankle>=0)pmx.bones[side.ankle].poseQ=pmx.bones[side.srcAnkle].poseQ.slice();
+  }
+  // 踵装飾候補は足首の回転に追従。既存の脚・膝姿勢は変更しません。
+  for(const [side,key] of [[footRig.left,'left'],[footRig.right,'right']]){
+    if(!side||side.ankle<0)continue;
+    const aq=pmx.bones[side.ankle].poseQ||[0,0,0,1];
+    for(const bi of footAccessoryCandidates[key]){
+      if(bi===side.hip||bi===side.knee||bi===side.ankle)continue;
+      pmx.bones[bi].poseQ=qSlerp([0,0,0,1],aq,0.85);
+    }
   }
 }
 
