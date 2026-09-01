@@ -2133,9 +2133,10 @@ fn fs(
 
           let sampled;
           let loopPhase = 0;
+          let frame = motion.minFrame;
 
           if (isOneShot) {
-            const frame = Math.min(
+            frame = Math.min(
               motion.maxFrame,
               motion.minFrame + elapsed * 30,
             );
