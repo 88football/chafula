@@ -117,7 +117,7 @@ function parsePMX(buf){
   if(flags&0x800)r.bytes(24);
   if(flags&0x2000)r.idx(bIS);
   let ik=null;
-  if(flags&0x20){const target=r.idx(bIS),loops=r.i32(),limit=r.f32();const lc=r.i32();const links=[];for(let j=0;j<lc;j++){const li=r.idx(bIS);const lim=r.u8();if(lim)r.bytes(24);links.push(li);}ik={target,loops,limit,links};}
+  if(flags&0x20){const target=r.idx(bIS),loops=r.i32(),limit=r.f32();const lc=r.i32();const links=[];for(let j=0;j<lc;j++){const li=r.idx(bIS);const lim=r.u8();let min=[-Math.PI,-Math.PI,-Math.PI],max=[Math.PI,Math.PI,Math.PI];if(lim){min=[r.f32(),r.f32(),r.f32()];max=[r.f32(),r.f32(),r.f32()];}links.push({bone:li,limited:!!lim,min,max});}ik={target,loops,limit,links};}
   const b={name:bn,en:ben,pos:p,parent,flags,rot:[0,0,0],poseQ:[0,0,0,1],poseP:[0,0,0],ik};bones.push(b);boneMap.set(bn,i);
  }
  return {name,vertices:pos,normals:nor,uv,bi,bw,indices,textures,materials,bones,boneMap,bounds:boundsOf(pos)};
@@ -405,25 +405,55 @@ function qMul(a,b){return qNormalize([a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[
 function qInv(q){return[-q[0],-q[1],-q[2],q[3]];}
 function qFromTo(a,b){const va=norm(a),vb=norm(b),d=Math.max(-1,Math.min(1,dot(va,vb)));if(d>.9999)return[0,0,0,1];if(d<-.9999){let axis=cross([1,0,0],va);if(Math.hypot(...axis)<.001)axis=cross([0,1,0],va);axis=norm(axis);return[axis[0],axis[1],axis[2],0];}const c=cross(va,vb);return qNormalize([c[0],c[1],c[2],1+d]);}
 function buildWorld(){const world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();const pp=b.poseP||[0,0,0];const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(b.poseQ||[0,0,0,1]));world[i]=p>=0?mm(world[p],lm):lm;}return world;}
+function qToEulerXYZ(q){
+  const x=q[0],y=q[1],z=q[2],w=q[3];
+  const sinr=2*(w*x+y*z), cosr=1-2*(x*x+y*y);
+  const roll=Math.atan2(sinr,cosr);
+  const sinp=2*(w*y-z*x);
+  const pitch=Math.abs(sinp)>=0.999999?Math.sign(sinp)*Math.PI/2:Math.asin(Math.max(-1,Math.min(1,sinp)));
+  const siny=2*(w*z+x*y), cosy=1-2*(y*y+z*z);
+  const yaw=Math.atan2(siny,cosy);
+  return [roll,pitch,yaw];
+}
+function clamp(a,x,min,max){return Math.max(min,Math.min(max,x));}
+function applyIKLimit(joint, q){
+  const lim=pmx.bones[joint]?.ikLimit;
+  if(!lim)return q;
+  const e=qToEulerXYZ(q);
+  return eulerToQuat(
+    clamp(e[0],lim.min[0],lim.max[0]),
+    clamp(e[1],lim.min[1],lim.max[1]),
+    clamp(e[2],lim.min[2],lim.max[2])
+  );
+}
 function solveDeformFootIK(world,side){
-  if(!side||side.ik<0||side.ankle<0)return false;
+  if(!side||side.ik<0||side.hip<0||side.knee<0||side.ankle<0)return false;
   const target=mulPoint(world[side.ik],[0,0,0]);
-  const current=mulPoint(world[side.ankle],[0,0,0]);
-
-  // このモデルでは膝をIKで強く折ると破綻しやすいため、
-  // 膝・太腿の回転はVMDをそのまま使い、足首側だけを
-  // VMDのIKターゲットへ少量追従させる。
-  const dx=target[0]-current[0], dy=target[1]-current[1], dz=target[2]-current[2];
-  const gain=0.78;
-  const ankle=pmx.bones[side.ankle];
-  const srcAnkle=side.srcAnkle>=0?pmx.bones[side.srcAnkle]:null;
-  const basePose=srcAnkle?.poseP||[0,0,0];
-  ankle.poseP=[basePose[0]+dx*gain,basePose[1]+dy*gain,basePose[2]+dz*gain];
-
-  // 足先EXは独自回転を入れず、親の足首Dの移動・回転に追従させる。
-  if(side.toeEx>=0)pmx.bones[side.toeEx].poseP=[0,0,0];
+  const chain=[side.knee,side.hip];
+  for(let iter=0;iter<14;iter++){
+    for(const joint of chain){
+      const jp=mulPoint(world[joint],[0,0,0]);
+      const ep=mulPoint(world[side.ankle],[0,0,0]);
+      const a=sub(ep,jp), b=sub(target,jp);
+      if(Math.hypot(...a)<1e-5||Math.hypot(...b)<1e-5)continue;
+      let delta=qFromTo(a,b);
+      // 小さな一歩ずつ補正し、VMDの脚運動をできるだけ残す。
+      delta=qSlerp([0,0,0,1],delta,0.28);
+      const jw=matToQuat(world[joint]);
+      const desired=qMul(delta,jw);
+      const parent=pmx.bones[joint].parent;
+      const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];
+      let local=qMul(qInv(pw),desired);
+      local=applyIKLimit(joint,local);
+      pmx.bones[joint].poseQ=local;
+      world.splice(0,world.length,...buildWorld());
+    }
+    const ep=mulPoint(world[side.ankle],[0,0,0]);
+    if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<0.04)break;
+  }
   return true;
 }
+
 
 function boneMatrices(){applyMotionPose();const world=buildWorld();solveDeformFootIK(world,footRig.left);solveDeformFootIK(world,footRig.right);const out=new Float32Array(pmx.bones.length*16);for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);return out;}
 
