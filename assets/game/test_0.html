@@ -2157,6 +2157,37 @@ fn fs(
             );
             const legPose = sampleVMD(motion, legFrame);
 
+            /*
+             * 走り出しの股関節（左右の足ボーン）の曲げを、
+             * 全力走の姿勢に最初からかなり近づける。
+             * 
+             * 走りループ先頭姿勢を基準に80%まで寄せ、
+             * 走り出し後半では100%へ滑らかに近づける。
+             * 「体幹だけ先に前傾し、脚が遅れる」見え方を抑える。
+             */
+            const runReferencePose = motions.run
+              ? sampleVMD(motions.run, motions.run.minFrame)
+              : null;
+
+            const hipBlend = Math.min(1.0, 0.80 +
+              (Math.min(1, elapsed / (12 / 30)) * 0.20));
+
+            const blendHipTowardRun = (names) => {
+              if (!runReferencePose) return;
+              const bi = findBoneIndex(...names);
+              if (bi === undefined || bi < 0) return;
+              const startQ = sampled[bi]?.q || [0, 0, 0, 1];
+              const runQ = runReferencePose[bi]?.q || startQ;
+              sampled[bi] = makePose(
+                qSlerp(startQ, runQ, hipBlend),
+                sampled[bi]?.p?.slice() || [0, 0, 0],
+              );
+            };
+
+            /* 股関節に相当する左右の大腿ボーンを最優先で強化 */
+            blendHipTowardRun(["左足", "左足D"]);
+            blendHipTowardRun(["右足", "右足D"]);
+
             const copyBonePose = (names) => {
               const bi = findBoneIndex(...names);
               if (bi === undefined || bi < 0 || !legPose[bi]) return;
