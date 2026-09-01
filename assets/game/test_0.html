@@ -2774,7 +2774,7 @@ fn fs(
            * IKより後で適用することで、IKによる膝回転の上書きを防ぐ。
            */
           const kneeStrength = Math.max(0, 1 - Math.min(1, motionStateTime / 0.60));
-          const kneeDeg = 90 * kneeStrength;
+          const kneeDeg = 70 * kneeStrength;
 
           const addFinalKneeBend = (names, deg) => {
             const bi = findBoneIndex(...names);
