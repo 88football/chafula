@@ -2137,7 +2137,27 @@ fn fs(
               )
             : motion.minFrame + ((elapsed * 30) % span);
 
-          return sampleVMD(motion, frame);
+          const sampled = sampleVMD(motion, frame);
+
+          /* 走り出しだけ脚・膝の振れ幅を強調 */
+          if (state === "runStart") {
+            const amplify = (names, amount) => {
+              const bi = findBoneIndex(...names);
+              if (bi === undefined || bi < 0 || !sampled[bi]) return;
+              sampled[bi] = makePose(
+                qSlerp([0, 0, 0, 1], sampled[bi].q, amount),
+                sampled[bi].p,
+              );
+            };
+            amplify(["左ひざ", "左ひざD", "左膝", "左膝D"], 1.65);
+            amplify(["右ひざ", "右ひざD", "右膝", "右膝D"], 1.65);
+            amplify(["左足首", "左足首D"], 1.45);
+            amplify(["右足首", "右足首D"], 1.45);
+            amplify(["左足", "左足D"], 1.30);
+            amplify(["右足", "右足D"], 1.30);
+          }
+
+          return sampled;
         }
 
         const t = elapsed;
@@ -2489,7 +2509,10 @@ fn fs(
 
         const target = mulPoint(world[ik], [0, 0, 0]);
 
-        const iterations = ikName.includes("つま先") ? 7 : 10;
+        const isStart = activeMotionState === "runStart";
+        const iterations = ikName.includes("つま先")
+          ? (isStart ? 12 : 7)
+          : (isStart ? 16 : 10);
 
         for (let iter = 0; iter < iterations; iter++) {
           for (const rawLink of def.links) {
@@ -2523,7 +2546,9 @@ fn fs(
 
             let delta = qFromTo(toEnd, toTarget);
 
-            const strength = ikName.includes("つま先") ? 0.5 : 0.28;
+            const strength = ikName.includes("つま先")
+              ? (isStart ? 0.72 : 0.5)
+              : (isStart ? 0.55 : 0.28);
 
             delta = qSlerp([0, 0, 0, 1], delta, strength);
 
