@@ -123,7 +123,8 @@ function parsePMX(buf){
  return {name,vertices:pos,normals:nor,uv,bi,bw,indices,textures,materials,bones,boneMap,bounds:boundsOf(pos)};
 }
 
-const PMX_CANDIDATES=['./【阿蕾奇诺】/仆人.pmx','./【阿蕾奇诺】/#U4ec6#U4eba.pmx'];
+const BASE_URL='https://88.football/game/';
+const PMX_CANDIDATES=[BASE_URL+'【阿蕾奇诺】/仆人.pmx',BASE_URL+'【阿蕾奇诺】/#U4ec6#U4eba.pmx'];
 let pmxFetch=null;
 for(const p of PMX_CANDIDATES){try{pmxFetch=await fetchBinary(p);break}catch(e){}}
 if(!pmxFetch)throw new Error('PMXを取得できませんでした。想定パス: ./【阿蕾奇诺】/仆人.pmx\n'+PMX_CANDIDATES.map(p=>p).join('\n'));
@@ -225,7 +226,7 @@ const whiteTexture=solidTexture(255,255,255,255);const textureCache=new Map();co
 async function getTexture(index){
  if(index<0||index>=pmx.textures.length)return whiteTexture;
  const rawName=pmx.textures[index]||'';if(!rawName)return whiteTexture;const names=pathVariants(rawName);const cacheKey=names[0];if(textureCache.has(cacheKey))return textureCache.get(cacheKey);
- const prefix='./【阿蕾奇诺】/';
+ const prefix=BASE_URL+'【阿蕾奇诺】/';
  for(const n of names){
   const rel=prefix+n;const url=new URL(encodePath(rel),location.href).href;
   try{const res=await fetch(url,{cache:'no-store'});if(!res.ok)continue;const blob=await res.blob();const bmp=await createImageBitmap(blob);const tex=device.createTexture({size:{width:bmp.width,height:bmp.height},format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});device.queue.copyExternalImageToTexture({source:bmp},{texture:tex},{width:bmp.width,height:bmp.height});textureCache.set(cacheKey,tex);return tex;}catch(e){}
@@ -257,7 +258,7 @@ const modelScale=.12;const modelHeight=(pmx.bounds.mx[1]-pmx.bounds.mn[1])*model
    - センター/全ての親の平行移動はゲーム側に任せる
    - VMDの回転だけをボーン姿勢として使用
 ========================= */
-const MOTION_ROOT = './移動モーション配布v1.3/';
+const MOTION_ROOT = BASE_URL+'移動モーション配布v1.3/';
 const MOTION_PATHS = {
   walk: MOTION_ROOT + '1.歩く(女)/2.歩き10L_(40f_前移動20).vmd',
   run:  MOTION_ROOT + '2.走る/2.走り50L_ランニング_(20f_前移動50).vmd',
@@ -389,8 +390,63 @@ function qMul(a,b){return qNormalize([a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[
 function qInv(q){return[-q[0],-q[1],-q[2],q[3]];}
 function qFromTo(a,b){const va=norm(a),vb=norm(b),d=Math.max(-1,Math.min(1,dot(va,vb)));if(d>.9999)return[0,0,0,1];if(d<-.9999){let axis=cross([1,0,0],va);if(Math.hypot(...axis)<.001)axis=cross([0,1,0],va);axis=norm(axis);return[axis[0],axis[1],axis[2],0];}const c=cross(va,vb);return qNormalize([c[0],c[1],c[2],1+d]);}
 function buildWorld(){const world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();const pp=b.poseP||[0,0,0];const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(b.poseQ||[0,0,0,1]));world[i]=p>=0?mm(world[p],lm):lm;}return world;}
-function solveFootIK(world,ikName){const ik=findBoneIndex(ikName);if(ik===undefined||ik<0)return false;const def=pmx.bones[ik].ik;if(!def||def.links.length<2)return false;const ankle=def.target;if(ankle<0)return false;const target=mulPoint(world[ik],[0,0,0]);for(let iter=0;iter<6;iter++){for(const joint of def.links){const jp=mulPoint(world[joint],[0,0,0]),ep=mulPoint(world[ankle],[0,0,0]);const d=qFromTo(sub(ep,jp),sub(target,jp));const parent=pmx.bones[joint].parent;const jw=matToQuat(world[joint]);const desired=qMul(d,jw);const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];pmx.bones[joint].poseQ=qMul(qInv(pw),desired);world.splice(0,world.length,...buildWorld());}const ep=mulPoint(world[ankle],[0,0,0]);if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<.03)break;}return true;}
-function boneMatrices(){applyMotionPose();const world=buildWorld();const out=new Float32Array(pmx.bones.length*16);for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);return out;}
+function solveFootIK(world,ikName){
+  const ik=findBoneIndex(ikName); if(ik===undefined||ik<0)return false;
+  const def=pmx.bones[ik].ik; if(!def||!def.links||def.links.length<2)return false;
+  const ankle=def.target; if(ankle<0)return false;
+  const target=mulPoint(world[ik],[0,0,0]);
+  // このモデルの脚IKは2本の主要リンク(太腿→膝)で解く。余分なリンクは無視する。
+  const chain=def.links.filter(x=>x && Number.isInteger(x.bone) && x.bone>=0).slice(-2);
+  if(chain.length<2)return false;
+  for(let iter=0;iter<12;iter++){
+    for(const link of chain){
+      const joint=link.bone;
+      const jp=mulPoint(world[joint],[0,0,0]);
+      const ep=mulPoint(world[ankle],[0,0,0]);
+      const a=sub(ep,jp), b=sub(target,jp);
+      if(Math.hypot(...a)<1e-5||Math.hypot(...b)<1e-5)continue;
+      const delta=qFromTo(a,b);
+      const jw=matToQuat(world[joint]);
+      const desired=qMul(delta,jw);
+      const parent=pmx.bones[joint].parent;
+      const parentWorld=parent>=0?matToQuat(world[parent]):[0,0,0,1];
+      let local=qMul(qInv(parentWorld),desired);
+      if(link.limit){
+        const e=eulerFromQuat(local);
+        local=eulerToQuat(
+          Math.max(link.min[0],Math.min(link.max[0],e[0])),
+          Math.max(link.min[1],Math.min(link.max[1],e[1])),
+          Math.max(link.min[2],Math.min(link.max[2],e[2]))
+        );
+      }
+      pmx.bones[joint].poseQ=local;
+      world=buildWorld();
+    }
+    const ep=mulPoint(world[ankle],[0,0,0]);
+    if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<.015)break;
+  }
+  return true;
+}
+function eulerFromQuat(q){
+  const sinr=2*(q[3]*q[0]+q[1]*q[2]),cosr=1-2*(q[0]*q[0]+q[1]*q[1]);
+  const x=Math.atan2(sinr,cosr);
+  const sinp=2*(q[3]*q[1]-q[2]*q[0]);
+  const y=Math.abs(sinp)>=1?Math.sign(sinp)*Math.PI/2:Math.asin(sinp);
+  const siny=2*(q[3]*q[2]+q[0]*q[1]),cosy=1-2*(q[1]*q[1]+q[2]*q[2]);
+  const z=Math.atan2(siny,cosy); return [x,y,z];
+}
+
+function boneMatrices(){
+  applyMotionPose();
+  let world=buildWorld();
+  const leftIK=findBoneIndex('左足ＩＫ'), rightIK=findBoneIndex('右足ＩＫ');
+  let ikSolved=false;
+  if(leftIK!==undefined && leftIK>=0 && pmx.bones[leftIK].ik){ ikSolved=solveFootIK(world,'左足ＩＫ')||ikSolved; world=buildWorld(); }
+  if(rightIK!==undefined && rightIK>=0 && pmx.bones[rightIK].ik){ ikSolved=solveFootIK(world,'右足ＩＫ')||ikSolved; world=buildWorld(); }
+  const out=new Float32Array(pmx.bones.length*16);
+  for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);
+  return out;
+}
 
 const groundVerts=new Float32Array([-1,0,-1, 1,0,-1, 1,0,1, -1,0,-1, 1,0,1, -1,0,1]);
 const groundVB=device.createBuffer({size:groundVerts.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(groundVB,0,groundVerts);
