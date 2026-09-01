@@ -416,8 +416,15 @@ function qToEulerXYZ(q){
   return [roll,pitch,yaw];
 }
 function clamp(a,x,min,max){return Math.max(min,Math.min(max,x));}
-function applyIKLimit(joint, q){
-  const lim=pmx.bones[joint]?.ikLimit;
+function getIKLinkLimit(side,joint){
+  if(!side||side.ik<0)return null;
+  const ik=pmx.bones[side.ik]?.ik;
+  if(!ik||!Array.isArray(ik.links))return null;
+  const link=ik.links.find(x=>x.bone===joint);
+  return link&&link.limited?link:null;
+}
+function applyIKLimit(side,joint,q){
+  const lim=getIKLinkLimit(side,joint);
   if(!lim)return q;
   const e=qToEulerXYZ(q);
   return eulerToQuat(
@@ -444,7 +451,7 @@ function solveDeformFootIK(world,side){
       const parent=pmx.bones[joint].parent;
       const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];
       let local=qMul(qInv(pw),desired);
-      local=applyIKLimit(joint,local);
+      local=applyIKLimit(side,joint,local);
       pmx.bones[joint].poseQ=local;
       world.splice(0,world.length,...buildWorld());
     }
