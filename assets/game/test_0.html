@@ -2765,6 +2765,28 @@ fn fs(
           addFinalHipBend(["左足", "左足D"], hipDeg);
           addFinalHipBend(["右足", "右足D"], hipDeg);
 
+          /*
+           * 走り出しの膝を明確に後方へ大きく曲げる。
+           *
+           * PMXのこのモデルではX軸の正方向回転が
+           * すねを後方(+Z)へ折る向きなので、
+           * 走り出し開始時は約90度から徐々に通常姿勢へ戻す。
+           * IKより後で適用することで、IKによる膝回転の上書きを防ぐ。
+           */
+          const kneeStrength = Math.max(0, 1 - Math.min(1, motionStateTime / 0.60));
+          const kneeDeg = 90 * kneeStrength;
+
+          const addFinalKneeBend = (names, deg) => {
+            const bi = findBoneIndex(...names);
+            if (bi === undefined || bi < 0) return;
+            const q = pmx.bones[bi].poseQ || [0, 0, 0, 1];
+            const extra = eulerToQuat((deg * Math.PI) / 180, 0, 0);
+            pmx.bones[bi].poseQ = qMul(q, extra);
+          };
+
+          addFinalKneeBend(["左ひざ", "左ひざD", "左膝", "左膝D"], kneeDeg);
+          addFinalKneeBend(["右ひざ", "右ひざD", "右膝", "右膝D"], kneeDeg);
+
           /* 股関節の大きな前屈に合わせて骨盤側もごく少量連動。 */
           const lower = findBoneIndex("下半身");
           if (lower !== undefined && lower >= 0) {
