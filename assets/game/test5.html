@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="ja">
 <head>
@@ -31,13 +30,11 @@ canvas{display:block;width:100vw;height:100vh}
 
   <div id="top">
     <div id="title">DODGE ARENA</div>
-
     <div id="stats">
       SCORE <b id="score">0</b>　
       WAVE <b id="wave">1</b>　
       STAMINA <b id="stamina">100</b>
     </div>
-
     <div id="bar">
       <div id="hp"></div>
     </div>
@@ -91,37 +88,26 @@ function showError(t){
   msg.hidden=false;
   msg.innerHTML=
     '<h1>WebGPU / PMX ERROR</h1>'+
-    '<p>'+
-    escapeHtml(t)+
-    '</p>';
+    '<p>'+escapeHtml(t)+'</p>';
 
   console.error(t);
 }
 
-window.addEventListener(
-  'error',
-  e=>{
-    showError(
-      e.error?.stack||
-      e.message||
-      'JavaScript error'
-    );
-  }
-);
+window.addEventListener('error',e=>{
+  showError(
+    e.error?.stack||
+    e.message||
+    'JavaScript error'
+  );
+});
 
-window.addEventListener(
-  'unhandledrejection',
-  e=>{
-    showError(
-      e.reason?.stack||
-      e.reason?.message||
-      String(
-        e.reason||
-        'Unhandled promise rejection'
-      )
-    );
-  }
-);
+window.addEventListener('unhandledrejection',e=>{
+  showError(
+    e.reason?.stack||
+    e.reason?.message||
+    String(e.reason||'Unhandled promise rejection')
+  );
+});
 
 
 /* =========================================================
@@ -132,10 +118,7 @@ if(!navigator.gpu){
   showError(
     'このブラウザはWebGPUに対応していません。Chrome / Edge最新版をお試しください。'
   );
-
-  throw new Error(
-    'WebGPU unavailable'
-  );
+  throw new Error('WebGPU unavailable');
 }
 
 const adapter=
@@ -145,10 +128,7 @@ if(!adapter){
   showError(
     'WebGPUアダプターを取得できませんでした。'
   );
-
-  throw new Error(
-    'No adapter'
-  );
+  throw new Error('No adapter');
 }
 
 const device=
@@ -171,14 +151,12 @@ device.addEventListener(
   }
 );
 
-device.lost.then(
-  i=>{
-    showError(
-      'GPUデバイスが失われました: '+
-      i.message
-    );
-  }
-);
+device.lost.then(i=>{
+  showError(
+    'GPUデバイスが失われました: '+
+    i.message
+  );
+});
 
 const ctx=
   canvas.getContext('webgpu');
@@ -199,17 +177,13 @@ function resize(){
   canvas.width=
     Math.max(
       1,
-      Math.floor(
-        innerWidth*d
-      )
+      Math.floor(innerWidth*d)
     );
 
   canvas.height=
     Math.max(
       1,
-      Math.floor(
-        innerHeight*d
-      )
+      Math.floor(innerHeight*d)
     );
 
   ctx.configure({
@@ -234,11 +208,7 @@ function resize(){
     });
 }
 
-addEventListener(
-  'resize',
-  resize
-);
-
+addEventListener('resize',resize);
 resize();
 
 
@@ -249,21 +219,13 @@ resize();
 class Reader{
 
   constructor(buf){
-    this.b=
-      new Uint8Array(buf);
-
-    this.v=
-      new DataView(buf);
-
+    this.b=new Uint8Array(buf);
+    this.v=new DataView(buf);
     this.p=0;
   }
 
   need(n){
-
-    if(
-      this.p+n>
-      this.b.length
-    ){
+    if(this.p+n>this.b.length){
       throw new Error(
         `PMX truncated at ${this.p}/${this.b.length} (need ${n} bytes)`
       );
@@ -277,9 +239,7 @@ class Reader{
 
   i8(){
     this.need(1);
-    return this.v.getInt8(
-      this.p++
-    );
+    return this.v.getInt8(this.p++);
   }
 
   u16(){
@@ -289,9 +249,7 @@ class Reader{
         this.p,
         true
       );
-
     this.p+=2;
-
     return x;
   }
 
@@ -302,9 +260,7 @@ class Reader{
         this.p,
         true
       );
-
     this.p+=2;
-
     return x;
   }
 
@@ -315,9 +271,7 @@ class Reader{
         this.p,
         true
       );
-
     this.p+=4;
-
     return x;
   }
 
@@ -328,28 +282,22 @@ class Reader{
         this.p,
         true
       );
-
     this.p+=4;
-
     return x;
   }
 
   bytes(n){
     this.need(n);
-
     const x=
       this.b.slice(
         this.p,
         this.p+n
       );
-
     this.p+=n;
-
     return x;
   }
 
   str(enc){
-
     const n=this.i32();
 
     if(
@@ -363,26 +311,17 @@ class Reader{
 
     const x=this.bytes(n);
 
-    return new TextDecoder(enc)
-      .decode(x);
+    return new TextDecoder(enc).decode(x);
   }
 
   idx(size){
-
-    if(size===1){
-      return this.i8();
-    }
-
-    if(size===2){
-      return this.i16();
-    }
-
+    if(size===1)return this.i8();
+    if(size===2)return this.i16();
     return this.i32();
   }
 }
 
 function decodeHashUName(s){
-
   return s.replace(
     /#U([0-9A-Fa-f]{4})/g,
     (m,h)=>
@@ -403,8 +342,7 @@ function pathVariants(path){
 
   const add=x=>{
     if(
-      x&&
-      !out.includes(x)
+      x&&!out.includes(x)
     ){
       out.push(x);
     }
@@ -419,7 +357,6 @@ function pathVariants(path){
 }
 
 function encodePath(path){
-
   return path
     .split('/')
     .map(encodeURIComponent)
@@ -445,9 +382,7 @@ async function fetchBinary(path){
       const res=
         await fetch(
           url,
-          {
-            cache:'no-store'
-          }
+          {cache:'no-store'}
         );
 
       const buf=
@@ -462,16 +397,14 @@ async function fetchBinary(path){
           .map(
             x=>
               x.toString(16)
-                .padStart(2,'0')
+               .padStart(2,'0')
           )
           .join(' ');
 
       if(!res.ok){
-
         attempts.push(
           `${url} -> HTTP ${res.status}`
         );
-
         continue;
       }
 
@@ -552,10 +485,14 @@ function boundsOf(a){
   };
 }
 
+
+/* =========================================================
+   PMX PARSER
+========================================================= */
+
 function parsePMX(buf){
 
-  const r=
-    new Reader(buf);
+  const r=new Reader(buf);
 
   const sig=
     new TextDecoder()
@@ -877,14 +814,10 @@ function parsePMX(buf){
     const flags=r.u8();
 
     r.bytes(16);
-
     r.f32();
 
-    const ti=
-      r.idx(tIS);
-
-    const si=
-      r.idx(tIS);
+    const ti=r.idx(tIS);
+    const si=r.idx(tIS);
 
     r.u8();
 
@@ -943,8 +876,11 @@ function parsePMX(buf){
     const parent=
       r.idx(bIS);
 
-    const layer=r.i32();
-    const flags=r.u16();
+    const layer=
+      r.i32();
+
+    const flags=
+      r.u16();
 
     if(flags&1){
       r.idx(bIS);
@@ -1004,11 +940,30 @@ function parsePMX(buf){
         const lim=
           r.u8();
 
+        let min=null;
+        let max=null;
+
         if(lim){
-          r.bytes(24);
+
+          min=[
+            r.f32(),
+            r.f32(),
+            r.f32()
+          ];
+
+          max=[
+            r.f32(),
+            r.f32(),
+            r.f32()
+          ];
         }
 
-        links.push(li);
+        links.push({
+          bone:li,
+          limited:!!lim,
+          min,
+          max
+        });
       }
 
       ik={
@@ -1106,7 +1061,7 @@ loading.textContent=
 
 
 /* =========================================================
-   MATRIX
+   MATRIX / VECTOR
 ========================================================= */
 
 const ident=()=>new Float32Array([
@@ -1181,7 +1136,6 @@ function mr(x,y,z){
     sx*sy*sz;
 
   return new Float32Array([
-
     1-2*qy*qy-2*qz*qz,
     2*qx*qy+2*qz*qw,
     2*qx*qz-2*qy*qw,
@@ -1201,18 +1155,12 @@ function mr(x,y,z){
   ]);
 }
 
-function persp(
-  fov,
-  asp,
-  n,
-  f
-){
+function persp(fov,asp,n,f){
 
   const q=
     1/Math.tan(fov/2);
 
   return new Float32Array([
-
     q/asp,0,0,0,
     0,q,0,0,
     0,0,(f+n)/(n-f),-1,
@@ -1278,7 +1226,6 @@ function lookAt(e,c){
     cross(z,x);
 
   return new Float32Array([
-
     x[0],y[0],z[0],0,
     x[1],y[1],z[1],0,
     x[2],y[2],z[2],0,
@@ -1370,25 +1317,19 @@ for(
   const local=
     mt(
       b.pos[0]-
-        (
-          p>=0?
+        (p>=0?
           pmx.bones[p].pos[0]:
-          0
-        ),
+          0),
 
       b.pos[1]-
-        (
-          p>=0?
+        (p>=0?
           pmx.bones[p].pos[1]:
-          0
-        ),
+          0),
 
       b.pos[2]-
-        (
-          p>=0?
+        (p>=0?
           pmx.bones[p].pos[2]:
-          0
-        )
+          0)
     );
 
   bindWorld[i]=
@@ -1411,7 +1352,6 @@ for(
 ========================================================= */
 
 const stride=64;
-
 const vc=
   pmx.vertices.length/3;
 
@@ -1562,7 +1502,7 @@ const sampler=
 
 
 /* =========================================================
-   MODEL SHADER
+   SHADER
 ========================================================= */
 
 const shader=`
@@ -1604,7 +1544,8 @@ fn vs(
   @location(4)bw:vec4f
 )->VOut{
 
-  var sk=mat4x4f();
+  var sk=
+    mat4x4f();
 
   sk += bones[bi.x]*bw.x;
   sk += bones[bi.y]*bw.y;
@@ -1625,7 +1566,8 @@ fn vs(
   o.pos=
     u.vp*wp;
 
-  o.uv=uv;
+  o.uv=
+    uv;
 
   o.n=
     normalize(
@@ -1709,7 +1651,6 @@ if(
 const bgl=
   device.createBindGroupLayout({
     entries:[
-
       {
         binding:0,
         visibility:
@@ -1852,18 +1793,16 @@ const pipe=
 
 
 /* =========================================================
-   TEXTURES
+   TEXTURE
 ========================================================= */
 
 function solidTexture(
-  r,
-  g,
-  b,
-  a=255
+  r,g,b,a=255
 ){
 
   const tex=
     device.createTexture({
+
       size:{
         width:1,
         height:1
@@ -1898,10 +1837,7 @@ function solidTexture(
 
 const whiteTexture=
   solidTexture(
-    255,
-    255,
-    255,
-    255
+    255,255,255,255
   );
 
 const textureCache=
@@ -1926,7 +1862,9 @@ async function getTexture(index){
   }
 
   const names=
-    pathVariants(rawName);
+    pathVariants(
+      rawName
+    );
 
   const cacheKey=
     names[0];
@@ -1946,12 +1884,11 @@ async function getTexture(index){
     const n of names
   ){
 
-    const rel=
-      prefix+n;
-
     const url=
       new URL(
-        encodePath(rel),
+        encodePath(
+          prefix+n
+        ),
         location.href
       ).href;
 
@@ -1960,9 +1897,7 @@ async function getTexture(index){
       const res=
         await fetch(
           url,
-          {
-            cache:'no-store'
-          }
+          {cache:'no-store'}
         );
 
       if(!res.ok){
@@ -1979,7 +1914,6 @@ async function getTexture(index){
 
       const tex=
         device.createTexture({
-
           size:{
             width:bmp.width,
             height:bmp.height
@@ -1994,12 +1928,8 @@ async function getTexture(index){
         });
 
       device.queue.copyExternalImageToTexture(
-        {
-          source:bmp
-        },
-        {
-          texture:tex
-        },
+        {source:bmp},
+        {texture:tex},
         {
           width:bmp.width,
           height:bmp.height
@@ -2057,7 +1987,6 @@ for(
 
   materialBinds.push(
     device.createBindGroup({
-
       layout:bgl,
 
       entries:[
@@ -2120,9 +2049,7 @@ function findBone(...names){
   ){
 
     const i=
-      pmx.boneMap.get(
-        name
-      );
+      pmx.boneMap.get(name);
 
     if(i!==undefined){
       return i;
@@ -2214,16 +2141,6 @@ const MOTION_PATHS={
     '2.走る/2.走り75L_ダッシュ_(16f_前移動60).vmd'
 };
 
-
-function makeIdentityQuat(){
-  return [
-    0,
-    0,
-    0,
-    1
-  ];
-}
-
 function qNormalize(q){
 
   const l=
@@ -2270,10 +2187,9 @@ function qSlerp(a,b,t){
     bw=-bw;
   }
 
-  if(d>0.9995){
+  if(d>.9995){
 
     return qNormalize([
-
       ax+(bx-ax)*t,
       ay+(by-ay)*t,
       az+(bz-az)*t,
@@ -2344,9 +2260,7 @@ function quatToMat(q){
 }
 
 function eulerToQuat(
-  x,
-  y,
-  z
+  x,y,z
 ){
 
   const cx=
@@ -2368,7 +2282,6 @@ function eulerToQuat(
     Math.sin(z/2);
 
   return qNormalize([
-
     sx*cy*cz-
     cx*sy*sz,
 
@@ -2423,58 +2336,6 @@ const findBoneIndex=(name)=>{
     normalizeBoneName(name)
   );
 };
-
-
-/* =========================================================
-   実際の変形ボーン
-========================================================= */
-
-/*
- * このPMXでは実メッシュの足が
- *
- * 左足D
- *   ↓
- * 左ひざD
- *   ↓
- * 左足首D
- *   ↓
- * 左足先EX
- *
- * で変形する。
- *
- * 通常の
- *
- * 左足
- * 左ひざ
- * 左足首
- *
- * にはメッシュのウェイトがないため、
- * IKを通常脚で解いたあと、D系へ最終姿勢を
- * コピーする。
- */
-
-const deformMirrorPairs=[
-  ['左足','左足D'],
-  ['左ひざ','左ひざD'],
-  ['左足首','左足首D'],
-
-  ['右足','右足D'],
-  ['右ひざ','右ひざD'],
-  ['右足首','右足首D']
-]
-.map(
-  ([a,b])=>[
-    findBoneIndex(a),
-    findBoneIndex(b)
-  ]
-)
-.filter(
-  ([a,b])=>
-    a!==undefined&&
-    b!==undefined&&
-    a>=0&&
-    b>=0
-);
 
 
 /* =========================================================
@@ -2544,9 +2405,7 @@ function parseVMD(buffer){
     new Map();
 
   let maxFrame=0;
-
-  let minFrame=
-    Infinity;
+  let minFrame=Infinity;
 
   for(
     let i=0;
@@ -2604,10 +2463,6 @@ function parseVMD(buffer){
 
     p+=16;
 
-    /*
-     * VMD補間テーブル。
-     * 現在は線形補間＋球面線形補間。
-     */
     p+=64;
 
     const bi=
@@ -2647,8 +2502,7 @@ function parseVMD(buffer){
   }
 
   for(
-    const arr
-    of tracks.values()
+    const arr of tracks.values()
   ){
 
     arr.sort(
@@ -2677,9 +2531,7 @@ async function loadVMD(url){
   const res=
     await fetch(
       url,
-      {
-        cache:'no-store'
-      }
+      {cache:'no-store'}
     );
 
   if(!res.ok){
@@ -2708,14 +2560,9 @@ function makePose(
 function lerp3(a,b,t){
 
   return [
-    a[0]+
-      (b[0]-a[0])*t,
-
-    a[1]+
-      (b[1]-a[1])*t,
-
-    a[2]+
-      (b[2]-a[2])*t
+    a[0]+(b[0]-a[0])*t,
+    a[1]+(b[1]-a[1])*t,
+    a[2]+(b[2]-a[2])*t
   ];
 }
 
@@ -2753,8 +2600,7 @@ function sampleVMD(
     }
 
     if(
-      frame<=
-      arr[0].frame
+      frame<=arr[0].frame
     ){
 
       pose[bi]=
@@ -2810,9 +2656,7 @@ function sampleVMD(
       arr[hi];
 
     const t=
-      (
-        frame-a.frame
-      )/
+      (frame-a.frame)/
       Math.max(
         1,
         b.frame-a.frame
@@ -2910,9 +2754,7 @@ function poseForState(
 
   const set=(
     names,
-    x,
-    y,
-    z
+    x,y,z
   )=>{
 
     const bi=
@@ -2930,9 +2772,7 @@ function poseForState(
     pose[bi]=
       makePose(
         eulerToQuat(
-          x,
-          y,
-          z
+          x,y,z
         )
       );
   };
@@ -2961,11 +2801,7 @@ function poseForState(
   return pose;
 }
 
-function blendPose(
-  a,
-  b,
-  t
-){
+function blendPose(a,b,t){
 
   const out=
     new Array(
@@ -3018,7 +2854,7 @@ function applyMotionPose(){
   if(
     motionBlendFrom&&
     motionBlendElapsed<
-      MOTION_BLEND
+    MOTION_BLEND
   ){
 
     pose=
@@ -3047,14 +2883,6 @@ function applyMotionPose(){
       pose[i]?.p||
       [0,0,0];
   }
-
-  /*
-   * VMDの姿勢を最初に通常脚へ適用。
-   *
-   * その後のIK計算結果を
-   * D系へコピーするので、
-   * ここではまだD系を最終確定しない。
-   */
 }
 
 async function initMotions(){
@@ -3094,13 +2922,15 @@ async function initMotions(){
 
 
 /* =========================================================
-   QUAT / IK
+   QUATERNION / IK
 ========================================================= */
 
 function matToQuat(m){
 
   const tr=
-    m[0]+m[5]+m[10];
+    m[0]+
+    m[5]+
+    m[10];
 
   let x,y,z,w;
 
@@ -3207,10 +3037,7 @@ function matToQuat(m){
   }
 
   return qNormalize([
-    x,
-    y,
-    z,
-    w
+    x,y,z,w
   ]);
 }
 
@@ -3252,8 +3079,11 @@ function qInv(q){
 
 function qFromTo(a,b){
 
-  const va=norm(a);
-  const vb=norm(b);
+  const va=
+    norm(a);
+
+  const vb=
+    norm(b);
 
   const d=
     Math.max(
@@ -3265,11 +3095,9 @@ function qFromTo(a,b){
     );
 
   if(d>.9999){
+
     return [
-      0,
-      0,
-      0,
-      1
+      0,0,0,1
     ];
   }
 
@@ -3282,9 +3110,7 @@ function qFromTo(a,b){
       );
 
     if(
-      Math.hypot(
-        ...axis
-      )<.001
+      Math.hypot(...axis)<.001
     ){
 
       axis=
@@ -3294,7 +3120,8 @@ function qFromTo(a,b){
         );
     }
 
-    axis=norm(axis);
+    axis=
+      norm(axis);
 
     return [
       axis[0],
@@ -3317,6 +3144,233 @@ function qFromTo(a,b){
     1+d
   ]);
 }
+
+
+/* =========================================================
+   QUAT -> EULER
+========================================================= */
+
+function qToEulerXYZ(q){
+
+  const x=q[0];
+  const y=q[1];
+  const z=q[2];
+  const w=q[3];
+
+  const sinr=
+    2*(
+      w*x+
+      y*z
+    );
+
+  const cosr=
+    1-
+    2*(
+      x*x+
+      y*y
+    );
+
+  const roll=
+    Math.atan2(
+      sinr,
+      cosr
+    );
+
+  const sinp=
+    2*(
+      w*y-
+      z*x
+    );
+
+  let pitch;
+
+  if(
+    Math.abs(sinp)>=0.999999
+  ){
+
+    pitch=
+      Math.sign(sinp)*
+      Math.PI/2;
+
+  }else{
+
+    pitch=
+      Math.asin(
+        Math.max(
+          -1,
+          Math.min(
+            1,
+            sinp
+          )
+        )
+      );
+  }
+
+  const siny=
+    2*(
+      w*z+
+      x*y
+    );
+
+  const cosy=
+    1-
+    2*(
+      y*y+
+      z*z
+    );
+
+  const yaw=
+    Math.atan2(
+      siny,
+      cosy
+    );
+
+  return [
+    roll,
+    pitch,
+    yaw
+  ];
+}
+
+
+/* =========================================================
+   IK LINK LIMIT
+========================================================= */
+
+function applyIKLinkLimit(
+  joint,
+  q,
+  link
+){
+
+  let result=
+    qNormalize(q);
+
+  /*
+   * PMXに制限が存在する場合は
+   * まずPMX指定値を使う。
+   */
+  if(
+    link?.limited&&
+    link.min&&
+    link.max
+  ){
+
+    let e=
+      qToEulerXYZ(
+        result
+      );
+
+    let x=e[0];
+    let y=e[1];
+    let z=e[2];
+
+    x=
+      Math.max(
+        link.min[0],
+        Math.min(
+          link.max[0],
+          x
+        )
+      );
+
+    y=
+      Math.max(
+        link.min[1],
+        Math.min(
+          link.max[1],
+          y
+        )
+      );
+
+    z=
+      Math.max(
+        link.min[2],
+        Math.min(
+          link.max[2],
+          z
+        )
+      );
+
+    result=
+      eulerToQuat(
+        x,y,z
+      );
+  }
+
+  /*
+   * このモデルの膝については
+   * 前方へ逆に折れる解を防ぐ。
+   *
+   * 仆人.pmxでは膝のX軸が
+   * 負方向側に制限されている。
+   */
+  const name=
+    normalizeBoneName(
+      pmx.bones[joint]?.name||
+      ''
+    );
+
+  if(
+    name.includes('左ひざ')||
+    name.includes('右ひざ')||
+    name.includes('左膝')||
+    name.includes('右膝')||
+    name.includes('左ひざD')||
+    name.includes('右ひざD')||
+    name.includes('左膝D')||
+    name.includes('右膝D')
+  ){
+
+    const e=
+      qToEulerXYZ(
+        result
+      );
+
+    /*
+     * PMX側の制限がある場合はその範囲内。
+     * 無い場合も正方向を許可しない。
+     */
+    let minX=-Math.PI;
+    let maxX=-0.0087266;
+
+    if(
+      link?.limited&&
+      link.min&&
+      link.max
+    ){
+
+      minX=
+        link.min[0];
+
+      maxX=
+        link.max[0];
+    }
+
+    const x=
+      Math.max(
+        minX,
+        Math.min(
+          maxX,
+          e[0]
+        )
+      );
+
+    result=
+      eulerToQuat(
+        x,
+        e[1],
+        e[2]
+      );
+  }
+
+  return result;
+}
+
+
+/* =========================================================
+   WORLD BONE MATRICES
+========================================================= */
 
 function buildWorld(){
 
@@ -3352,7 +3406,7 @@ function buildWorld(){
       b.poseP||
       [0,0,0];
 
-    const lm=
+    const local=
       mm(
         mt(
           base[0]+pp[0],
@@ -3370,9 +3424,9 @@ function buildWorld(){
       p>=0?
       mm(
         world[p],
-        lm
+        local
       ):
-      lm;
+      local;
   }
 
   return world;
@@ -3380,7 +3434,7 @@ function buildWorld(){
 
 
 /* =========================================================
-   GENERIC PMX IK
+   PMX IK SOLVER
 ========================================================= */
 
 function solveFootIK(
@@ -3405,6 +3459,7 @@ function solveFootIK(
 
   if(
     !def||
+    !def.links||
     def.links.length<1
   ){
     return false;
@@ -3421,15 +3476,7 @@ function solveFootIK(
   }
 
   /*
-   * IKターゲット。
-   *
-   * 左足IK:
-   *   target = 左足首
-   *
-   * 左つま先IK:
-   *   target = 左つま先
-   *
-   * 右側も同様。
+   * IKターゲットはIKボーン自身の位置。
    */
   const target=
     mulPoint(
@@ -3438,19 +3485,12 @@ function solveFootIK(
     );
 
   /*
-   * 本来のPMXのIK順序に近づける。
-   *
-   * このモデルでは
-   * 足IKは2ボーン、
-   * つま先IKは1ボーン。
+   * 足IKとつま先IKで反復回数を分ける。
    */
-  const links=
-    def.links;
-
   const iterations=
     ikName.includes('つま先')?
-    6:
-    8;
+    7:
+    10;
 
   for(
     let iter=0;
@@ -3458,86 +3498,110 @@ function solveFootIK(
     iter++
   ){
 
+    /*
+     * PMXのリンク順で処理。
+     */
     for(
-      const joint of links
+      const rawLink
+      of def.links
     ){
 
+      const link=
+        typeof rawLink==='number'?
+        {
+          bone:rawLink,
+          limited:false,
+          min:null,
+          max:null
+        }:
+        rawLink;
+
+      const joint=
+        link.bone;
+
       if(
+        joint===undefined||
         joint<0||
         joint>=pmx.bones.length
       ){
         continue;
       }
 
-      const jp=
+      const jointPos=
         mulPoint(
           world[joint],
           [0,0,0]
         );
 
-      const ep=
+      const endPos=
         mulPoint(
           world[targetBone],
           [0,0,0]
         );
 
-      const a=
+      const toEnd=
         sub(
-          ep,
-          jp
+          endPos,
+          jointPos
         );
 
-      const b=
+      const toTarget=
         sub(
           target,
-          jp
+          jointPos
         );
 
       if(
-        Math.hypot(...a)<1e-5||
-        Math.hypot(...b)<1e-5
+        Math.hypot(...toEnd)<1e-5||
+        Math.hypot(...toTarget)<1e-5
       ){
         continue;
       }
 
-      let d=
+      /*
+       * 現在のエンド方向から
+       * ターゲット方向への回転。
+       */
+      let delta=
         qFromTo(
-          a,
-          b
+          toEnd,
+          toTarget
         );
 
       /*
-       * 一度に全回転させず、
-       * 少しずつ補正。
+       * 一度に動かしすぎない。
        */
       const strength=
         ikName.includes('つま先')?
-        .55:
-        .32;
+        .5:
+        .28;
 
-      d=
+      delta=
         qSlerp(
           [0,0,0,1],
-          d,
+          delta,
           strength
+        );
+
+      /*
+       * 現在のジョイントワールド回転。
+       */
+      const jointWorldQ=
+        matToQuat(
+          world[joint]
+        );
+
+      const desiredWorldQ=
+        qMul(
+          delta,
+          jointWorldQ
         );
 
       const parent=
         pmx.bones[joint]
           .parent;
 
-      const jw=
-        matToQuat(
-          world[joint]
-        );
-
-      const desired=
-        qMul(
-          d,
-          jw
-        );
-
-      const pw=
+      const parentWorldQ=
         parent>=0?
         matToQuat(
           world[parent]
@@ -3545,41 +3609,58 @@ function solveFootIK(
         [0,0,0,1];
 
       /*
-       * world回転 → local回転
+       * ワールド回転 → ローカル回転。
        */
-      const local=
+      let localQ=
         qMul(
-          qInv(pw),
-          desired
+          qInv(parentWorldQ),
+          desiredWorldQ
+        );
+
+      /*
+       * ★重要
+       *
+       * PMXのIK制限をここで適用。
+       * これで膝が逆方向へ折れるのを防ぐ。
+       */
+      localQ=
+        applyIKLinkLimit(
+          joint,
+          localQ,
+          link
         );
 
       pmx.bones[joint].poseQ=
-        local;
+        localQ;
 
       /*
-       * 次のリンク計算のため
+       * 次のリンクの計算用に
        * ワールド姿勢を更新。
        */
+      const rebuilt=
+        buildWorld();
+
       world.splice(
         0,
         world.length,
-        ...buildWorld()
+        ...rebuilt
       );
     }
 
-    const ep=
+    const endPos=
       mulPoint(
         world[targetBone],
         [0,0,0]
       );
 
-    if(
+    const error=
       Math.hypot(
-        ep[0]-target[0],
-        ep[1]-target[1],
-        ep[2]-target[2]
-      )<.03
-    ){
+        endPos[0]-target[0],
+        endPos[1]-target[1],
+        endPos[2]-target[2]
+      );
+
+    if(error<.025){
       break;
     }
   }
@@ -3589,35 +3670,39 @@ function solveFootIK(
 
 
 /* =========================================================
-   D系へ最終姿勢を同期
+   D BONE SYNCHRONIZATION
 ========================================================= */
 
 /*
- * ここが今回の重要部分。
- *
- * まず通常脚でVMD + IKを完成させる。
- *
- * その「最終結果」を
- *
- *   左足     -> 左足D
- *   左ひざ   -> 左ひざD
- *   左足首   -> 左足首D
- *
- * へコピーする。
- *
- * これにより、
- *
- *   左足D
- *      ↓
- *   左ひざD
- *      ↓
- *   左足首D
- *      ↓
- *   左足先EX
- *
- * が足本体と一緒に動く。
+ * 実際にメッシュを変形しているD系。
  */
+const deformMirrorPairs=[
+  ['左足','左足D'],
+  ['左ひざ','左ひざD'],
+  ['左足首','左足首D'],
 
+  ['右足','右足D'],
+  ['右ひざ','右ひざD'],
+  ['右足首','右足首D']
+]
+.map(
+  ([src,dst])=>[
+    findBoneIndex(src),
+    findBoneIndex(dst)
+  ]
+)
+.filter(
+  ([src,dst])=>
+    src!==undefined&&
+    dst!==undefined&&
+    src>=0&&
+    dst>=0
+);
+
+/*
+ * 通常脚で完成した最終姿勢をD系へ
+ * 「回転＋移動」の両方コピー。
+ */
 function syncDeformLegsFromSource(){
 
   for(
@@ -3632,11 +3717,6 @@ function syncDeformLegsFromSource(){
       continue;
     }
 
-    /*
-     * 回転だけではなく、
-     * VMDが平行移動を指定している場合も
-     * D系へ反映する。
-     */
     pmx.bones[dst].poseQ=
       pmx.bones[src].poseQ.slice();
 
@@ -3654,27 +3734,24 @@ function boneMatrices(){
 
   /*
    * 1.
-   * VMDを通常脚へ適用
+   * VMD姿勢を通常脚へ適用。
    */
   applyMotionPose();
 
   /*
    * 2.
-   * VMD適用直後のワールド姿勢。
+   * VMD直後のワールド姿勢。
    */
   let world=
     buildWorld();
 
   /*
    * 3.
-   * 通常の足IK。
+   * 足IK。
    *
-   * 実際には
-   *
-   * 左足IK -> 左足首
-   * 右足IK -> 右足首
-   *
-   * を使う。
+   * この段階では通常の
+   * 左足 / 左ひざ / 左足首
+   * をIKで動かす。
    */
   if(
     activeMotionState==='walk'||
@@ -3692,24 +3769,12 @@ function boneMatrices(){
       '右足ＩＫ'
     );
 
-    /*
-     * 足IKの結果を反映。
-     */
     world=
       buildWorld();
-
 
     /*
      * 4.
      * つま先IK。
-     *
-     * 左つま先IK:
-     *   左足首を回して
-     *   左つま先ターゲットへ合わせる
-     *
-     * 右側も同様。
-     *
-     * これを先に通常脚で解いておく。
      */
     solveFootIK(
       world,
@@ -3727,28 +3792,25 @@ function boneMatrices(){
 
   /*
    * 5.
-   * すべてのIKが終わった「最終姿勢」を
-   * D系へコピーする。
+   * IK完了後の通常脚をD系へコピー。
    *
-   * これが今回の修正の中心。
+   * ここで膝の正しい向きもD系へ渡る。
    */
   syncDeformLegsFromSource();
 
   /*
    * 6.
-   * D系をコピーした後のワールド姿勢を
-   * 最後に再計算。
+   * D系を反映した最終ワールド姿勢。
    *
-   * 左足先EX / 右足先EX は
-   * 左右の足首Dの子なので、
-   * ここで一緒に追従する。
+   * 左足先EX / 右足先EXは
+   * D系の足首・足先に追従する。
    */
   world=
     buildWorld();
 
   /*
    * 7.
-   * GPU用最終ボーン行列。
+   * GPU用スキニング行列。
    */
   const out=
     new Float32Array(
@@ -3794,7 +3856,6 @@ const groundVB=
   device.createBuffer({
     size:
       groundVerts.byteLength,
-
     usage:
       GPUBufferUsage.VERTEX|
       GPUBufferUsage.COPY_DST
@@ -4053,33 +4114,26 @@ document.addEventListener(
 
 
 /* =========================================================
-   GAME
+   GAME STATE
 ========================================================= */
 
 let player;
 let enemies;
-
 let score;
 let wave;
 let hp;
 let stamina;
 let invuln;
-
 let dash;
 let dashDir;
-
 let spawn;
 let time;
 let animTime;
-
 let dead;
 let latched;
-
 let actionState;
 let actionTime;
-
 let lastMoveAngle;
-
 let motionStateTime=0;
 
 function reset(){
@@ -4100,7 +4154,6 @@ function reset(){
   stamina=100;
 
   invuln=0;
-
   dash=0;
 
   dashDir={
@@ -4113,21 +4166,15 @@ function reset(){
   time=0;
   animTime=0;
 
-  actionState=
-    'idle';
-
+  actionState='idle';
   actionTime=0;
 
   motionStateTime=0;
 
-  activeMotionState=
-    'idle';
+  activeMotionState='idle';
 
-  motionBlendFrom=
-    null;
-
-  motionBlendElapsed=
-    1;
+  motionBlendFrom=null;
+  motionBlendElapsed=1;
 
   lastMoveAngle=
     cameraYaw;
@@ -4189,10 +4236,14 @@ function getMoveDirection(){
   forward/=l;
 
   const sy=
-    Math.sin(cameraYaw);
+    Math.sin(
+      cameraYaw
+    );
 
   const cy=
-    Math.cos(cameraYaw);
+    Math.cos(
+      cameraYaw
+    );
 
   return {
 
@@ -4259,15 +4310,11 @@ function dodge(){
 
   stamina-=25;
 
-  actionState=
-    'dodge';
-
+  actionState='dodge';
   actionTime=0;
 }
 
-function enterMoveState(
-  next
-){
+function enterMoveState(next){
 
   if(
     actionState!==next
@@ -4365,8 +4412,7 @@ function update(dt){
 
     player.vx+=
       (
-        tx-
-        player.vx
+        tx-player.vx
       )*
       Math.min(
         1,
@@ -4375,8 +4421,7 @@ function update(dt){
 
     player.vz+=
       (
-        tz-
-        player.vz
+        tz-player.vz
       )*
       Math.min(
         1,
@@ -4490,9 +4535,6 @@ function modelMatrix(){
       player.vz
     );
 
-  /*
-   * モデルの正面はローカル -Z。
-   */
   const facing=
     speed>.15?
 
@@ -4608,14 +4650,9 @@ function render(){
         ],
 
         [
-          player.x+
-            fx*3,
-
-          targetY+
-            fy*3,
-
-          player.z+
-            fz*3
+          player.x+fx*3,
+          targetY+fy*3,
+          player.z+fz*3
         ]
       )
     );
@@ -4774,14 +4811,61 @@ function render(){
      DEBUG
   ------------------------- */
 
+  const leftKnee=
+    findBoneIndex('左ひざD');
+
+  const rightKnee=
+    findBoneIndex('右ひざD');
+
+  let leftKneeInfo='左膝D—';
+  let rightKneeInfo='右膝D—';
+
+  if(
+    leftKnee!==undefined&&
+    leftKnee>=0
+  ){
+
+    const q=
+      pmx.bones[leftKnee].poseQ;
+
+    const e=
+      qToEulerXYZ(q);
+
+    leftKneeInfo=
+      `左膝D ${(
+        e[0]*180/Math.PI
+      ).toFixed(1)}°`;
+  }
+
+  if(
+    rightKnee!==undefined&&
+    rightKnee>=0
+  ){
+
+    const q=
+      pmx.bones[rightKnee].poseQ;
+
+    const e=
+      qToEulerXYZ(q);
+
+    rightKneeInfo=
+      `右膝D ${(
+        e[0]*180/Math.PI
+      ).toFixed(1)}°`;
+  }
+
   debugEl.textContent=
     `PMX: ${pmx.name}\n`+
 
     `アニメーション: ${actionState}\n`+
 
-    `GPUスキニング: ON / 足IK: ON / つま先IK: ON\n`+
+    `GPUスキニング: ON\n`+
+
+    `足IK: ON / つま先IK: ON\n`+
 
     `D系足変形: ON\n`+
+
+    `${leftKneeInfo} / ${rightKneeInfo}\n`+
 
     `WASD: 移動 / Space・Shift: 回避\n`+
 
@@ -4868,7 +4952,8 @@ loading.textContent=
   `${pmx.bones.length}ボーン / `+
   `GPUスキニング / `+
   `D系足変形 / `+
-  `足IK / つま先IK`;
+  `足IK / つま先IK / `+
+  `膝IK制限`;
 
 let last=
   performance.now();
