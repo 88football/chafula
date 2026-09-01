@@ -2184,10 +2184,6 @@ fn fs(
               );
             };
 
-            /* 股関節に相当する左右の大腿ボーンを最優先で強化 */
-            blendHipTowardRun(["左足", "左足D"]);
-            blendHipTowardRun(["右足", "右足D"]);
-
             const copyBonePose = (names) => {
               const bi = findBoneIndex(...names);
               if (bi === undefined || bi < 0 || !legPose[bi]) return;
@@ -2210,6 +2206,52 @@ fn fs(
             copyBonePose(["右足ＩＫ", "右足IK"]);
             copyBonePose(["左つま先ＩＫ", "左つま先IK"]);
             copyBonePose(["右つま先ＩＫ", "右つま先IK"]);
+
+            /*
+             * 股関節はここで最後に上書きする。
+             * 以前は「走り姿勢へ80%寄せる」処理の直後に
+             * 脚の先行姿勢をコピーしていたため、せっかくの
+             * 股関節補正が消えていました。
+             *
+             * 今回は走り出し開始直後から、左右の大腿を
+             * 「走り中の深い屈曲」に近い角度まで前へ曲げる。
+             * VMD側の回転に追加するため、上半身の前傾とは独立して
+             * 股関節だけが先に動き出す。
+             */
+            const addHipBend = (names, deg) => {
+              const bi = findBoneIndex(...names);
+              if (bi === undefined || bi < 0 || !sampled[bi]) return;
+
+              const baseQ = sampled[bi].q || [0, 0, 0, 1];
+              const extraQ = eulerToQuat((deg * Math.PI) / 180, 0, 0);
+              sampled[bi] = makePose(
+                qMul(baseQ, extraQ),
+                sampled[bi].p?.slice() || [0, 0, 0],
+              );
+            };
+
+            /*
+             * 0fで最も強く、12fで通常の走りへ近づける。
+             * 左右は同じ前方向へ曲げる。
+             */
+            const hipBendDeg = 34 * (1 - Math.min(1, elapsed / (12 / 30)));
+            addHipBend(["左足", "左足D"], hipBendDeg);
+            addHipBend(["右足", "右足D"], hipBendDeg);
+
+            /* 下半身にも軽く連動させ、股関節だけが折れるのを防ぐ。 */
+            const lowerBody = findBoneIndex("下半身");
+            if (lowerBody !== undefined && lowerBody >= 0) {
+              const q = sampled[lowerBody]?.q || [0, 0, 0, 1];
+              const lowerExtra = eulerToQuat(
+                ((hipBendDeg * 0.18) * Math.PI) / 180,
+                0,
+                0,
+              );
+              sampled[lowerBody] = makePose(
+                qMul(q, lowerExtra),
+                sampled[lowerBody]?.p?.slice() || [0, 0, 0],
+              );
+            }
           }
 
           return sampled;
