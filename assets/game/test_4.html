@@ -6424,10 +6424,8 @@ fn fs()
       if (dash > 0) {
         dash -= dt;
 
-        const dodgeSpeed =
-          (120 *
-            modelScale) /
-          (55 / 30);
+        /* 通常走行と同じ速度で回避移動する。 */
+        const dodgeSpeed = 12.0;
 
         player.x +=
           dashDir.x *
