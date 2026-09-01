@@ -126,22 +126,25 @@ canvas {
 
   </style>
 </head>
+
 <body>
   <canvas id="gpu"></canvas>
 
   <div id="ui">
     <div id="top">
       <div id="title">DODGE ARENA</div>
-      <div id="stats">
-        SCORE <b id="score">0</b>　 WAVE <b id="wave">1</b>　 STAMINA
-        <b id="stamina">100</b>
-      </div>
-      <div id="bar">
-        <div id="hp"></div>
-      </div>
-    </div>
 
 ```
+  <div id="stats">
+    SCORE <b id="score">0</b>　 WAVE <b id="wave">1</b>　 STAMINA
+    <b id="stamina">100</b>
+  </div>
+
+  <div id="bar">
+    <div id="hp"></div>
+  </div>
+</div>
+
 <div id="help">
   WASD / 矢印：移動（カメラ方向基準）<br />
   マウス：カメラ回転<br />
@@ -167,6 +170,7 @@ canvas {
     const msg = document.querySelector("#message");
     const loading = document.querySelector("#loading");
     const debugEl = document.querySelector("#debug");
+
     const scoreEl = document.querySelector("#score");
     const waveEl = document.querySelector("#wave");
     const staminaEl = document.querySelector("#stamina");
@@ -186,25 +190,37 @@ canvas {
     function showError(t) {
       loading.hidden = true;
       msg.hidden = false;
+
       msg.innerHTML =
         "<h1>WebGPU / PMX ERROR</h1>" +
         "<p>" +
         escapeHtml(t) +
         "</p>";
+
       console.error(t);
     }
 
     window.addEventListener("error", (e) => {
-      showError(e.error?.stack || e.message || "JavaScript error");
-    });
-
-    window.addEventListener("unhandledrejection", (e) => {
       showError(
-        e.reason?.stack ||
-          e.reason?.message ||
-          String(e.reason || "Unhandled promise rejection"),
+        e.error?.stack ||
+        e.message ||
+        "JavaScript error",
       );
     });
+
+    window.addEventListener(
+      "unhandledrejection",
+      (e) => {
+        showError(
+          e.reason?.stack ||
+          e.reason?.message ||
+          String(
+            e.reason ||
+            "Unhandled promise rejection",
+          ),
+        );
+      },
+    );
 
     /* =========================================================
        WEBGPU
@@ -214,38 +230,87 @@ canvas {
       showError(
         "このブラウザはWebGPUに対応していません。Chrome / Edge最新版をお試しください。",
       );
-      throw new Error("WebGPU unavailable");
+
+      throw new Error(
+        "WebGPU unavailable",
+      );
     }
 
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter =
+      await navigator.gpu.requestAdapter();
 
     if (!adapter) {
-      showError("WebGPUアダプターを取得できませんでした。");
-      throw new Error("No adapter");
+      showError(
+        "WebGPUアダプターを取得できませんでした。",
+      );
+
+      throw new Error(
+        "No adapter",
+      );
     }
 
-    const device = await adapter.requestDevice();
+    const device =
+      await adapter.requestDevice();
 
-    device.addEventListener("uncapturederror", (e) => {
-      const t = e.error?.message || String(e.error || e);
-      console.error("uncaptured WebGPU error:", t);
-      debugEl.textContent = "GPU ERROR\n" + t;
-    });
+    device.addEventListener(
+      "uncapturederror",
+      (e) => {
+        const t =
+          e.error?.message ||
+          String(
+            e.error ||
+            e,
+          );
+
+        console.error(
+          "uncaptured WebGPU error:",
+          t,
+        );
+
+        debugEl.textContent =
+          "GPU ERROR\n" + t;
+      },
+    );
 
     device.lost.then((i) => {
-      showError("GPUデバイスが失われました: " + i.message);
+      showError(
+        "GPUデバイスが失われました: " +
+        i.message,
+      );
     });
 
-    const ctx = canvas.getContext("webgpu");
-    const format = navigator.gpu.getPreferredCanvasFormat();
+    const ctx =
+      canvas.getContext(
+        "webgpu",
+      );
+
+    const format =
+      navigator.gpu.getPreferredCanvasFormat();
 
     let depthTex;
 
     function resize() {
-      const d = Math.min(devicePixelRatio || 1, 2);
+      const d =
+        Math.min(
+          devicePixelRatio || 1,
+          2,
+        );
 
-      canvas.width = Math.max(1, Math.floor(innerWidth * d));
-      canvas.height = Math.max(1, Math.floor(innerHeight * d));
+      canvas.width =
+        Math.max(
+          1,
+          Math.floor(
+            innerWidth * d,
+          ),
+        );
+
+      canvas.height =
+        Math.max(
+          1,
+          Math.floor(
+            innerHeight * d,
+          ),
+        );
 
       ctx.configure({
         device,
@@ -257,17 +322,29 @@ canvas {
         depthTex.destroy();
       }
 
-      depthTex = device.createTexture({
-        size: {
-          width: canvas.width,
-          height: canvas.height,
-        },
-        format: "depth24plus",
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      });
+      depthTex =
+        device.createTexture({
+          size: {
+            width:
+              canvas.width,
+
+            height:
+              canvas.height,
+          },
+
+          format:
+            "depth24plus",
+
+          usage:
+            GPUTextureUsage.RENDER_ATTACHMENT,
+        });
     }
 
-    addEventListener("resize", resize);
+    addEventListener(
+      "resize",
+      resize,
+    );
+
     resize();
 
     /* =========================================================
@@ -276,13 +353,20 @@ canvas {
 
     class Reader {
       constructor(buf) {
-        this.b = new Uint8Array(buf);
-        this.v = new DataView(buf);
+        this.b =
+          new Uint8Array(buf);
+
+        this.v =
+          new DataView(buf);
+
         this.p = 0;
       }
 
       need(n) {
-        if (this.p + n > this.b.length) {
+        if (
+          this.p + n >
+          this.b.length
+        ) {
           throw new Error(
             `PMX truncated at ${this.p}/${this.b.length} (need ${n} bytes)`,
           );
@@ -291,63 +375,120 @@ canvas {
 
       u8() {
         this.need(1);
-        return this.b[this.p++];
+        return this.b[
+          this.p++
+        ];
       }
 
       i8() {
         this.need(1);
-        return this.v.getInt8(this.p++);
+        return this.v.getInt8(
+          this.p++,
+        );
       }
 
       u16() {
         this.need(2);
-        const x = this.v.getUint16(this.p, true);
+
+        const x =
+          this.v.getUint16(
+            this.p,
+            true,
+          );
+
         this.p += 2;
+
         return x;
       }
 
       i16() {
         this.need(2);
-        const x = this.v.getInt16(this.p, true);
+
+        const x =
+          this.v.getInt16(
+            this.p,
+            true,
+          );
+
         this.p += 2;
+
         return x;
       }
 
       i32() {
         this.need(4);
-        const x = this.v.getInt32(this.p, true);
+
+        const x =
+          this.v.getInt32(
+            this.p,
+            true,
+          );
+
         this.p += 4;
+
         return x;
       }
 
       f32() {
         this.need(4);
-        const x = this.v.getFloat32(this.p, true);
+
+        const x =
+          this.v.getFloat32(
+            this.p,
+            true,
+          );
+
         this.p += 4;
+
         return x;
       }
 
       bytes(n) {
         this.need(n);
-        const x = this.b.slice(this.p, this.p + n);
+
+        const x =
+          this.b.slice(
+            this.p,
+            this.p + n,
+          );
+
         this.p += n;
+
         return x;
       }
 
       str(enc) {
-        const n = this.i32();
+        const n =
+          this.i32();
 
-        if (n < 0 || n > this.b.length - this.p) {
-          throw new Error(`PMX string length invalid: ${n} at ${this.p}`);
+        if (
+          n < 0 ||
+          n >
+            this.b.length -
+              this.p
+        ) {
+          throw new Error(
+            `PMX string length invalid: ${n} at ${this.p}`,
+          );
         }
 
-        const x = this.bytes(n);
-        return new TextDecoder(enc).decode(x);
+        const x =
+          this.bytes(n);
+
+        return new TextDecoder(
+          enc,
+        ).decode(x);
       }
 
       idx(size) {
-        if (size === 1) return this.i8();
-        if (size === 2) return this.i16();
+        if (size === 1) {
+          return this.i8();
+        }
+
+        if (size === 2) {
+          return this.i16();
+        }
+
         return this.i32();
       }
     }
@@ -355,25 +496,43 @@ canvas {
     function decodeHashUName(s) {
       return s.replace(
         /#U([0-9A-Fa-f]{4})/g,
-        (m, h) => String.fromCharCode(parseInt(h, 16)),
+        (m, h) =>
+          String.fromCharCode(
+            parseInt(
+              h,
+              16,
+            ),
+          ),
       );
     }
 
     function pathVariants(path) {
-      const p = String(path || "")
-        .replaceAll("\\", "/")
-        .replace(/^\.\//, "");
+      const p =
+        String(path || "")
+          .replaceAll(
+            "\\",
+            "/",
+          )
+          .replace(
+            /^\.\//,
+            "",
+          );
 
       const out = [];
 
       const add = (x) => {
-        if (x && !out.includes(x)) {
+        if (
+          x &&
+          !out.includes(x)
+        ) {
           out.push(x);
         }
       };
 
       add(p);
-      add(decodeHashUName(p));
+      add(
+        decodeHashUName(p),
+      );
 
       return out;
     }
@@ -381,34 +540,74 @@ canvas {
     function encodePath(path) {
       return path
         .split("/")
-        .map(encodeURIComponent)
+        .map(
+          encodeURIComponent,
+        )
         .join("/");
     }
 
     async function fetchBinary(path) {
       const attempts = [];
 
-      for (const rel of pathVariants(path)) {
-        const url = new URL(encodePath(rel), location.href).href;
+      for (
+        const rel of
+          pathVariants(path)
+      ) {
+        const url =
+          new URL(
+            encodePath(rel),
+            location.href,
+          ).href;
 
         try {
-          const res = await fetch(url, { cache: "no-store" });
+          const res =
+            await fetch(
+              url,
+              {
+                cache:
+                  "no-store",
+              },
+            );
 
-          const buf = await res.arrayBuffer();
+          const buf =
+            await res.arrayBuffer();
 
-          const head = Array.from(new Uint8Array(buf.slice(0, 4)))
-            .map((x) => x.toString(16).padStart(2, "0"))
-            .join(" ");
+          const head =
+            Array.from(
+              new Uint8Array(
+                buf.slice(
+                  0,
+                  4,
+                ),
+              ),
+            )
+              .map(
+                (x) =>
+                  x
+                    .toString(16)
+                    .padStart(
+                      2,
+                      "0",
+                    ),
+              )
+              .join(" ");
 
           if (!res.ok) {
-            attempts.push(`${url} -> HTTP ${res.status}`);
+            attempts.push(
+              `${url} -> HTTP ${res.status}`,
+            );
+
             continue;
           }
 
-          if (head.toLowerCase() !== "50 4d 58 20") {
+          if (
+            head.toLowerCase() !==
+            "50 4d 58 20"
+          ) {
             attempts.push(
               `${url} -> PMXではない(先頭4byte: ${head || "empty"})`,
             );
+
             continue;
           }
 
@@ -417,24 +616,52 @@ canvas {
             buf,
           };
         } catch (e) {
-          attempts.push(`${url} -> ${e.message || e}`);
+          attempts.push(
+            `${url} -> ${e.message || e}`,
+          );
         }
       }
 
       throw new Error(
         "PMXを取得できませんでした。試した候補:\n" +
-          attempts.join("\n"),
+        attempts.join("\n"),
       );
     }
 
     function boundsOf(a) {
-      const mn = [Infinity, Infinity, Infinity];
-      const mx = [-Infinity, -Infinity, -Infinity];
+      const mn = [
+        Infinity,
+        Infinity,
+        Infinity,
+      ];
 
-      for (let i = 0; i < a.length; i += 3) {
-        for (let k = 0; k < 3; k++) {
-          mn[k] = Math.min(mn[k], a[i + k]);
-          mx[k] = Math.max(mx[k], a[i + k]);
+      const mx = [
+        -Infinity,
+        -Infinity,
+        -Infinity,
+      ];
+
+      for (
+        let i = 0;
+        i < a.length;
+        i += 3
+      ) {
+        for (
+          let k = 0;
+          k < 3;
+          k++
+        ) {
+          mn[k] =
+            Math.min(
+              mn[k],
+              a[i + k],
+            );
+
+          mx[k] =
+            Math.max(
+              mx[k],
+              a[i + k],
+            );
         }
       }
 
@@ -449,34 +676,64 @@ canvas {
     ========================================================= */
 
     function parsePMX(buf) {
-      const r = new Reader(buf);
+      const r =
+        new Reader(buf);
 
-      const sig = new TextDecoder().decode(r.bytes(4));
+      const sig =
+        new TextDecoder().decode(
+          r.bytes(4),
+        );
 
-      if (sig !== "PMX ") {
-        throw new Error("PMX headerが見つかりません");
+      if (
+        sig !== "PMX "
+      ) {
+        throw new Error(
+          "PMX headerが見つかりません",
+        );
       }
 
-      const ver = r.f32();
+      const ver =
+        r.f32();
 
       if (ver < 2) {
-        throw new Error("PMX 2.0以降が必要です");
+        throw new Error(
+          "PMX 2.0以降が必要です",
+        );
       }
 
-      const globals = r.u8();
+      const globals =
+        r.u8();
 
       if (globals !== 8) {
-        throw new Error("PMX globals が想定外です: " + globals);
+        throw new Error(
+          "PMX globals が想定外です: " +
+          globals,
+        );
       }
 
-      const enc = r.u8();
-      const addUV = r.u8();
-      const vIS = r.u8();
-      const tIS = r.u8();
-      const mIS = r.u8();
-      const bIS = r.u8();
-      const moIS = r.u8();
-      const rbIS = r.u8();
+      const enc =
+        r.u8();
+
+      const addUV =
+        r.u8();
+
+      const vIS =
+        r.u8();
+
+      const tIS =
+        r.u8();
+
+      const mIS =
+        r.u8();
+
+      const bIS =
+        r.u8();
+
+      const moIS =
+        r.u8();
+
+      const rbIS =
+        r.u8();
 
       if (
         ![1, 2, 4].includes(vIS) ||
@@ -484,161 +741,350 @@ canvas {
         ![1, 2, 4].includes(mIS) ||
         ![1, 2, 4].includes(bIS)
       ) {
-        throw new Error("PMX index size unsupported");
+        throw new Error(
+          "PMX index size unsupported",
+        );
       }
 
-      const str = () => {
-        return r.str(enc === 0 ? "utf-16le" : "utf-8");
-      };
+      const str = () =>
+        r.str(
+          enc === 0
+            ? "utf-16le"
+            : "utf-8",
+        );
 
-      const name = str();
-      const nameEn = str();
-      const comment = str();
-      const commentEn = str();
+      const name =
+        str();
 
-      const vc = r.i32();
+      const nameEn =
+        str();
 
-      if (vc < 0 || vc > 5000000) {
-        throw new Error("頂点数が不正です: " + vc);
+      const comment =
+        str();
+
+      const commentEn =
+        str();
+
+      const vc =
+        r.i32();
+
+      if (
+        vc < 0 ||
+        vc > 5000000
+      ) {
+        throw new Error(
+          "頂点数が不正です: " +
+          vc,
+        );
       }
 
-      const pos = new Float32Array(vc * 3);
-      const nor = new Float32Array(vc * 3);
-      const uv = new Float32Array(vc * 2);
-      const bi = new Uint32Array(vc * 4);
-      const bw = new Float32Array(vc * 4);
+      const pos =
+        new Float32Array(
+          vc * 3,
+        );
 
-      for (let i = 0; i < vc; i++) {
+      const nor =
+        new Float32Array(
+          vc * 3,
+        );
+
+      const uv =
+        new Float32Array(
+          vc * 2,
+        );
+
+      const bi =
+        new Uint32Array(
+          vc * 4,
+        );
+
+      const bw =
+        new Float32Array(
+          vc * 4,
+        );
+
+      for (
+        let i = 0;
+        i < vc;
+        i++
+      ) {
         pos.set(
-          [r.f32(), r.f32(), r.f32()],
+          [
+            r.f32(),
+            r.f32(),
+            r.f32(),
+          ],
           i * 3,
         );
 
         nor.set(
-          [r.f32(), r.f32(), r.f32()],
+          [
+            r.f32(),
+            r.f32(),
+            r.f32(),
+          ],
           i * 3,
         );
 
         uv.set(
-          [r.f32(), 1 - r.f32()],
+          [
+            r.f32(),
+            1 - r.f32(),
+          ],
           i * 2,
         );
 
-        for (let k = 0; k < addUV; k++) {
+        for (
+          let k = 0;
+          k < addUV;
+          k++
+        ) {
           r.bytes(16);
         }
 
-        const wt = r.u8();
+        const wt =
+          r.u8();
 
-        let ids = [0, 0, 0, 0];
-        let ws = [1, 0, 0, 0];
+        let ids =
+          [0, 0, 0, 0];
+
+        let ws =
+          [1, 0, 0, 0];
 
         if (wt === 0) {
-          ids[0] = Math.max(0, r.idx(bIS));
-        } else if (wt === 1) {
-          ids[0] = Math.max(0, r.idx(bIS));
-          ids[1] = Math.max(0, r.idx(bIS));
+          ids[0] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+        } else if (
+          wt === 1
+        ) {
+          ids[0] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
 
-          ws[0] = r.f32();
-          ws[1] = 1 - ws[0];
-        } else if (wt === 2) {
-          for (let k = 0; k < 4; k++) {
-            ids[k] = Math.max(0, r.idx(bIS));
+          ids[1] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+
+          ws[0] =
+            r.f32();
+
+          ws[1] =
+            1 - ws[0];
+        } else if (
+          wt === 2
+        ) {
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ids[k] =
+              Math.max(
+                0,
+                r.idx(bIS),
+              );
           }
 
-          for (let k = 0; k < 4; k++) {
-            ws[k] = r.f32();
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ws[k] =
+              r.f32();
           }
-        } else if (wt === 3) {
-          ids[0] = Math.max(0, r.idx(bIS));
-          ids[1] = Math.max(0, r.idx(bIS));
+        } else if (
+          wt === 3
+        ) {
+          ids[0] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
 
-          ws[0] = r.f32();
-          ws[1] = 1 - ws[0];
+          ids[1] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+
+          ws[0] =
+            r.f32();
+
+          ws[1] =
+            1 - ws[0];
 
           r.bytes(36);
-        } else if (wt === 4) {
-          for (let k = 0; k < 4; k++) {
-            ids[k] = Math.max(0, r.idx(bIS));
+        } else if (
+          wt === 4
+        ) {
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ids[k] =
+              Math.max(
+                0,
+                r.idx(bIS),
+              );
           }
 
-          for (let k = 0; k < 4; k++) {
-            ws[k] = r.f32();
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ws[k] =
+              r.f32();
           }
         } else {
-          throw new Error("未知のPMXウェイト " + wt);
+          throw new Error(
+            "未知のPMXウェイト " +
+            wt,
+          );
         }
 
-        bi.set(ids, i * 4);
-        bw.set(ws, i * 4);
+        bi.set(
+          ids,
+          i * 4,
+        );
+
+        bw.set(
+          ws,
+          i * 4,
+        );
 
         r.f32();
       }
 
-      const ic = r.i32();
+      const ic =
+        r.i32();
 
-      if (ic < 0 || ic % 3 !== 0) {
-        throw new Error("インデックス数が不正です: " + ic);
-      }
-
-      const indices = new Uint32Array(ic);
-
-      for (let i = 0; i < ic; i++) {
-        indices[i] = Math.max(0, r.idx(vIS));
-      }
-
-      const tc = r.i32();
-      const textures = [];
-
-      for (let i = 0; i < tc; i++) {
-        textures.push(
-          str()
-            .replaceAll("\\", "/")
-            .replace(/^\.\//, ""),
+      if (
+        ic < 0 ||
+        ic % 3 !== 0
+      ) {
+        throw new Error(
+          "インデックス数が不正です: " +
+          ic,
         );
       }
 
-      const mc = r.i32();
-      const materials = [];
+      const indices =
+        new Uint32Array(
+          ic,
+        );
 
-      let faceOffset = 0;
+      for (
+        let i = 0;
+        i < ic;
+        i++
+      ) {
+        indices[i] =
+          Math.max(
+            0,
+            r.idx(vIS),
+          );
+      }
 
-      for (let i = 0; i < mc; i++) {
-        const mn = str();
-        const men = str();
+      const tc =
+        r.i32();
 
-        const diffuse = [
-          r.f32(),
-          r.f32(),
-          r.f32(),
-          r.f32(),
-        ];
+      const textures =
+        [];
+
+      for (
+        let i = 0;
+        i < tc;
+        i++
+      ) {
+        textures.push(
+          str()
+            .replaceAll(
+              "\\",
+              "/",
+            )
+            .replace(
+              /^\.\//,
+              "",
+            ),
+        );
+      }
+
+      const mc =
+        r.i32();
+
+      const materials =
+        [];
+
+      let faceOffset =
+        0;
+
+      for (
+        let i = 0;
+        i < mc;
+        i++
+      ) {
+        const mn =
+          str();
+
+        const men =
+          str();
+
+        const diffuse =
+          [
+            r.f32(),
+            r.f32(),
+            r.f32(),
+            r.f32(),
+          ];
 
         r.bytes(12);
         r.f32();
         r.bytes(12);
 
-        const flags = r.u8();
+        const flags =
+          r.u8();
 
         r.bytes(16);
         r.f32();
 
-        const ti = r.idx(tIS);
-        const si = r.idx(tIS);
+        const ti =
+          r.idx(tIS);
+
+        const si =
+          r.idx(tIS);
 
         r.u8();
 
-        const toonFlag = r.u8();
-        const toi = toonFlag === 0 ? r.idx(tIS) : r.i8();
+        const toonFlag =
+          r.u8();
 
-        const memo = str();
-        const fc = r.i32();
+        const toi =
+          toonFlag === 0
+            ? r.idx(tIS)
+            : r.i8();
+
+        const memo =
+          str();
+
+        const fc =
+          r.i32();
 
         materials.push({
           name: mn,
           tex: ti,
           diffuse,
-          alpha: diffuse[3],
+          alpha:
+            diffuse[3],
           flags,
           faceOffset,
           faceCount: fc,
@@ -647,18 +1093,35 @@ canvas {
         faceOffset += fc;
       }
 
-      const bc = r.i32();
+      const bc =
+        r.i32();
 
-      if (bc < 1 || bc > 10000) {
-        throw new Error("ボーン数が不正です: " + bc);
+      if (
+        bc < 1 ||
+        bc > 10000
+      ) {
+        throw new Error(
+          "ボーン数が不正です: " +
+          bc,
+        );
       }
 
-      const bones = [];
-      const boneMap = new Map();
+      const bones =
+        [];
 
-      for (let i = 0; i < bc; i++) {
-        const bn = str();
-        const ben = str();
+      const boneMap =
+        new Map();
+
+      for (
+        let i = 0;
+        i < bc;
+        i++
+      ) {
+        const bn =
+          str();
+
+        const ben =
+          str();
 
         const p = [
           r.f32(),
@@ -666,9 +1129,14 @@ canvas {
           r.f32(),
         ];
 
-        const parent = r.idx(bIS);
-        const layer = r.i32();
-        const flags = r.u16();
+        const parent =
+          r.idx(bIS);
+
+        const layer =
+          r.i32();
+
+        const flags =
+          r.u16();
 
         if (flags & 1) {
           r.idx(bIS);
@@ -698,22 +1166,41 @@ canvas {
           r.idx(bIS);
         }
 
-        let ik = null;
+        let ik =
+          null;
 
         if (flags & 0x20) {
-          const target = r.idx(bIS);
-          const loops = r.i32();
-          const limit = r.f32();
-          const lc = r.i32();
+          const target =
+            r.idx(bIS);
 
-          const links = [];
+          const loops =
+            r.i32();
 
-          for (let j = 0; j < lc; j++) {
-            const li = r.idx(bIS);
-            const lim = r.u8();
+          const limit =
+            r.f32();
 
-            let min = null;
-            let max = null;
+          const lc =
+            r.i32();
+
+          const links =
+            [];
+
+          for (
+            let j = 0;
+            j < lc;
+            j++
+          ) {
+            const li =
+              r.idx(bIS);
+
+            const lim =
+              r.u8();
+
+            let min =
+              null;
+
+            let max =
+              null;
 
             if (lim) {
               min = [
@@ -731,7 +1218,8 @@ canvas {
 
             links.push({
               bone: li,
-              limited: !!lim,
+              limited:
+                !!lim,
               min,
               max,
             });
@@ -751,14 +1239,33 @@ canvas {
           pos: p,
           parent,
           flags,
-          rot: [0, 0, 0],
-          poseQ: [0, 0, 0, 1],
-          poseP: [0, 0, 0],
+          rot: [
+            0,
+            0,
+            0,
+          ],
+
+          poseQ: [
+            0,
+            0,
+            0,
+            1,
+          ],
+
+          poseP: [
+            0,
+            0,
+            0,
+          ],
+
           ik,
         };
 
         bones.push(b);
-        boneMap.set(bn, i);
+        boneMap.set(
+          bn,
+          i,
+        );
       }
 
       return {
@@ -773,7 +1280,8 @@ canvas {
         materials,
         bones,
         boneMap,
-        bounds: boundsOf(pos),
+        bounds:
+          boundsOf(pos),
       };
     }
 
@@ -786,11 +1294,19 @@ canvas {
       "./【阿蕾奇诺】/#U4ec6#U4eba.pmx",
     ];
 
-    let pmxFetch = null;
+    let pmxFetch =
+      null;
 
-    for (const p of PMX_CANDIDATES) {
+    for (
+      const p of
+        PMX_CANDIDATES
+    ) {
       try {
-        pmxFetch = await fetchBinary(p);
+        pmxFetch =
+          await fetchBinary(
+            p,
+          );
+
         break;
       } catch (e) {}
     }
@@ -798,48 +1314,100 @@ canvas {
     if (!pmxFetch) {
       throw new Error(
         "PMXを取得できませんでした。想定パス: ./【阿蕾奇诺】/仆人.pmx\n" +
-          PMX_CANDIDATES.join("\n"),
+        PMX_CANDIDATES.join(
+          "\n",
+        ),
       );
     }
 
-    const pmx = parsePMX(pmxFetch.buf);
+    const pmx =
+      parsePMX(
+        pmxFetch.buf,
+      );
 
-    loading.textContent = `PMX解析完了：頂点 ${
-      (pmx.vertices.length / 3) | 0
-    } / index ${pmx.indices.length} / 材質 ${
-      pmx.materials.length
-    } / ボーン ${pmx.bones.length}`;
+    loading.textContent =
+      `PMX解析完了：頂点 ${
+        (pmx.vertices.length /
+          3) |
+        0
+      } / index ${
+        pmx.indices.length
+      } / 材質 ${
+        pmx.materials.length
+      } / ボーン ${
+        pmx.bones.length
+      }`;
 
     /* =========================================================
-       MATRIX / VECTOR
+       MATRIX
     ========================================================= */
 
-    const ident = () =>
-      new Float32Array([
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
-      ]);
+    const ident =
+      () =>
+        new Float32Array([
+          1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1,
+        ]);
 
     function mm(a, b) {
-      const o = new Float32Array(16);
+      const o =
+        new Float32Array(
+          16,
+        );
 
-      for (let c = 0; c < 4; c++) {
-        for (let rr = 0; rr < 4; rr++) {
-          o[c * 4 + rr] =
-            a[rr] * b[c * 4] +
-            a[4 + rr] * b[c * 4 + 1] +
-            a[8 + rr] * b[c * 4 + 2] +
-            a[12 + rr] * b[c * 4 + 3];
+      for (
+        let c = 0;
+        c < 4;
+        c++
+      ) {
+        for (
+          let rr = 0;
+          rr < 4;
+          rr++
+        ) {
+          o[
+            c * 4 + rr
+          ] =
+            a[rr] *
+              b[
+                c * 4
+              ] +
+
+            a[
+              4 + rr
+            ] *
+              b[
+                c * 4 + 1
+              ] +
+
+            a[
+              8 + rr
+            ] *
+              b[
+                c * 4 + 2
+              ] +
+
+            a[
+              12 + rr
+            ] *
+              b[
+                c * 4 + 3
+              ];
         }
       }
 
       return o;
     }
 
-    function mt(x, y, z) {
-      const o = ident();
+    function mt(
+      x,
+      y,
+      z,
+    ) {
+      const o =
+        ident();
 
       o[12] = x;
       o[13] = y;
@@ -848,52 +1416,17 @@ canvas {
       return o;
     }
 
-    function mr(x, y, z) {
-      const cx = Math.cos(x / 2);
-      const sx = Math.sin(x / 2);
-      const cy = Math.cos(y / 2);
-      const sy = Math.sin(y / 2);
-      const cz = Math.cos(z / 2);
-      const sz = Math.sin(z / 2);
-
-      const qx =
-        sx * cy * cz -
-        cx * sy * sz;
-
-      const qy =
-        cx * sy * cz +
-        sx * cy * sz;
-
-      const qz =
-        cx * cy * sz -
-        sx * sy * cz;
-
-      const qw =
-        cx * cy * cz +
-        sx * sy * sz;
-
-      return new Float32Array([
-        1 - 2 * qy * qy - 2 * qz * qz,
-        2 * qx * qy + 2 * qz * qw,
-        2 * qx * qz - 2 * qy * qw,
-        0,
-
-        2 * qx * qy - 2 * qz * qw,
-        1 - 2 * qx * qx - 2 * qz * qz,
-        2 * qy * qz + 2 * qx * qw,
-        0,
-
-        2 * qx * qz + 2 * qy * qw,
-        2 * qy * qz - 2 * qx * qw,
-        1 - 2 * qx * qx - 2 * qy * qy,
-        0,
-
-        0, 0, 0, 1,
-      ]);
-    }
-
-    function persp(fov, asp, n, f) {
-      const q = 1 / Math.tan(fov / 2);
+    function persp(
+      fov,
+      asp,
+      n,
+      f,
+    ) {
+      const q =
+        1 /
+        Math.tan(
+          fov / 2,
+        );
 
       return new Float32Array([
         q / asp,
@@ -908,12 +1441,14 @@ canvas {
 
         0,
         0,
-        (f + n) / (n - f),
+        (f + n) /
+          (n - f),
         -1,
 
         0,
         0,
-        (2 * f * n) / (n - f),
+        (2 * f * n) /
+          (n - f),
         0,
       ]);
     }
@@ -936,14 +1471,22 @@ canvas {
 
     function cross(a, b) {
       return [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
+        a[1] * b[2] -
+          a[2] * b[1],
+
+        a[2] * b[0] -
+          a[0] * b[2],
+
+        a[0] * b[1] -
+          a[1] * b[0],
       ];
     }
 
     function norm(a) {
-      const l = Math.hypot(...a) || 1;
+      const l =
+        Math.hypot(
+          ...a,
+        ) || 1;
 
       return [
         a[0] / l,
@@ -953,9 +1496,21 @@ canvas {
     }
 
     function lookAt(e, c) {
-      const z = norm(sub(e, c));
-      const x = norm(cross([0, 1, 0], z));
-      const y = cross(z, x);
+      const z =
+        norm(
+          sub(e, c),
+        );
+
+      const x =
+        norm(
+          cross(
+            [0, 1, 0],
+            z,
+          ),
+        );
+
+      const y =
+        cross(z, x);
 
       return new Float32Array([
         x[0],
@@ -981,7 +1536,8 @@ canvas {
     }
 
     function invRigid(a) {
-      const o = ident();
+      const o =
+        ident();
 
       o[0] = a[0];
       o[1] = a[4];
@@ -993,33 +1549,46 @@ canvas {
 
       o[8] = a[2];
       o[9] = a[6];
-      o[10] = a[10];
+      o[10] =
+        a[10];
 
       o[12] =
         -(
-          o[0] * a[12] +
-          o[4] * a[13] +
-          o[8] * a[14]
+          o[0] *
+            a[12] +
+          o[4] *
+            a[13] +
+          o[8] *
+            a[14]
         );
 
       o[13] =
         -(
-          o[1] * a[12] +
-          o[5] * a[13] +
-          o[9] * a[14]
+          o[1] *
+            a[12] +
+          o[5] *
+            a[13] +
+          o[9] *
+            a[14]
         );
 
       o[14] =
         -(
-          o[2] * a[12] +
-          o[6] * a[13] +
-          o[10] * a[14]
+          o[2] *
+            a[12] +
+          o[6] *
+            a[13] +
+          o[10] *
+            a[14]
         );
 
       return o;
     }
 
-    function mulPoint(m, p) {
+    function mulPoint(
+      m,
+      p,
+    ) {
       return [
         m[0] * p[0] +
           m[4] * p[1] +
@@ -1042,125 +1611,217 @@ canvas {
        BIND POSE
     ========================================================= */
 
-    const bindWorld = [];
-    const invBind = [];
+    const bindWorld =
+      [];
 
-    for (let i = 0; i < pmx.bones.length; i++) {
-      const b = pmx.bones[i];
-      const p = b.parent;
+    const invBind =
+      [];
 
-      const local = mt(
-        b.pos[0] -
-          (p >= 0 ? pmx.bones[p].pos[0] : 0),
+    for (
+      let i = 0;
+      i < pmx.bones.length;
+      i++
+    ) {
+      const b =
+        pmx.bones[i];
 
-        b.pos[1] -
-          (p >= 0 ? pmx.bones[p].pos[1] : 0),
+      const p =
+        b.parent;
 
-        b.pos[2] -
-          (p >= 0 ? pmx.bones[p].pos[2] : 0),
-      );
+      const local =
+        mt(
+          b.pos[0] -
+            (
+              p >= 0
+                ? pmx.bones[p]
+                    .pos[0]
+                : 0
+            ),
+
+          b.pos[1] -
+            (
+              p >= 0
+                ? pmx.bones[p]
+                    .pos[1]
+                : 0
+            ),
+
+          b.pos[2] -
+            (
+              p >= 0
+                ? pmx.bones[p]
+                    .pos[2]
+                : 0
+            ),
+        );
 
       bindWorld[i] =
         p >= 0
-          ? mm(bindWorld[p], local)
+          ? mm(
+              bindWorld[p],
+              local,
+            )
           : local;
 
-      invBind[i] = invRigid(bindWorld[i]);
+      invBind[i] =
+        invRigid(
+          bindWorld[i],
+        );
     }
 
     /* =========================================================
        GPU VERTEX BUFFER
     ========================================================= */
 
-    const stride = 64;
-    const vc = pmx.vertices.length / 3;
+    const stride =
+      64;
 
-    const raw = new ArrayBuffer(vc * stride);
-    const dv = new DataView(raw);
+    const vc =
+      pmx.vertices.length /
+      3;
 
-    for (let i = 0; i < vc; i++) {
-      const o = i * stride;
+    const raw =
+      new ArrayBuffer(
+        vc * stride,
+      );
+
+    const dv =
+      new DataView(
+        raw,
+      );
+
+    for (
+      let i = 0;
+      i < vc;
+      i++
+    ) {
+      const o =
+        i * stride;
 
       dv.setFloat32(
         o + 0,
-        pmx.vertices[i * 3],
+        pmx.vertices[
+          i * 3
+        ],
         true,
       );
 
       dv.setFloat32(
         o + 4,
-        pmx.vertices[i * 3 + 1],
+        pmx.vertices[
+          i * 3 + 1
+        ],
         true,
       );
 
       dv.setFloat32(
         o + 8,
-        pmx.vertices[i * 3 + 2],
+        pmx.vertices[
+          i * 3 + 2
+        ],
         true,
       );
 
       dv.setFloat32(
         o + 12,
-        pmx.normals[i * 3],
+        pmx.normals[
+          i * 3
+        ],
         true,
       );
 
       dv.setFloat32(
         o + 16,
-        pmx.normals[i * 3 + 1],
+        pmx.normals[
+          i * 3 + 1
+        ],
         true,
       );
 
       dv.setFloat32(
         o + 20,
-        pmx.normals[i * 3 + 2],
+        pmx.normals[
+          i * 3 + 2
+        ],
         true,
       );
 
       dv.setFloat32(
         o + 24,
-        pmx.uv[i * 2],
+        pmx.uv[
+          i * 2
+        ],
         true,
       );
 
       dv.setFloat32(
         o + 28,
-        pmx.uv[i * 2 + 1],
+        pmx.uv[
+          i * 2 + 1
+        ],
         true,
       );
 
-      for (let k = 0; k < 4; k++) {
+      for (
+        let k = 0;
+        k < 4;
+        k++
+      ) {
         dv.setUint32(
-          o + 32 + k * 4,
-          pmx.bi[i * 4 + k],
+          o + 32 +
+            k * 4,
+
+          pmx.bi[
+            i * 4 + k
+          ],
+
           true,
         );
       }
 
-      for (let k = 0; k < 4; k++) {
+      for (
+        let k = 0;
+        k < 4;
+        k++
+      ) {
         dv.setFloat32(
-          o + 48 + k * 4,
-          pmx.bw[i * 4 + k],
+          o + 48 +
+            k * 4,
+
+          pmx.bw[
+            i * 4 + k
+          ],
+
           true,
         );
       }
     }
 
-    const vb = device.createBuffer({
-      size: raw.byteLength,
-      usage:
-        GPUBufferUsage.VERTEX |
-        GPUBufferUsage.COPY_DST,
-    });
+    const vb =
+      device.createBuffer({
+        size:
+          raw.byteLength,
 
-    device.queue.writeBuffer(vb, 0, raw);
+        usage:
+          GPUBufferUsage.VERTEX |
+          GPUBufferUsage.COPY_DST,
+      });
 
-    const ib = device.createBuffer({
-      size: pmx.indices.byteLength,
-      usage:
-        GPUBufferUsage.INDEX |
-        GPUBufferUsage.COPY_DST,
-    });
+    device.queue.writeBuffer(
+      vb,
+      0,
+      raw,
+    );
+
+    const ib =
+      device.createBuffer({
+        size:
+          pmx.indices.byteLength,
+
+        usage:
+          GPUBufferUsage.INDEX |
+          GPUBufferUsage.COPY_DST,
+      });
 
     device.queue.writeBuffer(
       ib,
@@ -1168,27 +1829,64 @@ canvas {
       pmx.indices,
     );
 
-    const camBuf = device.createBuffer({
-      size: 128,
-      usage:
-        GPUBufferUsage.UNIFORM |
-        GPUBufferUsage.COPY_DST,
-    });
+    /*
+     * ★重要
+     *
+     * 地面とプレイヤーでUniform Bufferを分離。
+     *
+     * playerCamBuf:
+     *   プレイヤー描画専用
+     *
+     * groundCamBuf:
+     *   地面描画専用
+     */
 
-    const boneBuf = device.createBuffer({
-      size: pmx.bones.length * 64,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST,
-    });
+    const playerCamBuf =
+      device.createBuffer({
+        size: 128,
 
-    const sampler = device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
-      mipmapFilter: "linear",
-      addressModeU: "repeat",
-      addressModeV: "repeat",
-    });
+        usage:
+          GPUBufferUsage.UNIFORM |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    const groundCamBuf =
+      device.createBuffer({
+        size: 128,
+
+        usage:
+          GPUBufferUsage.UNIFORM |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    const boneBuf =
+      device.createBuffer({
+        size:
+          pmx.bones.length *
+          64,
+
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    const sampler =
+      device.createSampler({
+        magFilter:
+          "linear",
+
+        minFilter:
+          "linear",
+
+        mipmapFilter:
+          "linear",
+
+        addressModeU:
+          "repeat",
+
+        addressModeV:
+          "repeat",
+      });
 
     /* =========================================================
        SHADER
@@ -1220,8 +1918,7 @@ var<uniform> materialColor: vec4f;
 var texSampler: sampler;
 
 @group(0) @binding(4)
-var tex:
-  texture_2d<f32>;
+var tex: texture_2d<f32>;
 
 @vertex
 fn vs(
@@ -1261,7 +1958,10 @@ fn vs(
     normalize(
       (
         u.model *
-        vec4f(ln.xyz,0.0)
+        vec4f(
+          ln.xyz,
+          0.0
+        )
       ).xyz
     );
 
@@ -1270,7 +1970,7 @@ fn vs(
 
 @fragment
 fn fs(v:VOut)
-  ->@location(0)vec4f{
+  -> @location(0) vec4f{
 
   let al =
     textureSample(
@@ -1309,20 +2009,28 @@ fn fs(v:VOut)
 }
 `;
 
-    const sm = device.createShaderModule({
-      code: shader,
-    });
+    const sm =
+      device.createShaderModule({
+        code: shader,
+      });
 
-    const ci = await sm.getCompilationInfo();
+    const ci =
+      await sm.getCompilationInfo();
 
     if (
       ci.messages.some(
-        (m) => m.type === "error",
+        (m) =>
+          m.type ===
+          "error",
       )
     ) {
       throw new Error(
         ci.messages
-          .filter((m) => m.type === "error")
+          .filter(
+            (m) =>
+              m.type ===
+              "error",
+          )
           .map(
             (m) =>
               `WGSL ${m.lineNum}:${m.linePos} ${m.message}`,
@@ -1336,38 +2044,64 @@ fn fs(v:VOut)
         entries: [
           {
             binding: 0,
-            visibility: GPUShaderStage.VERTEX,
+
+            visibility:
+              GPUShaderStage.VERTEX,
+
             buffer: {
-              type: "uniform",
+              type:
+                "uniform",
             },
           },
+
           {
             binding: 1,
-            visibility: GPUShaderStage.VERTEX,
+
+            visibility:
+              GPUShaderStage.VERTEX,
+
             buffer: {
-              type: "read-only-storage",
+              type:
+                "read-only-storage",
             },
           },
+
           {
             binding: 2,
-            visibility: GPUShaderStage.FRAGMENT,
+
+            visibility:
+              GPUShaderStage.FRAGMENT,
+
             buffer: {
-              type: "uniform",
+              type:
+                "uniform",
             },
           },
+
           {
             binding: 3,
-            visibility: GPUShaderStage.FRAGMENT,
+
+            visibility:
+              GPUShaderStage.FRAGMENT,
+
             sampler: {
-              type: "filtering",
+              type:
+                "filtering",
             },
           },
+
           {
             binding: 4,
-            visibility: GPUShaderStage.FRAGMENT,
+
+            visibility:
+              GPUShaderStage.FRAGMENT,
+
             texture: {
-              sampleType: "float",
-              viewDimension: "2d",
+              sampleType:
+                "float",
+
+              viewDimension:
+                "2d",
             },
           },
         ],
@@ -1375,7 +2109,9 @@ fn fs(v:VOut)
 
     const layout =
       device.createPipelineLayout({
-        bindGroupLayouts: [bgl],
+        bindGroupLayouts: [
+          bgl,
+        ],
       });
 
     const pipe =
@@ -1384,36 +2120,63 @@ fn fs(v:VOut)
 
         vertex: {
           module: sm,
-          entryPoint: "vs",
+
+          entryPoint:
+            "vs",
 
           buffers: [
             {
-              arrayStride: stride,
+              arrayStride:
+                stride,
 
               attributes: [
                 {
-                  shaderLocation: 0,
-                  format: "float32x3",
+                  shaderLocation:
+                    0,
+
+                  format:
+                    "float32x3",
+
                   offset: 0,
                 },
+
                 {
-                  shaderLocation: 1,
-                  format: "float32x3",
+                  shaderLocation:
+                    1,
+
+                  format:
+                    "float32x3",
+
                   offset: 12,
                 },
+
                 {
-                  shaderLocation: 2,
-                  format: "float32x2",
+                  shaderLocation:
+                    2,
+
+                  format:
+                    "float32x2",
+
                   offset: 24,
                 },
+
                 {
-                  shaderLocation: 3,
-                  format: "uint32x4",
+                  shaderLocation:
+                    3,
+
+                  format:
+                    "uint32x4",
+
                   offset: 32,
                 },
+
                 {
-                  shaderLocation: 4,
-                  format: "float32x4",
+                  shaderLocation:
+                    4,
+
+                  format:
+                    "float32x4",
+
                   offset: 48,
                 },
               ],
@@ -1423,7 +2186,9 @@ fn fs(v:VOut)
 
         fragment: {
           module: sm,
-          entryPoint: "fs",
+
+          entryPoint:
+            "fs",
 
           targets: [
             {
@@ -1431,17 +2196,25 @@ fn fs(v:VOut)
 
               blend: {
                 color: {
-                  srcFactor: "src-alpha",
+                  srcFactor:
+                    "src-alpha",
+
                   dstFactor:
                     "one-minus-src-alpha",
-                  operation: "add",
+
+                  operation:
+                    "add",
                 },
 
                 alpha: {
-                  srcFactor: "one",
+                  srcFactor:
+                    "one",
+
                   dstFactor:
                     "one-minus-src-alpha",
-                  operation: "add",
+
+                  operation:
+                    "add",
                 },
               },
             },
@@ -1449,14 +2222,22 @@ fn fs(v:VOut)
         },
 
         primitive: {
-          topology: "triangle-list",
-          cullMode: "none",
+          topology:
+            "triangle-list",
+
+          cullMode:
+            "none",
         },
 
         depthStencil: {
-          format: "depth24plus",
-          depthWriteEnabled: true,
-          depthCompare: "less",
+          format:
+            "depth24plus",
+
+          depthWriteEnabled:
+            true,
+
+          depthCompare:
+            "less",
         },
       });
 
@@ -1470,33 +2251,44 @@ fn fs(v:VOut)
       b,
       a = 255,
     ) {
-      const tex = device.createTexture({
-        size: {
-          width: 1,
-          height: 1,
-        },
+      const tex =
+        device.createTexture({
+          size: {
+            width: 1,
+            height: 1,
+          },
 
-        format: "rgba8unorm",
+          format:
+            "rgba8unorm",
 
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.COPY_DST |
-          GPUTextureUsage.RENDER_ATTACHMENT,
-      });
+          usage:
+            GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.COPY_DST |
+            GPUTextureUsage.RENDER_ATTACHMENT,
+        });
 
       device.queue.writeTexture(
-        { texture: tex },
+        {
+          texture: tex,
+        },
+
         new Uint8Array([
           r,
           g,
           b,
           a,
         ]),
-        { bytesPerRow: 4 },
+
+        {
+          bytesPerRow:
+            4,
+        },
+
         {
           width: 1,
           height: 1,
-          depthOrArrayLayers: 1,
+          depthOrArrayLayers:
+            1,
         },
       );
 
@@ -1511,48 +2303,72 @@ fn fs(v:VOut)
         255,
       );
 
-    const textureCache = new Map();
+    const textureCache =
+      new Map();
+
     const missing = [];
 
-    async function getTexture(index) {
+    async function getTexture(
+      index,
+    ) {
       if (
         index < 0 ||
-        index >= pmx.textures.length
+        index >=
+          pmx.textures.length
       ) {
         return whiteTexture;
       }
 
       const rawName =
-        pmx.textures[index] || "";
+        pmx.textures[
+          index
+        ] || "";
 
       if (!rawName) {
         return whiteTexture;
       }
 
       const names =
-        pathVariants(rawName);
+        pathVariants(
+          rawName,
+        );
 
-      const cacheKey = names[0];
+      const cacheKey =
+        names[0];
 
-      if (textureCache.has(cacheKey)) {
-        return textureCache.get(cacheKey);
+      if (
+        textureCache.has(
+          cacheKey,
+        )
+      ) {
+        return textureCache.get(
+          cacheKey,
+        );
       }
 
       const prefix =
         "./【阿蕾奇诺】/";
 
-      for (const n of names) {
+      for (
+        const n of names
+      ) {
         const url =
           new URL(
-            encodePath(prefix + n),
+            encodePath(
+              prefix + n,
+            ),
             location.href,
           ).href;
 
         try {
-          const res = await fetch(
-            url,
-            { cache: "no-store" },
-          );
+          const res =
+            await fetch(
+              url,
+              {
+                cache:
+                  "no-store",
+              },
+            );
 
           if (!res.ok) {
             continue;
@@ -1569,11 +2385,15 @@ fn fs(v:VOut)
           const tex =
             device.createTexture({
               size: {
-                width: bmp.width,
-                height: bmp.height,
+                width:
+                  bmp.width,
+
+                height:
+                  bmp.height,
               },
 
-              format: "rgba8unorm",
+              format:
+                "rgba8unorm",
 
               usage:
                 GPUTextureUsage.TEXTURE_BINDING |
@@ -1582,11 +2402,21 @@ fn fs(v:VOut)
             });
 
           device.queue.copyExternalImageToTexture(
-            { source: bmp },
-            { texture: tex },
             {
-              width: bmp.width,
-              height: bmp.height,
+              source: bmp,
+            },
+
+            {
+              texture:
+                tex,
+            },
+
+            {
+              width:
+                bmp.width,
+
+              height:
+                bmp.height,
             },
           );
 
@@ -1599,7 +2429,9 @@ fn fs(v:VOut)
         } catch (e) {}
       }
 
-      missing.push(rawName);
+      missing.push(
+        rawName,
+      );
 
       textureCache.set(
         cacheKey,
@@ -1609,15 +2441,113 @@ fn fs(v:VOut)
       return whiteTexture;
     }
 
-    const materialBinds = [];
+    /* =========================================================
+       BONE LOOKUP
+    ========================================================= */
 
-    for (const g of pmx.materials) {
+    function findBone(
+      ...names
+    ) {
+      for (
+        const name of names
+      ) {
+        const i =
+          pmx.boneMap.get(
+            name,
+          );
+
+        if (
+          i !== undefined
+        ) {
+          return i;
+        }
+      }
+
+      const normalized =
+        new Map();
+
+      for (
+        const [k, v] of
+          pmx.boneMap
+      ) {
+        normalized.set(
+          k.replace(
+            /[ 　]/g,
+            "",
+          ),
+          v,
+        );
+      }
+
+      for (
+        const name of names
+      ) {
+        const i =
+          normalized.get(
+            String(
+              name,
+            ).replace(
+              /[ 　]/g,
+              "",
+            ),
+          );
+
+        if (
+          i !== undefined
+        ) {
+          return i;
+        }
+      }
+
+      return -1;
+    }
+
+    const modelScale =
+      0.12;
+
+    const modelHeight =
+      (
+        pmx.bounds.mx[1] -
+        pmx.bounds.mn[1]
+      ) *
+      modelScale;
+
+    const centerX =
+      (
+        pmx.bounds.mn[0] +
+        pmx.bounds.mx[0]
+      ) *
+      0.5;
+
+    const centerZ =
+      (
+        pmx.bounds.mn[2] +
+        pmx.bounds.mx[2]
+      ) *
+      0.5;
+
+    const bottom =
+      pmx.bounds.mn[1];
+
+    /* =========================================================
+       MATERIAL BIND
+    ========================================================= */
+
+    const materialBinds =
+      [];
+
+    for (
+      const g of pmx.materials
+    ) {
       const tex =
-        await getTexture(g.tex);
+        await getTexture(
+          g.tex,
+        );
 
       const mb =
         device.createBuffer({
           size: 16,
+
           usage:
             GPUBufferUsage.UNIFORM |
             GPUBufferUsage.COPY_DST,
@@ -1638,28 +2568,41 @@ fn fs(v:VOut)
           entries: [
             {
               binding: 0,
+
               resource: {
-                buffer: camBuf,
+                buffer:
+                  playerCamBuf,
               },
             },
+
             {
               binding: 1,
+
               resource: {
-                buffer: boneBuf,
+                buffer:
+                  boneBuf,
               },
             },
+
             {
               binding: 2,
+
               resource: {
-                buffer: mb,
+                buffer:
+                  mb,
               },
             },
+
             {
               binding: 3,
-              resource: sampler,
+
+              resource:
+                sampler,
             },
+
             {
               binding: 4,
+
               resource:
                 tex.createView(),
             },
@@ -1672,72 +2615,7 @@ fn fs(v:VOut)
       `アルレッキーノ読み込み完了 ` +
       `${pmx.materials.length}材質 / ` +
       `${pmx.textures.length}テクスチャ / ` +
-      `${pmx.bones.length}ボーン` +
-      (
-        missing.length
-          ? `\n未取得テクスチャ ${missing.length}件`
-          : ""
-      );
-
-    /* =========================================================
-       BONE LOOKUP
-    ========================================================= */
-
-    function findBone(...names) {
-      for (const name of names) {
-        const i =
-          pmx.boneMap.get(name);
-
-        if (i !== undefined) {
-          return i;
-        }
-      }
-
-      const normalized = new Map();
-
-      for (const [k, v] of pmx.boneMap) {
-        normalized.set(
-          k.replace(/[ 　]/g, ""),
-          v,
-        );
-      }
-
-      for (const name of names) {
-        const i =
-          normalized.get(
-            String(name).replace(
-              /[ 　]/g,
-              "",
-            ),
-          );
-
-        if (i !== undefined) {
-          return i;
-        }
-      }
-
-      return -1;
-    }
-
-    const modelScale = 0.12;
-
-    const modelHeight =
-      (pmx.bounds.mx[1] -
-        pmx.bounds.mn[1]) *
-      modelScale;
-
-    const centerX =
-      (pmx.bounds.mn[0] +
-        pmx.bounds.mx[0]) *
-      0.5;
-
-    const centerZ =
-      (pmx.bounds.mn[2] +
-        pmx.bounds.mx[2]) *
-      0.5;
-
-    const bottom =
-      pmx.bounds.mn[1];
+      `${pmx.bones.length}ボーン`;
 
     /* =========================================================
        MOTION
@@ -1777,16 +2655,34 @@ fn fs(v:VOut)
       ];
     }
 
-    function qSlerp(a, b, t) {
-      let ax = a[0];
-      let ay = a[1];
-      let az = a[2];
-      let aw = a[3];
+    function qSlerp(
+      a,
+      b,
+      t,
+    ) {
+      let ax =
+        a[0];
 
-      let bx = b[0];
-      let by = b[1];
-      let bz = b[2];
-      let bw = b[3];
+      let ay =
+        a[1];
+
+      let az =
+        a[2];
+
+      let aw =
+        a[3];
+
+      let bx =
+        b[0];
+
+      let by =
+        b[1];
+
+      let bz =
+        b[2];
+
+      let bw =
+        b[3];
 
       let d =
         ax * bx +
@@ -1803,12 +2699,25 @@ fn fs(v:VOut)
         bw = -bw;
       }
 
-      if (d > 0.9995) {
+      if (
+        d > 0.9995
+      ) {
         return qNormalize([
-          ax + (bx - ax) * t,
-          ay + (by - ay) * t,
-          az + (bz - az) * t,
-          aw + (bw - aw) * t,
+          ax +
+            (bx - ax) *
+              t,
+
+          ay +
+            (by - ay) *
+              t,
+
+          az +
+            (bz - az) *
+              t,
+
+          aw +
+            (bw - aw) *
+              t,
         ]);
       }
 
@@ -1816,51 +2725,103 @@ fn fs(v:VOut)
         Math.acos(
           Math.max(
             -1,
-            Math.min(1, d),
+            Math.min(
+              1,
+              d,
+            ),
           ),
         );
 
       const st =
-        Math.sin(th) || 1;
+        Math.sin(th) ||
+        1;
 
       const s0 =
         Math.sin(
-          (1 - t) * th,
+          (1 - t) *
+            th,
         ) / st;
 
       const s1 =
-        Math.sin(t * th) / st;
+        Math.sin(
+          t * th,
+        ) / st;
 
       return [
-        ax * s0 + bx * s1,
-        ay * s0 + by * s1,
-        az * s0 + bz * s1,
-        aw * s0 + bw * s1,
+        ax * s0 +
+          bx * s1,
+
+        ay * s0 +
+          by * s1,
+
+        az * s0 +
+          bz * s1,
+
+        aw * s0 +
+          bw * s1,
       ];
     }
 
     function quatToMat(q) {
-      q = qNormalize(q);
+      q =
+        qNormalize(q);
 
-      const x = q[0];
-      const y = q[1];
-      const z = q[2];
-      const w = q[3];
+      const x =
+        q[0];
+
+      const y =
+        q[1];
+
+      const z =
+        q[2];
+
+      const w =
+        q[3];
 
       return new Float32Array([
-        1 - 2 * (y * y + z * z),
-        2 * (x * y + z * w),
-        2 * (x * z - y * w),
+        1 -
+          2 *
+            (y * y +
+              z * z),
+
+        2 *
+          (x * y +
+            z * w),
+
+        2 *
+          (x * z -
+            y * w),
+
         0,
 
-        2 * (x * y - z * w),
-        1 - 2 * (x * x + z * z),
-        2 * (y * z + x * w),
+        2 *
+          (x * y -
+            z * w),
+
+        1 -
+          2 *
+            (x * x +
+              z * z),
+
+        2 *
+          (y * z +
+            x * w),
+
         0,
 
-        2 * (x * z + y * w),
-        2 * (y * z - x * w),
-        1 - 2 * (x * x + y * y),
+        2 *
+          (x * z +
+            y * w),
+
+        2 *
+          (y * z -
+            x * w),
+
+        1 -
+          2 *
+            (x * x +
+              y * y),
+
         0,
 
         0,
@@ -1870,15 +2831,40 @@ fn fs(v:VOut)
       ]);
     }
 
-    function eulerToQuat(x, y, z) {
-      const cx = Math.cos(x / 2);
-      const sx = Math.sin(x / 2);
+    function eulerToQuat(
+      x,
+      y,
+      z,
+    ) {
+      const cx =
+        Math.cos(
+          x / 2,
+        );
 
-      const cy = Math.cos(y / 2);
-      const sy = Math.sin(y / 2);
+      const sx =
+        Math.sin(
+          x / 2,
+        );
 
-      const cz = Math.cos(z / 2);
-      const sz = Math.sin(z / 2);
+      const cy =
+        Math.cos(
+          y / 2,
+        );
+
+      const sy =
+        Math.sin(
+          y / 2,
+        );
+
+      const cz =
+        Math.cos(
+          z / 2,
+        );
+
+      const sz =
+        Math.sin(
+          z / 2,
+        );
 
       return qNormalize([
         sx * cy * cz -
@@ -1895,9 +2881,16 @@ fn fs(v:VOut)
       ]);
     }
 
-    function normalizeBoneName(s) {
-      return String(s || "")
-        .replace(/[\s　]+/g, "")
+    function normalizeBoneName(
+      s,
+    ) {
+      return String(
+        s || "",
+      )
+        .replace(
+          /[\s　]+/g,
+          "",
+        )
         .trim();
     }
 
@@ -1911,7 +2904,8 @@ fn fs(v:VOut)
     ) {
       normalizedBoneMap.set(
         normalizeBoneName(
-          pmx.bones[i].name,
+          pmx.bones[i]
+            .name,
         ),
         i,
       );
@@ -1920,14 +2914,20 @@ fn fs(v:VOut)
     const findBoneIndex =
       (name) => {
         const i =
-          pmx.boneMap?.get(name);
+          pmx.boneMap?.get(
+            name,
+          );
 
-        if (i !== undefined) {
+        if (
+          i !== undefined
+        ) {
           return i;
         }
 
         return normalizedBoneMap.get(
-          normalizeBoneName(name),
+          normalizeBoneName(
+            name,
+          ),
         );
       };
 
@@ -1935,15 +2935,23 @@ fn fs(v:VOut)
        VMD PARSER
     ========================================================= */
 
-    function parseVMD(buffer) {
+    function parseVMD(
+      buffer,
+    ) {
       const r =
-        new DataView(buffer);
+        new DataView(
+          buffer,
+        );
 
       const u8 =
-        new Uint8Array(buffer);
+        new Uint8Array(
+          buffer,
+        );
 
       const dec =
-        new TextDecoder("shift-jis");
+        new TextDecoder(
+          "shift-jis",
+        );
 
       let p = 0;
 
@@ -1958,7 +2966,9 @@ fn fs(v:VOut)
           p += n;
 
           const z =
-            bytes.indexOf(0);
+            bytes.indexOf(
+              0,
+            );
 
           return dec
             .decode(
@@ -1973,7 +2983,9 @@ fn fs(v:VOut)
         };
 
       const header =
-        readFixedString(30);
+        readFixedString(
+          30,
+        );
 
       if (
         !header.startsWith(
@@ -1986,18 +2998,26 @@ fn fs(v:VOut)
       }
 
       const modelName =
-        readFixedString(20);
+        readFixedString(
+          20,
+        );
 
       const boneCount =
-        r.getUint32(p, true);
+        r.getUint32(
+          p,
+          true,
+        );
 
       p += 4;
 
       const tracks =
         new Map();
 
-      let maxFrame = 0;
-      let minFrame = Infinity;
+      let maxFrame =
+        0;
+
+      let minFrame =
+        Infinity;
 
       for (
         let i = 0;
@@ -2005,10 +3025,15 @@ fn fs(v:VOut)
         i++
       ) {
         const rawName =
-          readFixedString(15);
+          readFixedString(
+            15,
+          );
 
         const frame =
-          r.getUint32(p, true);
+          r.getUint32(
+            p,
+            true,
+          );
 
         p += 4;
 
@@ -2055,7 +3080,6 @@ fn fs(v:VOut)
           ]);
 
         p += 16;
-
         p += 64;
 
         const bi =
@@ -2063,12 +3087,16 @@ fn fs(v:VOut)
             rawName,
           );
 
-        if (bi === undefined) {
+        if (
+          bi === undefined
+        ) {
           continue;
         }
 
         const arr =
-          tracks.get(bi) || [];
+          tracks.get(
+            bi,
+          ) || [];
 
         arr.push({
           frame,
@@ -2095,11 +3123,13 @@ fn fs(v:VOut)
       }
 
       for (
-        const arr of tracks.values()
+        const arr of
+          tracks.values()
       ) {
         arr.sort(
           (a, b) =>
-            a.frame - b.frame,
+            a.frame -
+            b.frame,
         );
       }
 
@@ -2107,12 +3137,14 @@ fn fs(v:VOut)
         modelName,
         boneCount,
         tracks,
+
         maxFrame:
           Number.isFinite(
             maxFrame,
           )
             ? maxFrame
             : 0,
+
         minFrame:
           Number.isFinite(
             minFrame,
@@ -2122,11 +3154,17 @@ fn fs(v:VOut)
       };
     }
 
-    async function loadVMD(url) {
+    async function loadVMD(
+      url,
+    ) {
       const res =
-        await fetch(url, {
-          cache: "no-store",
-        });
+        await fetch(
+          url,
+          {
+            cache:
+              "no-store",
+          },
+        );
 
       if (!res.ok) {
         throw new Error(
@@ -2140,8 +3178,18 @@ fn fs(v:VOut)
     }
 
     function makePose(
-      q = [0, 0, 0, 1],
-      p = [0, 0, 0],
+      q = [
+        0,
+        0,
+        0,
+        1,
+      ],
+
+      p = [
+        0,
+        0,
+        0,
+      ],
     ) {
       return {
         q,
@@ -2149,16 +3197,23 @@ fn fs(v:VOut)
       };
     }
 
-    function lerp3(a, b, t) {
+    function lerp3(
+      a,
+      b,
+      t,
+    ) {
       return [
         a[0] +
-          (b[0] - a[0]) * t,
+          (b[0] - a[0]) *
+            t,
 
         a[1] +
-          (b[1] - a[1]) * t,
+          (b[1] - a[1]) *
+            t,
 
         a[2] +
-          (b[2] - a[2]) * t,
+          (b[2] - a[2]) *
+            t,
       ];
     }
 
@@ -2185,8 +3240,8 @@ fn fs(v:VOut)
       }
 
       for (
-        const [bi, arr]
-        of motion.tracks
+        const [bi, arr] of
+          motion.tracks
       ) {
         if (!arr.length) {
           continue;
@@ -2207,8 +3262,9 @@ fn fs(v:VOut)
 
         if (
           frame >=
-          arr[arr.length - 1]
-            .frame
+          arr[
+            arr.length - 1
+          ].frame
         ) {
           pose[bi] =
             makePose(
@@ -2225,6 +3281,7 @@ fn fs(v:VOut)
         }
 
         let lo = 0;
+
         let hi =
           arr.length - 1;
 
@@ -2254,7 +3311,8 @@ fn fs(v:VOut)
           (frame - a.frame) /
           Math.max(
             1,
-            b.frame - a.frame,
+            b.frame -
+              a.frame,
           );
 
         pose[bi] =
@@ -2276,7 +3334,8 @@ fn fs(v:VOut)
       return pose;
     }
 
-    const motions = {};
+    const motions =
+      {};
 
     let activeMotionState =
       "idle";
@@ -2328,8 +3387,10 @@ fn fs(v:VOut)
 
         const frame =
           motion.minFrame +
-          ((elapsed * 30) %
-            span);
+          (
+            (elapsed * 30) %
+            span
+          );
 
         return sampleVMD(
           motion,
@@ -2340,34 +3401,33 @@ fn fs(v:VOut)
       const t =
         elapsed;
 
-      const set =
-        (
-          names,
-          x,
-          y,
-          z,
-        ) => {
-          const bi =
-            findBoneIndex(
-              ...names,
-            );
+      const set = (
+        names,
+        x,
+        y,
+        z,
+      ) => {
+        const bi =
+          findBoneIndex(
+            ...names,
+          );
 
-          if (
-            bi === undefined ||
-            bi < 0
-          ) {
-            return;
-          }
+        if (
+          bi === undefined ||
+          bi < 0
+        ) {
+          return;
+        }
 
-          pose[bi] =
-            makePose(
-              eulerToQuat(
-                x,
-                y,
-                z,
-              ),
-            );
-        };
+        pose[bi] =
+          makePose(
+            eulerToQuat(
+              x,
+              y,
+              z,
+            ),
+          );
+      };
 
       set(
         ["左肩"],
@@ -2480,12 +3540,19 @@ fn fs(v:VOut)
         i++
       ) {
         pmx.bones[i].poseQ =
-          pose[i]?.q ||
-          [0, 0, 0, 1];
+          pose[i]?.q || [
+            0,
+            0,
+            0,
+            1,
+          ];
 
         pmx.bones[i].poseP =
-          pose[i]?.p ||
-          [0, 0, 0];
+          pose[i]?.p || [
+            0,
+            0,
+            0,
+          ];
       }
     }
 
@@ -2537,23 +3604,33 @@ fn fs(v:VOut)
         m[5] +
         m[10];
 
-      let x, y, z, w;
+      let x;
+      let y;
+      let z;
+      let w;
 
       if (tr > 0) {
         const q =
-          Math.sqrt(tr + 1) * 2;
+          Math.sqrt(
+            tr + 1,
+          ) * 2;
 
-        w = 0.25 * q;
+        w =
+          0.25 * q;
+
         x =
-          (m[6] - m[9]) /
+          (m[6] -
+            m[9]) /
           q;
 
         y =
-          (m[8] - m[2]) /
+          (m[8] -
+            m[2]) /
           q;
 
         z =
-          (m[1] - m[4]) /
+          (m[1] -
+            m[4]) /
           q;
       } else if (
         m[0] > m[5] &&
@@ -2568,17 +3645,21 @@ fn fs(v:VOut)
           ) * 2;
 
         w =
-          (m[6] - m[9]) /
+          (m[6] -
+            m[9]) /
           q;
 
-        x = 0.25 * q;
+        x =
+          0.25 * q;
 
         y =
-          (m[4] + m[1]) /
+          (m[4] +
+            m[1]) /
           q;
 
         z =
-          (m[8] + m[2]) /
+          (m[8] +
+            m[2]) /
           q;
       } else if (
         m[5] > m[10]
@@ -2592,17 +3673,21 @@ fn fs(v:VOut)
           ) * 2;
 
         w =
-          (m[8] - m[2]) /
+          (m[8] -
+            m[2]) /
           q;
 
         x =
-          (m[4] + m[1]) /
+          (m[4] +
+            m[1]) /
           q;
 
-        y = 0.25 * q;
+        y =
+          0.25 * q;
 
         z =
-          (m[9] + m[6]) /
+          (m[9] +
+            m[6]) /
           q;
       } else {
         const q =
@@ -2614,18 +3699,22 @@ fn fs(v:VOut)
           ) * 2;
 
         w =
-          (m[1] - m[4]) /
+          (m[1] -
+            m[4]) /
           q;
 
         x =
-          (m[8] + m[2]) /
+          (m[8] +
+            m[2]) /
           q;
 
         y =
-          (m[9] + m[6]) /
+          (m[9] +
+            m[6]) /
           q;
 
-        z = 0.25 * q;
+        z =
+          0.25 * q;
       }
 
       return qNormalize([
@@ -2636,7 +3725,10 @@ fn fs(v:VOut)
       ]);
     }
 
-    function qMul(a, b) {
+    function qMul(
+      a,
+      b,
+    ) {
       return qNormalize([
         a[3] * b[0] +
           a[0] * b[3] +
@@ -2669,9 +3761,15 @@ fn fs(v:VOut)
       ];
     }
 
-    function qFromTo(a, b) {
-      const va = norm(a);
-      const vb = norm(b);
+    function qFromTo(
+      a,
+      b,
+    ) {
+      const va =
+        norm(a);
+
+      const vb =
+        norm(b);
 
       const d =
         Math.max(
@@ -2682,7 +3780,9 @@ fn fs(v:VOut)
           ),
         );
 
-      if (d > 0.9999) {
+      if (
+        d > 0.9999
+      ) {
         return [
           0,
           0,
@@ -2691,7 +3791,9 @@ fn fs(v:VOut)
         ];
       }
 
-      if (d < -0.9999) {
+      if (
+        d < -0.9999
+      ) {
         let axis =
           cross(
             [1, 0, 0],
@@ -2710,7 +3812,8 @@ fn fs(v:VOut)
             );
         }
 
-        axis = norm(axis);
+        axis =
+          norm(axis);
 
         return [
           axis[0],
@@ -2739,20 +3842,29 @@ fn fs(v:VOut)
     ========================================================= */
 
     function qToEulerXYZ(q) {
-      const x = q[0];
-      const y = q[1];
-      const z = q[2];
-      const w = q[3];
+      const x =
+        q[0];
+
+      const y =
+        q[1];
+
+      const z =
+        q[2];
+
+      const w =
+        q[3];
 
       const sinr =
-        2 * (
+        2 *
+        (
           w * x +
           y * z
         );
 
       const cosr =
         1 -
-        2 * (
+        2 *
+        (
           x * x +
           y * y
         );
@@ -2764,7 +3876,8 @@ fn fs(v:VOut)
         );
 
       const sinp =
-        2 * (
+        2 *
+        (
           w * y -
           z * x
         );
@@ -2772,12 +3885,15 @@ fn fs(v:VOut)
       let pitch;
 
       if (
-        Math.abs(sinp) >=
-        0.999999
+        Math.abs(
+          sinp,
+        ) >= 0.999999
       ) {
         pitch =
           (
-            Math.sign(sinp) *
+            Math.sign(
+              sinp,
+            ) *
             Math.PI
           ) / 2;
       } else {
@@ -2794,14 +3910,16 @@ fn fs(v:VOut)
       }
 
       const siny =
-        2 * (
+        2 *
+        (
           w * z +
           x * y
         );
 
       const cosy =
         1 -
-        2 * (
+        2 *
+        (
           y * y +
           z * z
         );
@@ -2820,7 +3938,7 @@ fn fs(v:VOut)
     }
 
     /* =========================================================
-       IK LINK LIMIT
+       IK LIMIT
     ========================================================= */
 
     function applyIKLinkLimit(
@@ -2830,11 +3948,6 @@ fn fs(v:VOut)
     ) {
       let result =
         qNormalize(q);
-
-      /*
-       * PMXに制限が存在する場合は
-       * まずPMX指定値を使う。
-       */
 
       if (
         link?.limited &&
@@ -2846,9 +3959,14 @@ fn fs(v:VOut)
             result,
           );
 
-        let x = e[0];
-        let y = e[1];
-        let z = e[2];
+        let x =
+          e[0];
+
+        let y =
+          e[1];
+
+        let z =
+          e[2];
 
         x =
           Math.max(
@@ -2885,29 +4003,37 @@ fn fs(v:VOut)
           );
       }
 
-      /*
-       * このモデルの膝については
-       * 前方へ逆に折れる解を防ぐ。
-       *
-       * 仆人.pmxでは膝のX軸が
-       * 負方向側に制限されている。
-       */
-
       const name =
         normalizeBoneName(
-          pmx.bones[joint]?.name ||
-            "",
+          pmx.bones[joint]
+            ?.name || "",
         );
 
       if (
-        name.includes("左ひざ") ||
-        name.includes("右ひざ") ||
-        name.includes("左膝") ||
-        name.includes("右膝") ||
-        name.includes("左ひざD") ||
-        name.includes("右ひざD") ||
-        name.includes("左膝D") ||
-        name.includes("右膝D")
+        name.includes(
+          "左ひざ",
+        ) ||
+        name.includes(
+          "右ひざ",
+        ) ||
+        name.includes(
+          "左膝",
+        ) ||
+        name.includes(
+          "右膝",
+        ) ||
+        name.includes(
+          "左ひざD",
+        ) ||
+        name.includes(
+          "右ひざD",
+        ) ||
+        name.includes(
+          "左膝D",
+        ) ||
+        name.includes(
+          "右膝D",
+        )
       ) {
         const e =
           qToEulerXYZ(
@@ -2953,11 +4079,12 @@ fn fs(v:VOut)
     }
 
     /* =========================================================
-       WORLD BONE MATRICES
+       WORLD BONES
     ========================================================= */
 
     function buildWorld() {
-      const world = [];
+      const world =
+        [];
 
       for (
         let i = 0;
@@ -3008,13 +4135,12 @@ fn fs(v:VOut)
             ),
 
             quatToMat(
-              b.poseQ ||
-                [
-                  0,
-                  0,
-                  0,
-                  1,
-                ],
+              b.poseQ || [
+                0,
+                0,
+                0,
+                1,
+              ],
             ),
           );
 
@@ -3031,7 +4157,7 @@ fn fs(v:VOut)
     }
 
     /* =========================================================
-       PMX IK SOLVER
+       IK SOLVER
     ========================================================= */
 
     function solveFootIK(
@@ -3051,12 +4177,14 @@ fn fs(v:VOut)
       }
 
       const def =
-        pmx.bones[ik]?.ik;
+        pmx.bones[ik]
+          ?.ik;
 
       if (
         !def ||
         !def.links ||
-        def.links.length < 1
+        def.links.length <
+          1
       ) {
         return false;
       }
@@ -3072,22 +4200,16 @@ fn fs(v:VOut)
         return false;
       }
 
-      /*
-       * IKターゲットはIKボーン自身の位置。
-       */
-
       const target =
         mulPoint(
           world[ik],
           [0, 0, 0],
         );
 
-      /*
-       * 足IKとつま先IKで反復回数を分ける。
-       */
-
       const iterations =
-        ikName.includes("つま先")
+        ikName.includes(
+          "つま先",
+        )
           ? 7
           : 10;
 
@@ -3096,21 +4218,25 @@ fn fs(v:VOut)
         iter < iterations;
         iter++
       ) {
-        /*
-         * PMXのリンク順で処理。
-         */
-
         for (
-          const rawLink of def.links
+          const rawLink of
+            def.links
         ) {
           const link =
             typeof rawLink ===
             "number"
               ? {
-                  bone: rawLink,
-                  limited: false,
-                  min: null,
-                  max: null,
+                  bone:
+                    rawLink,
+
+                  limited:
+                    false,
+
+                  min:
+                    null,
+
+                  max:
+                    null,
                 }
               : rawLink;
 
@@ -3118,7 +4244,8 @@ fn fs(v:VOut)
             link.bone;
 
           if (
-            joint === undefined ||
+            joint ===
+              undefined ||
             joint < 0 ||
             joint >=
               pmx.bones.length
@@ -3134,7 +4261,9 @@ fn fs(v:VOut)
 
           const endPos =
             mulPoint(
-              world[targetBone],
+              world[
+                targetBone
+              ],
               [0, 0, 0],
             );
 
@@ -3161,20 +4290,11 @@ fn fs(v:VOut)
             continue;
           }
 
-          /*
-           * 現在のエンド方向から
-           * ターゲット方向への回転。
-           */
-
           let delta =
             qFromTo(
               toEnd,
               toTarget,
             );
-
-          /*
-           * 一度に動かしすぎない。
-           */
 
           const strength =
             ikName.includes(
@@ -3196,10 +4316,6 @@ fn fs(v:VOut)
 
               strength,
             );
-
-          /*
-           * 現在のジョイントワールド回転。
-           */
 
           const jointWorldQ =
             matToQuat(
@@ -3228,10 +4344,6 @@ fn fs(v:VOut)
                   1,
                 ];
 
-          /*
-           * ワールド回転 → ローカル回転。
-           */
-
           let localQ =
             qMul(
               qInv(
@@ -3240,10 +4352,6 @@ fn fs(v:VOut)
 
               desiredWorldQ,
             );
-
-          /*
-           * PMXのIK制限をここで適用。
-           */
 
           localQ =
             applyIKLinkLimit(
@@ -3257,11 +4365,6 @@ fn fs(v:VOut)
           ].poseQ =
             localQ;
 
-          /*
-           * 次のリンクの計算用に
-           * ワールド姿勢を更新。
-           */
-
           const rebuilt =
             buildWorld();
 
@@ -3274,7 +4377,9 @@ fn fs(v:VOut)
 
         const endPos =
           mulPoint(
-            world[targetBone],
+            world[
+              targetBone
+            ],
             [0, 0, 0],
           );
 
@@ -3290,7 +4395,9 @@ fn fs(v:VOut)
               target[2],
           );
 
-        if (error < 0.025) {
+        if (
+          error < 0.025
+        ) {
           break;
         }
       }
@@ -3299,45 +4406,61 @@ fn fs(v:VOut)
     }
 
     /* =========================================================
-       D BONE SYNCHRONIZATION
+       D BONE SYNC
     ========================================================= */
 
-    /*
-     * 実際にメッシュを変形しているD系。
-     */
-
-    const deformMirrorPairs = [
-      ["左足", "左足D"],
-      ["左ひざ", "左ひざD"],
-      ["左足首", "左足首D"],
-
-      ["右足", "右足D"],
-      ["右ひざ", "右ひざD"],
-      ["右足首", "右足首D"],
-    ]
-      .map(
-        ([src, dst]) => [
-          findBoneIndex(src),
-          findBoneIndex(dst),
+    const deformMirrorPairs =
+      [
+        [
+          "左足",
+          "左足D",
         ],
-      )
-      .filter(
-        ([src, dst]) =>
-          src !== undefined &&
-          dst !== undefined &&
-          src >= 0 &&
-          dst >= 0,
-      );
 
-    /*
-     * 通常脚で完成した最終姿勢をD系へ
-     * 「回転＋移動」の両方コピー。
-     */
+        [
+          "左ひざ",
+          "左ひざD",
+        ],
+
+        [
+          "左足首",
+          "左足首D",
+        ],
+
+        [
+          "右足",
+          "右足D",
+        ],
+
+        [
+          "右ひざ",
+          "右ひざD",
+        ],
+
+        [
+          "右足首",
+          "右足首D",
+        ],
+      ]
+        .map(
+          ([src, dst]) => [
+            findBoneIndex(src),
+            findBoneIndex(dst),
+          ],
+        )
+        .filter(
+          ([src, dst]) =>
+            src !==
+              undefined &&
+            dst !==
+              undefined &&
+            src >= 0 &&
+            dst >= 0,
+        );
 
     function syncDeformLegsFromSource() {
       for (
-        const [src, dst]
-        of deformMirrorPairs
+        const [src, dst] of
+          deformMirrorPairs
       ) {
         if (
           src < 0 ||
@@ -3359,29 +4482,14 @@ fn fs(v:VOut)
     }
 
     /* =========================================================
-       FINAL BONE MATRICES
+       BONE MATRICES
     ========================================================= */
 
     function boneMatrices() {
-      /*
-       * 1.
-       * VMD姿勢を通常脚へ適用。
-       */
-
       applyMotionPose();
-
-      /*
-       * 2.
-       * VMD直後のワールド姿勢。
-       */
 
       let world =
         buildWorld();
-
-      /*
-       * 3.
-       * 足IK。
-       */
 
       if (
         activeMotionState ===
@@ -3404,11 +4512,6 @@ fn fs(v:VOut)
         world =
           buildWorld();
 
-        /*
-         * 4.
-         * つま先IK。
-         */
-
         solveFootIK(
           world,
           "左つま先ＩＫ",
@@ -3423,30 +4526,15 @@ fn fs(v:VOut)
           buildWorld();
       }
 
-      /*
-       * 5.
-       * IK完了後の通常脚をD系へコピー。
-       */
-
       syncDeformLegsFromSource();
-
-      /*
-       * 6.
-       * D系を反映した最終ワールド姿勢。
-       */
 
       world =
         buildWorld();
 
-      /*
-       * 7.
-       * GPU用スキニング行列。
-       */
-
       const out =
         new Float32Array(
           pmx.bones.length *
-            16,
+          16,
         );
 
       for (
@@ -3474,11 +4562,11 @@ fn fs(v:VOut)
       new Float32Array([
         -1, 0, -1,
          1, 0, -1,
-         1, 0, 1,
+         1, 0,  1,
 
         -1, 0, -1,
-         1, 0, 1,
-        -1, 0, 1,
+         1, 0,  1,
+        -1, 0,  1,
       ]);
 
     const groundVB =
@@ -3515,17 +4603,18 @@ var<uniform> u:U;
 fn vs(
   @location(0)p:vec3f
 )->O{
+
   var o:O;
 
-  o.p=
-    u.vp*
-    u.model*
+  o.p =
+    u.vp *
+    u.model *
     vec4f(
       p,
       1
     );
 
-  o.c=
+  o.c =
     vec4f(
       .06,
       .09,
@@ -3539,13 +4628,15 @@ fn vs(
 @fragment
 fn fs(i:O)
   ->@location(0)vec4f{
+
   return i.c;
 }
 `;
 
     const gsm =
       device.createShaderModule({
-        code: groundShader,
+        code:
+          groundShader,
       });
 
     const gbgl =
@@ -3553,11 +4644,13 @@ fn fs(i:O)
         entries: [
           {
             binding: 0,
+
             visibility:
               GPUShaderStage.VERTEX,
 
             buffer: {
-              type: "uniform",
+              type:
+                "uniform",
             },
           },
         ],
@@ -3572,21 +4665,31 @@ fn fs(i:O)
 
     const gpipe =
       device.createRenderPipeline({
-        layout: glayout,
+        layout:
+          glayout,
 
         vertex: {
-          module: gsm,
-          entryPoint: "vs",
+          module:
+            gsm,
+
+          entryPoint:
+            "vs",
 
           buffers: [
             {
-              arrayStride: 12,
+              arrayStride:
+                12,
 
               attributes: [
                 {
-                  shaderLocation: 0,
-                  format: "float32x3",
-                  offset: 0,
+                  shaderLocation:
+                    0,
+
+                  format:
+                    "float32x3",
+
+                  offset:
+                    0,
                 },
               ],
             },
@@ -3594,8 +4697,11 @@ fn fs(i:O)
         },
 
         fragment: {
-          module: gsm,
-          entryPoint: "fs",
+          module:
+            gsm,
+
+          entryPoint:
+            "fs",
 
           targets: [
             {
@@ -3607,7 +4713,9 @@ fn fs(i:O)
         primitive: {
           topology:
             "triangle-list",
-          cullMode: "none",
+
+          cullMode:
+            "none",
         },
 
         depthStencil: {
@@ -3624,14 +4732,16 @@ fn fs(i:O)
 
     const gbind =
       device.createBindGroup({
-        layout: gbgl,
+        layout:
+          gbgl,
 
         entries: [
           {
             binding: 0,
 
             resource: {
-              buffer: camBuf,
+              buffer:
+                groundCamBuf,
             },
           },
         ],
@@ -3695,8 +4805,11 @@ fn fs(i:O)
     ========================================================= */
 
     let cameraYaw = 0;
-    let cameraPitch = 0.48;
-    let mouseCaptured = false;
+    let cameraPitch =
+      0.48;
+
+    let mouseCaptured =
+      false;
 
     canvas.addEventListener(
       "click",
@@ -3736,6 +4849,7 @@ fn fs(i:O)
 
             Math.min(
               1.15,
+
               cameraPitch +
                 e.movementY *
                   0.0025,
@@ -3765,7 +4879,8 @@ fn fs(i:O)
     let actionState;
     let actionTime;
     let lastMoveAngle;
-    let motionStateTime = 0;
+    let motionStateTime =
+      0;
 
     function reset() {
       player = {
@@ -3791,13 +4906,13 @@ fn fs(i:O)
       };
 
       spawn = 0.5;
-
       time = 0;
       animTime = 0;
 
-      actionState = "idle";
-      actionTime = 0;
+      actionState =
+        "idle";
 
+      actionTime = 0;
       motionStateTime = 0;
 
       activeMotionState =
@@ -3816,7 +4931,8 @@ fn fs(i:O)
       latched = false;
 
       cameraYaw = 0;
-      cameraPitch = 0.48;
+      cameraPitch =
+        0.48;
 
       msg.hidden = true;
     }
@@ -3899,7 +5015,10 @@ fn fs(i:O)
       let d =
         getMoveDirection();
 
-      if (!d.x && !d.z) {
+      if (
+        !d.x &&
+        !d.z
+      ) {
         const sp =
           Math.hypot(
             player.vx,
@@ -3930,10 +5049,14 @@ fn fs(i:O)
               };
       }
 
-      dashDir = d;
+      dashDir =
+        d;
 
-      dash = 0.3;
-      invuln = 0.42;
+      dash =
+        0.3;
+
+      invuln =
+        0.42;
 
       stamina -= 25;
 
@@ -3941,20 +5064,6 @@ fn fs(i:O)
         "dodge";
 
       actionTime = 0;
-    }
-
-    function enterMoveState(
-      next,
-    ) {
-      if (
-        actionState !==
-        next
-      ) {
-        actionState =
-          next;
-
-        actionTime = 0;
-      }
     }
 
     function update(dt) {
@@ -4069,7 +5178,9 @@ fn fs(i:O)
             player.vz,
           );
 
-        if (speed < 0.15) {
+        if (
+          speed < 0.15
+        ) {
           nextState =
             "idle";
         } else if (
@@ -4158,21 +5269,10 @@ fn fs(i:O)
         );
 
       /*
-       * 左右方向を修正。
+       * 左右反転を修正。
        *
-       * 以前:
-       *   atan2(player.vx, -player.vz)
-       *
-       * 現在:
-       *   atan2(-player.vx, -player.vz)
-       *
-       * これにより
-       *   A -> 左を向く
-       *   D -> 右を向く
-       *   W -> 前を向く
-       *   S -> 後ろを向く
-       *
-       * 移動そのものの計算は変更していない。
+       * A -> 左
+       * D -> 右
        */
       const facing =
         speed > 0.15
@@ -4183,15 +5283,19 @@ fn fs(i:O)
           : cameraYaw;
 
       const c =
-        Math.cos(facing);
+        Math.cos(
+          facing,
+        );
 
-      const ss =
-        Math.sin(facing);
+      const s =
+        Math.sin(
+          facing,
+        );
 
       return new Float32Array([
         c * modelScale,
         0,
-        -ss * modelScale,
+        -s * modelScale,
         0,
 
         0,
@@ -4199,7 +5303,7 @@ fn fs(i:O)
         0,
         0,
 
-        ss * modelScale,
+        s * modelScale,
         0,
         c * modelScale,
         0,
@@ -4274,7 +5378,7 @@ fn fs(i:O)
         fz *
           camDistance;
 
-      const vp =
+      const viewProj =
         mm(
           persp(
             Math.PI / 3,
@@ -4303,22 +5407,62 @@ fn fs(i:O)
           ),
         );
 
+      /*
+       * プレイヤー用Uniform
+       *
+       * VP + プレイヤーModel
+       *
+       * 地面用Uniformとは完全分離。
+       */
+
+      const playerModel =
+        modelMatrix();
+
       device.queue.writeBuffer(
-        camBuf,
+        playerCamBuf,
         0,
-        vp,
+        viewProj,
       );
 
       device.queue.writeBuffer(
-        camBuf,
+        playerCamBuf,
         64,
-        modelMatrix(),
+        playerModel,
       );
+
+      const bones =
+        boneMatrices();
 
       device.queue.writeBuffer(
         boneBuf,
         0,
-        boneMatrices(),
+        bones,
+      );
+
+      /*
+       * 地面用Uniform
+       *
+       * VP + 固定地面行列
+       */
+
+      const groundMat =
+        new Float32Array([
+          1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, -1, 0, 1,
+        ]);
+
+      device.queue.writeBuffer(
+        groundCamBuf,
+        0,
+        viewProj,
+      );
+
+      device.queue.writeBuffer(
+        groundCamBuf,
+        64,
+        groundMat,
       );
 
       const enc =
@@ -4340,8 +5484,11 @@ fn fs(i:O)
                 a: 1,
               },
 
-              loadOp: "clear",
-              storeOp: "store",
+              loadOp:
+                "clear",
+
+              storeOp:
+                "store",
             },
           ],
 
@@ -4349,17 +5496,20 @@ fn fs(i:O)
             view:
               depthTex.createView(),
 
-            depthClearValue: 1,
+            depthClearValue:
+              1,
 
-            depthLoadOp: "clear",
+            depthLoadOp:
+              "clear",
 
-            depthStoreOp: "store",
+            depthStoreOp:
+              "store",
           },
         });
 
-      /* -------------------------
+      /* =====================================================
          GROUND
-      ------------------------- */
+      ===================================================== */
 
       pass.setPipeline(
         gpipe,
@@ -4375,31 +5525,11 @@ fn fs(i:O)
         groundVB,
       );
 
-      const groundMat =
-        new Float32Array([
-          1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, 1, 0,
-          0, -1, 0, 1,
-        ]);
-
-      device.queue.writeBuffer(
-        camBuf,
-        64,
-        groundMat,
-      );
-
       pass.draw(6);
 
-      /* -------------------------
-         MODEL
-      ------------------------- */
-
-      device.queue.writeBuffer(
-        camBuf,
-        64,
-        modelMatrix(),
-      );
+      /* =====================================================
+         PLAYER MODEL
+      ===================================================== */
 
       pass.setPipeline(
         pipe,
@@ -4449,9 +5579,9 @@ fn fs(i:O)
         enc.finish(),
       ]);
 
-      /* -------------------------
+      /* =====================================================
          DEBUG
-      ------------------------- */
+      ===================================================== */
 
       const leftKnee =
         findBoneIndex(
@@ -4470,7 +5600,8 @@ fn fs(i:O)
         "右膝D—";
 
       if (
-        leftKnee !== undefined &&
+        leftKnee !==
+          undefined &&
         leftKnee >= 0
       ) {
         const q =
@@ -4520,17 +5651,23 @@ fn fs(i:O)
           player.vx,
           player.vz,
         ).toFixed(2)} / 方向: ${(
-          ((Math.atan2(
-            player.vx,
-            -player.vz,
-          ) *
-            180) /
-            Math.PI +
-            360) %
+          (
+            (
+              Math.atan2(
+                player.vx,
+                -player.vz,
+              ) *
+              180
+            ) /
+              Math.PI +
+            360
+          ) %
           360
         ).toFixed(0)}°\n` +
         `${
-          findBoneIndex("左足") >= 0
+          findBoneIndex(
+            "左足",
+          ) >= 0
             ? "左足✓"
             : "左足—"
         } ` +
@@ -4556,7 +5693,9 @@ fn fs(i:O)
             : "左足先EX—"
         }\n` +
         `${
-          findBoneIndex("右足") >= 0
+          findBoneIndex(
+            "右足",
+          ) >= 0
             ? "右足✓"
             : "右足—"
         } ` +
