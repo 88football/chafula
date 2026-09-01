@@ -2142,37 +2142,64 @@ fn fs(
             sampled = sampleVMD(motion, frame);
           } else {
             /*
-             * ループ境界を瞬間的に最後→最初へ切り替えない。
-             * 最後の数フレームと最初の数フレームをクロスフェードして、
-             * モーションの姿勢差を吸収する。
+             * ループ専用の周期サンプリング。
+             * 最後のキーから突然0fへ戻すのではなく、
+             * 最後→先頭を「周期の次の区間」として補間する。
+             * これにより14fループの境界で姿勢がジャンプしない。
              */
             const loopFrames = Math.max(1, motion.maxFrame - motion.minFrame);
             const rawFrame = (elapsed * 30) % loopFrames;
             const baseFrame = motion.minFrame + rawFrame;
-            const LOOP_BLEND_FRAMES = Math.min(3, loopFrames * 0.20);
 
-            if (rawFrame >= loopFrames - LOOP_BLEND_FRAMES) {
-              /*
-               * ループ終端では「最後の姿勢」と「ループ先頭の姿勢」を
-               * 固定した開始姿勢へ収束させる。
-               * 旧方式のように、ブレンド中に先頭+4fへ進めてしまうと、
-               * ラップ直後に0fへ戻った瞬間に逆方向の段差が発生する。
-               *
-               * ここでは終端→0fを連続的に補間し、
-               * 次のフレームは0fの直後へ自然につなげる。
-               */
-              const t =
-                (rawFrame - (loopFrames - LOOP_BLEND_FRAMES)) /
-                Math.max(0.001, LOOP_BLEND_FRAMES);
-              const endPose = sampleVMD(motion, baseFrame);
-              const startPose = sampleVMD(motion, motion.minFrame);
-              /* smoothstepで速度変化を緩和 */
-              const s = t * t * (3 - 2 * t);
-              sampled = blendPose(endPose, startPose, s);
-            } else {
-              sampled = sampleVMD(motion, baseFrame);
-            }
+            const sampleLoopVMD = (m, frame) => {
+              const pose = new Array(pmx.bones.length);
+              for (let i = 0; i < pose.length; i++) pose[i] = makePose();
 
+              const cycleStart = m.minFrame;
+              const cycleLength = Math.max(1, m.maxFrame - m.minFrame);
+              let f = cycleStart + (((frame - cycleStart) % cycleLength) + cycleLength) % cycleLength;
+
+              for (const [bi, arr] of m.tracks) {
+                if (!arr.length) continue;
+
+                if (arr.length === 1) {
+                  pose[bi] = makePose(arr[0].quat.slice(), arr[0].pos.slice());
+                  continue;
+                }
+
+                let lo = -1;
+                let hi = -1;
+
+                for (let i = 0; i < arr.length; i++) {
+                  if (arr[i].frame <= f) lo = i;
+                  if (arr[i].frame > f) { hi = i; break; }
+                }
+
+                if (lo < 0) {
+                  lo = arr.length - 1;
+                  hi = 0;
+                } else if (hi < 0) {
+                  lo = arr.length - 1;
+                  hi = 0;
+                }
+
+                const a = arr[lo];
+                const b = arr[hi];
+                const bFrame = hi === 0 ? b.frame + cycleLength : b.frame;
+                const aFrame = a.frame;
+                const sampleF = f < aFrame ? f + cycleLength : f;
+                const t = Math.max(0, Math.min(1, (sampleF - aFrame) / Math.max(1e-6, bFrame - aFrame)));
+
+                pose[bi] = makePose(
+                  qSlerp(a.quat, b.quat, t),
+                  lerp3(a.pos, b.pos, t),
+                );
+              }
+
+              return pose;
+            };
+
+            sampled = sampleLoopVMD(motion, baseFrame);
             loopPhase = rawFrame / loopFrames;
           }
 
@@ -2309,7 +2336,7 @@ fn fs(
               waistFreq = 2.05;
             } else if (state === "run") {
               waistAmp = 1.0;
-              waistFreq = 2.15;
+              waistFreq = 1.0;
             } else if (state === "dodge") {
               // 前宙中も腰が完全に固定されないようにする。
               waistAmp = 0.70;
@@ -2352,7 +2379,7 @@ fn fs(
               bobFreq = 2.05;
             } else if (state === "run") {
               bobAmp = 1.60;
-              bobFreq = 2.15;
+              bobFreq = 1.0;
             } else if (state === "dodge") {
               bobAmp = 2.20;
               bobFreq = 1.75;
