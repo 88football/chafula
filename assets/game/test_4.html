@@ -3290,6 +3290,12 @@ fn fs(
     const MOTION_BLEND =
       0.20;
 
+    /*
+     * 走り出しの終了直前から全力走を重ね始める時間。
+     * 最後の走り出し姿勢のまま移動してしまう時間をなくす。
+     */
+    const RUNSTART_RUN_OVERLAP = 0.20;
+
     function poseForState(
       state,
       elapsed,
@@ -4100,8 +4106,7 @@ fn fs(
         }
 
         return sampled;
-      }
-
+        }
       }
 
       function blendPose(
@@ -4169,11 +4174,11 @@ fn fs(
             ),
           );
 
-        return (
-          t *
-          t *
-          (3 - 2 * t)
-        );
+        /*
+         * 切り替え開始直後から走り姿勢へ素早く寄せ、
+         * 終端だけ滑らかに収束させる。
+         */
+        return 1 - Math.pow(1 - t, 3);
       }
 
       function applyMotionPose() {
@@ -6587,10 +6592,20 @@ fn fs()
         const startDuration =
           getRunStartDuration();
 
-        if (
-          motionStateTime <
-          startDuration
-        ) {
+        /*
+         * 走り出しの最後まで待ってから切り替えるのではなく、
+         * 終了直前から全力走をクロスフェードさせる。
+         *
+         * これにより、
+         * 「走り出し最終姿勢で少し移動してから走り始める」
+         * という時間差を防ぐ。
+         */
+        const runStartSwitchTime = Math.max(
+          0,
+          startDuration - RUNSTART_RUN_OVERLAP,
+        );
+
+        if (motionStateTime < runStartSwitchTime) {
           nextState =
             "runStart";
         } else {
