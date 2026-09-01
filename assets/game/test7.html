@@ -4,7 +4,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Native WebGPU Arlecchino Dodge Arena - GPU Skinning</title>
+
+  <title>
+    Native WebGPU Arlecchino Dodge Arena - GPU Skinning
+  </title>
 
   <style>
     html,
@@ -127,1931 +130,1728 @@
 </head>
 
 <body>
+  <canvas id="gpu"></canvas>
 
-<canvas id="gpu"></canvas>
-
-<div id="ui">
-
-  <div id="top">
-    <div id="title">DODGE ARENA</div>
+  <div id="ui">
+    <div id="top">
+      <div id="title">DODGE ARENA</div>
 
 ```
-<div id="stats">
-  SCORE <b id="score">0</b>
- 　 WAVE <b id="wave">1</b>
- 　 STAMINA <b id="stamina">100</b>
+  <div id="stats">
+    SCORE <b id="score">0</b>　
+    WAVE <b id="wave">1</b>　
+    STAMINA <b id="stamina">100</b>
+  </div>
+
+  <div id="bar">
+    <div id="hp"></div>
+  </div>
 </div>
 
-<div id="bar">
-  <div id="hp"></div>
+<div id="help">
+  WASD / 矢印：移動（カメラ方向基準）<br />
+  マウス：カメラ回転のみ<br />
+  Space / Shift：回避<br />
+  R：リスタート
 </div>
+
+<div id="message" hidden></div>
+<div id="loading">WebGPUを初期化中…</div>
+<div id="debug"></div>
 ```
 
   </div>
 
-  <div id="help">
-    WASD / 矢印：移動（カメラ方向基準）<br />
-    マウス：カメラ回転<br />
-    Space / Shift：回避<br />
-    R：リスタート
-  </div>
+  <script type="module">
+    "use strict";
 
-  <div id="message" hidden></div>
-  <div id="loading">WebGPUを初期化中…</div>
-  <div id="debug"></div>
+    /* =========================================================
+       DOM
+    ========================================================= */
 
-</div>
+    const canvas =
+      document.querySelector("#gpu");
 
-<script type="module">
+    const msg =
+      document.querySelector("#message");
 
-"use strict";
+    const loading =
+      document.querySelector("#loading");
 
-/* =========================================================
-   DOM
-========================================================= */
+    const debugEl =
+      document.querySelector("#debug");
 
-const canvas =
-  document.querySelector("#gpu");
+    const scoreEl =
+      document.querySelector("#score");
 
-const msg =
-  document.querySelector("#message");
+    const waveEl =
+      document.querySelector("#wave");
 
-const loading =
-  document.querySelector("#loading");
+    const staminaEl =
+      document.querySelector("#stamina");
 
-const debugEl =
-  document.querySelector("#debug");
-
-const scoreEl =
-  document.querySelector("#score");
-
-const waveEl =
-  document.querySelector("#wave");
-
-const staminaEl =
-  document.querySelector("#stamina");
-
-const hpEl =
-  document.querySelector("#hp");
+    const hpEl =
+      document.querySelector("#hp");
 
 
-/* =========================================================
-   ERROR
-========================================================= */
+    /* =========================================================
+       ERROR
+    ========================================================= */
 
-function escapeHtml(s) {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
 
-function showError(t) {
+    function showError(t) {
+      loading.hidden = true;
+      msg.hidden = false;
 
-  loading.hidden = true;
+      msg.innerHTML =
+        "<h1>WebGPU / PMX ERROR</h1>" +
+        "<p>" +
+        escapeHtml(t) +
+        "</p>";
 
-  msg.hidden = false;
+      console.error(t);
+    }
 
-  msg.innerHTML =
-    "<h1>WebGPU / PMX ERROR</h1>" +
-    "<p>" +
-    escapeHtml(t) +
-    "</p>";
-
-  console.error(t);
-}
-
-window.addEventListener(
-  "error",
-  (e) => {
-
-    showError(
-      e.error?.stack ||
-      e.message ||
-      "JavaScript error"
-    );
-
-  }
-);
-
-window.addEventListener(
-  "unhandledrejection",
-  (e) => {
-
-    showError(
-      e.reason?.stack ||
-      e.reason?.message ||
-      String(
-        e.reason ||
-        "Unhandled promise rejection"
-      )
-    );
-
-  }
-);
-
-
-/* =========================================================
-   WEBGPU
-========================================================= */
-
-if (!navigator.gpu) {
-
-  showError(
-    "このブラウザはWebGPUに対応していません。Chrome / Edge最新版をお試しください。"
-  );
-
-  throw new Error(
-    "WebGPU unavailable"
-  );
-}
-
-const adapter =
-  await navigator.gpu.requestAdapter();
-
-if (!adapter) {
-
-  showError(
-    "WebGPUアダプターを取得できませんでした。"
-  );
-
-  throw new Error("No adapter");
-}
-
-const device =
-  await adapter.requestDevice();
-
-device.addEventListener(
-  "uncapturederror",
-  (e) => {
-
-    const t =
-      e.error?.message ||
-      String(e.error || e);
-
-    console.error(
-      "uncaptured WebGPU error:",
-      t
-    );
-
-    debugEl.textContent =
-      "GPU ERROR\n" + t;
-  }
-);
-
-device.lost.then((i) => {
-
-  showError(
-    "GPUデバイスが失われました: " +
-    i.message
-  );
-
-});
-
-const ctx =
-  canvas.getContext("webgpu");
-
-const format =
-  navigator.gpu.getPreferredCanvasFormat();
-
-let depthTex;
-
-function resize() {
-
-  const d =
-    Math.min(
-      devicePixelRatio || 1,
-      2
-    );
-
-  canvas.width =
-    Math.max(
-      1,
-      Math.floor(
-        innerWidth * d
-      )
-    );
-
-  canvas.height =
-    Math.max(
-      1,
-      Math.floor(
-        innerHeight * d
-      )
-    );
-
-  ctx.configure({
-    device,
-    format,
-    alphaMode: "opaque"
-  });
-
-  if (depthTex) {
-    depthTex.destroy();
-  }
-
-  depthTex =
-    device.createTexture({
-      size: {
-        width:
-          canvas.width,
-
-        height:
-          canvas.height
-      },
-
-      format:
-        "depth24plus",
-
-      usage:
-        GPUTextureUsage.RENDER_ATTACHMENT
+    window.addEventListener("error", (e) => {
+      showError(
+        e.error?.stack ||
+        e.message ||
+        "JavaScript error",
+      );
     });
-}
 
-addEventListener(
-  "resize",
-  resize
-);
+    window.addEventListener(
+      "unhandledrejection",
+      (e) => {
+        showError(
+          e.reason?.stack ||
+          e.reason?.message ||
+          String(
+            e.reason ||
+            "Unhandled promise rejection",
+          ),
+        );
+      },
+    );
 
-resize();
 
+    /* =========================================================
+       WEBGPU
+    ========================================================= */
 
-/* =========================================================
-   PMX READER
-========================================================= */
-
-class Reader {
-
-  constructor(buf) {
-
-    this.b =
-      new Uint8Array(buf);
-
-    this.v =
-      new DataView(buf);
-
-    this.p = 0;
-  }
-
-  need(n) {
-
-    if (
-      this.p + n >
-      this.b.length
-    ) {
+    if (!navigator.gpu) {
+      showError(
+        "このブラウザはWebGPUに対応していません。Chrome / Edge最新版をお試しください。",
+      );
 
       throw new Error(
-        `PMX truncated at ${this.p}/${this.b.length} (need ${n} bytes)`
+        "WebGPU unavailable",
       );
     }
-  }
 
-  u8() {
+    const adapter =
+      await navigator.gpu.requestAdapter();
 
-    this.need(1);
-
-    return this.b[
-      this.p++
-    ];
-  }
-
-  i8() {
-
-    this.need(1);
-
-    return this.v.getInt8(
-      this.p++
-    );
-  }
-
-  u16() {
-
-    this.need(2);
-
-    const x =
-      this.v.getUint16(
-        this.p,
-        true
+    if (!adapter) {
+      showError(
+        "WebGPUアダプターを取得できませんでした。",
       );
-
-    this.p += 2;
-
-    return x;
-  }
-
-  i16() {
-
-    this.need(2);
-
-    const x =
-      this.v.getInt16(
-        this.p,
-        true
-      );
-
-    this.p += 2;
-
-    return x;
-  }
-
-  i32() {
-
-    this.need(4);
-
-    const x =
-      this.v.getInt32(
-        this.p,
-        true
-      );
-
-    this.p += 4;
-
-    return x;
-  }
-
-  f32() {
-
-    this.need(4);
-
-    const x =
-      this.v.getFloat32(
-        this.p,
-        true
-      );
-
-    this.p += 4;
-
-    return x;
-  }
-
-  bytes(n) {
-
-    this.need(n);
-
-    const x =
-      this.b.slice(
-        this.p,
-        this.p + n
-      );
-
-    this.p += n;
-
-    return x;
-  }
-
-  str(enc) {
-
-    const n =
-      this.i32();
-
-    if (
-      n < 0 ||
-      n >
-        this.b.length -
-        this.p
-    ) {
 
       throw new Error(
-        `PMX string length invalid: ${n} at ${this.p}`
+        "No adapter",
       );
     }
 
-    return new TextDecoder(
-      enc
-    ).decode(
-      this.bytes(n)
+    const device =
+      await adapter.requestDevice();
+
+    device.addEventListener(
+      "uncapturederror",
+      (e) => {
+        const t =
+          e.error?.message ||
+          String(e.error || e);
+
+        console.error(
+          "uncaptured WebGPU error:",
+          t,
+        );
+
+        debugEl.textContent =
+          "GPU ERROR\n" + t;
+      },
     );
-  }
 
-  idx(size) {
+    device.lost.then((i) => {
+      showError(
+        "GPUデバイスが失われました: " +
+        i.message,
+      );
+    });
 
-    if (size === 1)
-      return this.i8();
+    const ctx =
+      canvas.getContext("webgpu");
 
-    if (size === 2)
-      return this.i16();
+    const format =
+      navigator.gpu.getPreferredCanvasFormat();
 
-    return this.i32();
-  }
-}
+    let depthTex;
 
-function decodeHashUName(s) {
-
-  return s.replace(
-    /#U([0-9A-Fa-f]{4})/g,
-    (m, h) =>
-      String.fromCharCode(
-        parseInt(h, 16)
-      )
-  );
-}
-
-function pathVariants(path) {
-
-  const p =
-    String(path || "")
-      .replaceAll("\\", "/")
-      .replace(/^\.\//, "");
-
-  const out = [];
-
-  const add = (x) => {
-
-    if (
-      x &&
-      !out.includes(x)
-    ) {
-      out.push(x);
-    }
-  };
-
-  add(p);
-
-  add(
-    decodeHashUName(p)
-  );
-
-  return out;
-}
-
-function encodePath(path) {
-
-  return path
-    .split("/")
-    .map(
-      encodeURIComponent
-    )
-    .join("/");
-}
-
-async function fetchBinary(path) {
-
-  const attempts = [];
-
-  for (
-    const rel of
-      pathVariants(path)
-  ) {
-
-    const url =
-      new URL(
-        encodePath(rel),
-        location.href
-      ).href;
-
-    try {
-
-      const res =
-        await fetch(
-          url,
-          {
-            cache:
-              "no-store"
-          }
+    function resize() {
+      const d =
+        Math.min(
+          devicePixelRatio || 1,
+          2,
         );
 
-      const buf =
-        await res.arrayBuffer();
-
-      const head =
-        Array.from(
-          new Uint8Array(
-            buf.slice(0, 4)
-          )
-        )
-          .map(
-            (x) =>
-              x
-                .toString(16)
-                .padStart(
-                  2,
-                  "0"
-                )
-          )
-          .join(" ");
-
-      if (!res.ok) {
-
-        attempts.push(
-          `${url} -> HTTP ${res.status}`
+      canvas.width =
+        Math.max(
+          1,
+          Math.floor(
+            innerWidth * d,
+          ),
         );
 
-        continue;
+      canvas.height =
+        Math.max(
+          1,
+          Math.floor(
+            innerHeight * d,
+          ),
+        );
+
+      ctx.configure({
+        device,
+        format,
+        alphaMode: "opaque",
+      });
+
+      if (depthTex) {
+        depthTex.destroy();
       }
 
-      if (
-        head.toLowerCase() !==
-        "50 4d 58 20"
-      ) {
+      depthTex =
+        device.createTexture({
+          size: {
+            width:
+              canvas.width,
 
-        attempts.push(
-          `${url} -> PMXではない(先頭4byte: ${
-            head || "empty"
-          })`
+            height:
+              canvas.height,
+          },
+
+          format:
+            "depth24plus",
+
+          usage:
+            GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+    }
+
+    addEventListener(
+      "resize",
+      resize,
+    );
+
+    resize();
+
+
+    /* =========================================================
+       PMX READER
+    ========================================================= */
+
+    class Reader {
+      constructor(buf) {
+        this.b =
+          new Uint8Array(buf);
+
+        this.v =
+          new DataView(buf);
+
+        this.p = 0;
+      }
+
+      need(n) {
+        if (
+          this.p + n >
+          this.b.length
+        ) {
+          throw new Error(
+            `PMX truncated at ${this.p}/${this.b.length} (need ${n} bytes)`,
+          );
+        }
+      }
+
+      u8() {
+        this.need(1);
+        return this.b[
+          this.p++
+        ];
+      }
+
+      i8() {
+        this.need(1);
+        return this.v.getInt8(
+          this.p++,
         );
+      }
 
-        continue;
+      u16() {
+        this.need(2);
+
+        const x =
+          this.v.getUint16(
+            this.p,
+            true,
+          );
+
+        this.p += 2;
+
+        return x;
+      }
+
+      i16() {
+        this.need(2);
+
+        const x =
+          this.v.getInt16(
+            this.p,
+            true,
+          );
+
+        this.p += 2;
+
+        return x;
+      }
+
+      i32() {
+        this.need(4);
+
+        const x =
+          this.v.getInt32(
+            this.p,
+            true,
+          );
+
+        this.p += 4;
+
+        return x;
+      }
+
+      f32() {
+        this.need(4);
+
+        const x =
+          this.v.getFloat32(
+            this.p,
+            true,
+          );
+
+        this.p += 4;
+
+        return x;
+      }
+
+      bytes(n) {
+        this.need(n);
+
+        const x =
+          this.b.slice(
+            this.p,
+            this.p + n,
+          );
+
+        this.p += n;
+
+        return x;
+      }
+
+      str(enc) {
+        const n = this.i32();
+
+        if (
+          n < 0 ||
+          n >
+            this.b.length -
+              this.p
+        ) {
+          throw new Error(
+            `PMX string length invalid: ${n} at ${this.p}`,
+          );
+        }
+
+        const x =
+          this.bytes(n);
+
+        return new TextDecoder(
+          enc,
+        ).decode(x);
+      }
+
+      idx(size) {
+        if (size === 1) {
+          return this.i8();
+        }
+
+        if (size === 2) {
+          return this.i16();
+        }
+
+        return this.i32();
+      }
+    }
+
+    function decodeHashUName(s) {
+      return s.replace(
+        /#U([0-9A-Fa-f]{4})/g,
+        (m, h) =>
+          String.fromCharCode(
+            parseInt(h, 16),
+          ),
+      );
+    }
+
+    function pathVariants(path) {
+      const p =
+        String(path || "")
+          .replaceAll("\\", "/")
+          .replace(
+            /^\.\//,
+            "",
+          );
+
+      const out = [];
+
+      const add = (x) => {
+        if (
+          x &&
+          !out.includes(x)
+        ) {
+          out.push(x);
+        }
+      };
+
+      add(p);
+      add(
+        decodeHashUName(p),
+      );
+
+      return out;
+    }
+
+    function encodePath(path) {
+      return path
+        .split("/")
+        .map(
+          encodeURIComponent,
+        )
+        .join("/");
+    }
+
+    async function fetchBinary(path) {
+      const attempts = [];
+
+      for (
+        const rel of
+          pathVariants(path)
+      ) {
+        const url =
+          new URL(
+            encodePath(rel),
+            location.href,
+          ).href;
+
+        try {
+          const res =
+            await fetch(
+              url,
+              {
+                cache:
+                  "no-store",
+              },
+            );
+
+          const buf =
+            await res.arrayBuffer();
+
+          const head =
+            Array.from(
+              new Uint8Array(
+                buf.slice(0, 4),
+              ),
+            )
+              .map(
+                (x) =>
+                  x
+                    .toString(16)
+                    .padStart(
+                      2,
+                      "0",
+                    ),
+              )
+              .join(" ");
+
+          if (!res.ok) {
+            attempts.push(
+              `${url} -> HTTP ${res.status}`,
+            );
+
+            continue;
+          }
+
+          if (
+            head.toLowerCase() !==
+            "50 4d 58 20"
+          ) {
+            attempts.push(
+              `${url} -> PMXではない(先頭4byte: ${
+                head || "empty"
+              })`,
+            );
+
+            continue;
+          }
+
+          return {
+            url,
+            buf,
+          };
+        } catch (e) {
+          attempts.push(
+            `${url} -> ${
+              e.message || e
+            }`,
+          );
+        }
+      }
+
+      throw new Error(
+        "PMXを取得できませんでした。試した候補:\n" +
+        attempts.join("\n"),
+      );
+    }
+
+    function boundsOf(a) {
+      const mn = [
+        Infinity,
+        Infinity,
+        Infinity,
+      ];
+
+      const mx = [
+        -Infinity,
+        -Infinity,
+        -Infinity,
+      ];
+
+      for (
+        let i = 0;
+        i < a.length;
+        i += 3
+      ) {
+        for (
+          let k = 0;
+          k < 3;
+          k++
+        ) {
+          mn[k] =
+            Math.min(
+              mn[k],
+              a[i + k],
+            );
+
+          mx[k] =
+            Math.max(
+              mx[k],
+              a[i + k],
+            );
+        }
       }
 
       return {
-        url,
-        buf
+        mn,
+        mx,
       };
-
-    } catch (e) {
-
-      attempts.push(
-        `${url} -> ${
-          e.message || e
-        }`
-      );
-    }
-  }
-
-  throw new Error(
-    "PMXを取得できませんでした。試した候補:\n" +
-    attempts.join("\n")
-  );
-}
-
-function boundsOf(a) {
-
-  const mn = [
-    Infinity,
-    Infinity,
-    Infinity
-  ];
-
-  const mx = [
-    -Infinity,
-    -Infinity,
-    -Infinity
-  ];
-
-  for (
-    let i = 0;
-    i < a.length;
-    i += 3
-  ) {
-
-    for (
-      let k = 0;
-      k < 3;
-      k++
-    ) {
-
-      mn[k] =
-        Math.min(
-          mn[k],
-          a[i + k]
-        );
-
-      mx[k] =
-        Math.max(
-          mx[k],
-          a[i + k]
-        );
-    }
-  }
-
-  return {
-    mn,
-    mx
-  };
-}
-
-
-/* =========================================================
-   PMX PARSER
-========================================================= */
-
-function parsePMX(buf) {
-
-  const r =
-    new Reader(buf);
-
-  const sig =
-    new TextDecoder().decode(
-      r.bytes(4)
-    );
-
-  if (sig !== "PMX ") {
-
-    throw new Error(
-      "PMX headerが見つかりません"
-    );
-  }
-
-  const ver =
-    r.f32();
-
-  if (ver < 2) {
-
-    throw new Error(
-      "PMX 2.0以降が必要です"
-    );
-  }
-
-  const globals =
-    r.u8();
-
-  if (globals !== 8) {
-
-    throw new Error(
-      "PMX globals が想定外です: " +
-      globals
-    );
-  }
-
-  const enc =
-    r.u8();
-
-  const addUV =
-    r.u8();
-
-  const vIS =
-    r.u8();
-
-  const tIS =
-    r.u8();
-
-  const mIS =
-    r.u8();
-
-  const bIS =
-    r.u8();
-
-  const moIS =
-    r.u8();
-
-  const rbIS =
-    r.u8();
-
-  if (
-    ![1, 2, 4].includes(vIS) ||
-    ![1, 2, 4].includes(tIS) ||
-    ![1, 2, 4].includes(mIS) ||
-    ![1, 2, 4].includes(bIS)
-  ) {
-
-    throw new Error(
-      "PMX index size unsupported"
-    );
-  }
-
-  const str = () =>
-    r.str(
-      enc === 0
-        ? "utf-16le"
-        : "utf-8"
-    );
-
-  const name =
-    str();
-
-  str();
-  str();
-  str();
-
-  const vc =
-    r.i32();
-
-  if (
-    vc < 0 ||
-    vc > 5000000
-  ) {
-
-    throw new Error(
-      "頂点数が不正です: " +
-      vc
-    );
-  }
-
-  const pos =
-    new Float32Array(
-      vc * 3
-    );
-
-  const nor =
-    new Float32Array(
-      vc * 3
-    );
-
-  const uv =
-    new Float32Array(
-      vc * 2
-    );
-
-  const bi =
-    new Uint32Array(
-      vc * 4
-    );
-
-  const bw =
-    new Float32Array(
-      vc * 4
-    );
-
-  for (
-    let i = 0;
-    i < vc;
-    i++
-  ) {
-
-    pos.set(
-      [
-        r.f32(),
-        r.f32(),
-        r.f32()
-      ],
-      i * 3
-    );
-
-    nor.set(
-      [
-        r.f32(),
-        r.f32(),
-        r.f32()
-      ],
-      i * 3
-    );
-
-    uv.set(
-      [
-        r.f32(),
-        1 - r.f32()
-      ],
-      i * 2
-    );
-
-    for (
-      let k = 0;
-      k < addUV;
-      k++
-    ) {
-      r.bytes(16);
     }
 
-    const wt =
-      r.u8();
 
-    let ids = [
-      0,
-      0,
-      0,
-      0
-    ];
+    /* =========================================================
+       PMX PARSER
+    ========================================================= */
 
-    let ws = [
-      1,
-      0,
-      0,
-      0
-    ];
+    function parsePMX(buf) {
+      const r =
+        new Reader(buf);
 
-    if (wt === 0) {
-
-      ids[0] =
-        Math.max(
-          0,
-          r.idx(bIS)
+      const sig =
+        new TextDecoder().decode(
+          r.bytes(4),
         );
 
-    } else if (wt === 1) {
-
-      ids[0] =
-        Math.max(
-          0,
-          r.idx(bIS)
+      if (sig !== "PMX ") {
+        throw new Error(
+          "PMX headerが見つかりません",
         );
+      }
 
-      ids[1] =
-        Math.max(
-          0,
-          r.idx(bIS)
-        );
-
-      ws[0] =
+      const ver =
         r.f32();
 
-      ws[1] =
-        1 - ws[0];
-
-    } else if (wt === 2) {
-
-      for (
-        let k = 0;
-        k < 4;
-        k++
-      ) {
-
-        ids[k] =
-          Math.max(
-            0,
-            r.idx(bIS)
-          );
+      if (ver < 2) {
+        throw new Error(
+          "PMX 2.0以降が必要です",
+        );
       }
 
-      for (
-        let k = 0;
-        k < 4;
-        k++
-      ) {
+      const globals =
+        r.u8();
 
-        ws[k] =
-          r.f32();
+      if (globals !== 8) {
+        throw new Error(
+          "PMX globals が想定外です: " +
+          globals,
+        );
       }
 
-    } else if (wt === 3) {
+      const enc =
+        r.u8();
 
-      ids[0] =
-        Math.max(
-          0,
-          r.idx(bIS)
+      const addUV =
+        r.u8();
+
+      const vIS =
+        r.u8();
+
+      const tIS =
+        r.u8();
+
+      const mIS =
+        r.u8();
+
+      const bIS =
+        r.u8();
+
+      const moIS =
+        r.u8();
+
+      const rbIS =
+        r.u8();
+
+      if (
+        ![1, 2, 4].includes(vIS) ||
+        ![1, 2, 4].includes(tIS) ||
+        ![1, 2, 4].includes(mIS) ||
+        ![1, 2, 4].includes(bIS)
+      ) {
+        throw new Error(
+          "PMX index size unsupported",
+        );
+      }
+
+      const str = () =>
+        r.str(
+          enc === 0
+            ? "utf-16le"
+            : "utf-8",
         );
 
-      ids[1] =
-        Math.max(
-          0,
-          r.idx(bIS)
-        );
+      const name =
+        str();
 
-      ws[0] =
-        r.f32();
+      const nameEn =
+        str();
 
-      ws[1] =
-        1 - ws[0];
+      const comment =
+        str();
 
-      r.bytes(36);
+      const commentEn =
+        str();
 
-    } else if (wt === 4) {
-
-      for (
-        let k = 0;
-        k < 4;
-        k++
-      ) {
-
-        ids[k] =
-          Math.max(
-            0,
-            r.idx(bIS)
-          );
-      }
-
-      for (
-        let k = 0;
-        k < 4;
-        k++
-      ) {
-
-        ws[k] =
-          r.f32();
-      }
-
-    } else {
-
-      throw new Error(
-        "未知のPMXウェイト " +
-        wt
-      );
-    }
-
-    bi.set(
-      ids,
-      i * 4
-    );
-
-    bw.set(
-      ws,
-      i * 4
-    );
-
-    r.f32();
-  }
-
-  const ic =
-    r.i32();
-
-  if (
-    ic < 0 ||
-    ic % 3 !== 0
-  ) {
-
-    throw new Error(
-      "インデックス数が不正です: " +
-      ic
-    );
-  }
-
-  const indices =
-    new Uint32Array(ic);
-
-  for (
-    let i = 0;
-    i < ic;
-    i++
-  ) {
-
-    indices[i] =
-      Math.max(
-        0,
-        r.idx(vIS)
-      );
-  }
-
-  const tc =
-    r.i32();
-
-  const textures = [];
-
-  for (
-    let i = 0;
-    i < tc;
-    i++
-  ) {
-
-    textures.push(
-      str()
-        .replaceAll(
-          "\\",
-          "/"
-        )
-        .replace(
-          /^\.\//,
-          ""
-        )
-    );
-  }
-
-  const mc =
-    r.i32();
-
-  const materials = [];
-
-  let faceOffset = 0;
-
-  for (
-    let i = 0;
-    i < mc;
-    i++
-  ) {
-
-    const mn =
-      str();
-
-    str();
-
-    const diffuse = [
-      r.f32(),
-      r.f32(),
-      r.f32(),
-      r.f32()
-    ];
-
-    r.bytes(12);
-    r.f32();
-    r.bytes(12);
-
-    const flags =
-      r.u8();
-
-    r.bytes(16);
-    r.f32();
-
-    const ti =
-      r.idx(tIS);
-
-    r.idx(tIS);
-
-    r.u8();
-
-    const toonFlag =
-      r.u8();
-
-    if (
-      toonFlag === 0
-    ) {
-      r.idx(tIS);
-    } else {
-      r.i8();
-    }
-
-    str();
-
-    const fc =
-      r.i32();
-
-    materials.push({
-      name: mn,
-      tex: ti,
-      diffuse,
-      alpha:
-        diffuse[3],
-      flags,
-      faceOffset,
-      faceCount: fc
-    });
-
-    faceOffset += fc;
-  }
-
-  const bc =
-    r.i32();
-
-  if (
-    bc < 1 ||
-    bc > 10000
-  ) {
-
-    throw new Error(
-      "ボーン数が不正です: " +
-      bc
-    );
-  }
-
-  const bones = [];
-  const boneMap =
-    new Map();
-
-  for (
-    let i = 0;
-    i < bc;
-    i++
-  ) {
-
-    const bn =
-      str();
-
-    str();
-
-    const p = [
-      r.f32(),
-      r.f32(),
-      r.f32()
-    ];
-
-    const parent =
-      r.idx(bIS);
-
-    r.i32();
-
-    const flags =
-      r.u16();
-
-    if (flags & 1) {
-
-      r.idx(bIS);
-
-    } else {
-
-      r.bytes(12);
-    }
-
-    if (
-      flags &
-      0x100
-    ) {
-
-      r.idx(bIS);
-      r.f32();
-    }
-
-    if (
-      flags &
-      0x200
-    ) {
-
-      r.idx(bIS);
-      r.f32();
-    }
-
-    if (
-      flags &
-      0x400
-    ) {
-
-      r.bytes(12);
-    }
-
-    if (
-      flags &
-      0x800
-    ) {
-
-      r.bytes(24);
-    }
-
-    if (
-      flags &
-      0x2000
-    ) {
-
-      r.idx(bIS);
-    }
-
-    let ik = null;
-
-    if (
-      flags & 0x20
-    ) {
-
-      const target =
-        r.idx(bIS);
-
-      const loops =
+      const vc =
         r.i32();
 
-      const limit =
-        r.f32();
+      if (
+        vc < 0 ||
+        vc > 5000000
+      ) {
+        throw new Error(
+          "頂点数が不正です: " +
+          vc,
+        );
+      }
 
-      const lc =
-        r.i32();
+      const pos =
+        new Float32Array(
+          vc * 3,
+        );
 
-      const links = [];
+      const nor =
+        new Float32Array(
+          vc * 3,
+        );
+
+      const uv =
+        new Float32Array(
+          vc * 2,
+        );
+
+      const bi =
+        new Uint32Array(
+          vc * 4,
+        );
+
+      const bw =
+        new Float32Array(
+          vc * 4,
+        );
 
       for (
-        let j = 0;
-        j < lc;
-        j++
+        let i = 0;
+        i < vc;
+        i++
       ) {
-
-        const li =
-          r.idx(bIS);
-
-        const lim =
-          r.u8();
-
-        let min = null;
-        let max = null;
-
-        if (lim) {
-
-          min = [
+        pos.set(
+          [
             r.f32(),
             r.f32(),
-            r.f32()
-          ];
+            r.f32(),
+          ],
+          i * 3,
+        );
 
-          max = [
+        nor.set(
+          [
             r.f32(),
             r.f32(),
-            r.f32()
-          ];
+            r.f32(),
+          ],
+          i * 3,
+        );
+
+        uv.set(
+          [
+            r.f32(),
+            1 - r.f32(),
+          ],
+          i * 2,
+        );
+
+        for (
+          let k = 0;
+          k < addUV;
+          k++
+        ) {
+          r.bytes(16);
         }
 
-        links.push({
-          bone: li,
-          limited:
-            !!lim,
-          min,
-          max
-        });
+        const wt =
+          r.u8();
+
+        let ids = [
+          0,
+          0,
+          0,
+          0,
+        ];
+
+        let ws = [
+          1,
+          0,
+          0,
+          0,
+        ];
+
+        if (wt === 0) {
+          ids[0] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+        } else if (wt === 1) {
+          ids[0] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+
+          ids[1] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+
+          ws[0] =
+            r.f32();
+
+          ws[1] =
+            1 -
+            ws[0];
+        } else if (wt === 2) {
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ids[k] =
+              Math.max(
+                0,
+                r.idx(bIS),
+              );
+          }
+
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ws[k] =
+              r.f32();
+          }
+        } else if (wt === 3) {
+          ids[0] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+
+          ids[1] =
+            Math.max(
+              0,
+              r.idx(bIS),
+            );
+
+          ws[0] =
+            r.f32();
+
+          ws[1] =
+            1 -
+            ws[0];
+
+          r.bytes(36);
+        } else if (wt === 4) {
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ids[k] =
+              Math.max(
+                0,
+                r.idx(bIS),
+              );
+          }
+
+          for (
+            let k = 0;
+            k < 4;
+            k++
+          ) {
+            ws[k] =
+              r.f32();
+          }
+        } else {
+          throw new Error(
+            "未知のPMXウェイト " +
+            wt,
+          );
+        }
+
+        bi.set(
+          ids,
+          i * 4,
+        );
+
+        bw.set(
+          ws,
+          i * 4,
+        );
+
+        r.f32();
       }
 
-      ik = {
-        target,
-        loops,
-        limit,
-        links
+      const ic =
+        r.i32();
+
+      if (
+        ic < 0 ||
+        ic % 3 !== 0
+      ) {
+        throw new Error(
+          "インデックス数が不正です: " +
+          ic,
+        );
+      }
+
+      const indices =
+        new Uint32Array(ic);
+
+      for (
+        let i = 0;
+        i < ic;
+        i++
+      ) {
+        indices[i] =
+          Math.max(
+            0,
+            r.idx(vIS),
+          );
+      }
+
+      const tc =
+        r.i32();
+
+      const textures = [];
+
+      for (
+        let i = 0;
+        i < tc;
+        i++
+      ) {
+        textures.push(
+          str()
+            .replaceAll(
+              "\\",
+              "/",
+            )
+            .replace(
+              /^\.\//,
+              "",
+            ),
+        );
+      }
+
+      const mc =
+        r.i32();
+
+      const materials = [];
+
+      let faceOffset = 0;
+
+      for (
+        let i = 0;
+        i < mc;
+        i++
+      ) {
+        const mn =
+          str();
+
+        const men =
+          str();
+
+        const diffuse = [
+          r.f32(),
+          r.f32(),
+          r.f32(),
+          r.f32(),
+        ];
+
+        r.bytes(12);
+
+        r.f32();
+
+        r.bytes(12);
+
+        const flags =
+          r.u8();
+
+        r.bytes(16);
+
+        r.f32();
+
+        const ti =
+          r.idx(tIS);
+
+        const si =
+          r.idx(tIS);
+
+        r.u8();
+
+        const toonFlag =
+          r.u8();
+
+        const toi =
+          toonFlag === 0
+            ? r.idx(tIS)
+            : r.i8();
+
+        const memo =
+          str();
+
+        const fc =
+          r.i32();
+
+        materials.push({
+          name: mn,
+          tex: ti,
+          diffuse,
+          alpha:
+            diffuse[3],
+          flags,
+          faceOffset,
+          faceCount: fc,
+        });
+
+        faceOffset += fc;
+      }
+
+      const bc =
+        r.i32();
+
+      if (
+        bc < 1 ||
+        bc > 10000
+      ) {
+        throw new Error(
+          "ボーン数が不正です: " +
+          bc,
+        );
+      }
+
+      const bones = [];
+      const boneMap =
+        new Map();
+
+      for (
+        let i = 0;
+        i < bc;
+        i++
+      ) {
+        const bn =
+          str();
+
+        const ben =
+          str();
+
+        const p = [
+          r.f32(),
+          r.f32(),
+          r.f32(),
+        ];
+
+        const parent =
+          r.idx(bIS);
+
+        const layer =
+          r.i32();
+
+        const flags =
+          r.u16();
+
+        if (flags & 1) {
+          r.idx(bIS);
+        } else {
+          r.bytes(12);
+        }
+
+        if (flags & 0x100) {
+          r.idx(bIS);
+          r.f32();
+        }
+
+        if (flags & 0x200) {
+          r.idx(bIS);
+          r.f32();
+        }
+
+        if (flags & 0x400) {
+          r.bytes(12);
+        }
+
+        if (flags & 0x800) {
+          r.bytes(24);
+        }
+
+        if (flags & 0x2000) {
+          r.idx(bIS);
+        }
+
+        let ik = null;
+
+        if (flags & 0x20) {
+          const target =
+            r.idx(bIS);
+
+          const loops =
+            r.i32();
+
+          const limit =
+            r.f32();
+
+          const lc =
+            r.i32();
+
+          const links = [];
+
+          for (
+            let j = 0;
+            j < lc;
+            j++
+          ) {
+            const li =
+              r.idx(bIS);
+
+            const lim =
+              r.u8();
+
+            let min =
+              null;
+
+            let max =
+              null;
+
+            if (lim) {
+              min = [
+                r.f32(),
+                r.f32(),
+                r.f32(),
+              ];
+
+              max = [
+                r.f32(),
+                r.f32(),
+                r.f32(),
+              ];
+            }
+
+            links.push({
+              bone: li,
+              limited: !!lim,
+              min,
+              max,
+            });
+          }
+
+          ik = {
+            target,
+            loops,
+            limit,
+            links,
+          };
+        }
+
+        const b = {
+          name: bn,
+          en: ben,
+          pos: p,
+          parent,
+          flags,
+          rot: [
+            0,
+            0,
+            0,
+          ],
+          poseQ: [
+            0,
+            0,
+            0,
+            1,
+          ],
+          poseP: [
+            0,
+            0,
+            0,
+          ],
+          ik,
+        };
+
+        bones.push(b);
+
+        boneMap.set(
+          bn,
+          i,
+        );
+      }
+
+      return {
+        name,
+        vertices: pos,
+        normals: nor,
+        uv,
+        bi,
+        bw,
+        indices,
+        textures,
+        materials,
+        bones,
+        boneMap,
+        bounds:
+          boundsOf(pos),
       };
     }
 
-    const b = {
 
-      name: bn,
+    /* =========================================================
+       LOAD PMX
+    ========================================================= */
 
-      en: "",
+    const PMX_CANDIDATES = [
+      "./【阿蕾奇诺】/仆人.pmx",
+      "./【阿蕾奇诺】/#U4ec6#U4eba.pmx",
+    ];
 
-      pos: p,
-
-      parent,
-
-      flags,
-
-      rot: [
-        0,
-        0,
-        0
-      ],
-
-      poseQ: [
-        0,
-        0,
-        0,
-        1
-      ],
-
-      poseP: [
-        0,
-        0,
-        0
-      ],
-
-      ik
-    };
-
-    bones.push(b);
-
-    boneMap.set(
-      bn,
-      i
-    );
-  }
-
-  return {
-
-    name,
-
-    vertices: pos,
-
-    normals: nor,
-
-    uv,
-
-    bi,
-
-    bw,
-
-    indices,
-
-    textures,
-
-    materials,
-
-    bones,
-
-    boneMap,
-
-    bounds:
-      boundsOf(pos)
-  };
-}
-
-
-/* =========================================================
-   LOAD PMX
-========================================================= */
-
-const PMX_CANDIDATES = [
-
-  "./【阿蕾奇诺】/仆人.pmx",
-
-  "./【阿蕾奇诺】/#U4ec6#U4eba.pmx"
-
-];
-
-let pmxFetch = null;
-
-for (
-  const p of
-    PMX_CANDIDATES
-) {
-
-  try {
-
-    pmxFetch =
-      await fetchBinary(p);
-
-    break;
-
-  } catch (e) {}
-}
-
-if (!pmxFetch) {
-
-  throw new Error(
-    "PMXを取得できませんでした。\n" +
-    PMX_CANDIDATES.join(
-      "\n"
-    )
-  );
-}
-
-const pmx =
-  parsePMX(
-    pmxFetch.buf
-  );
-
-loading.textContent =
-  `PMX解析完了：頂点 ${
-    (pmx.vertices.length / 3) | 0
-  } / index ${
-    pmx.indices.length
-  } / 材質 ${
-    pmx.materials.length
-  } / ボーン ${
-    pmx.bones.length
-  }`;
-
-
-/* =========================================================
-   MATRIX
-========================================================= */
-
-const ident = () =>
-  new Float32Array([
-
-    1, 0, 0, 0,
-
-    0, 1, 0, 0,
-
-    0, 0, 1, 0,
-
-    0, 0, 0, 1
-
-  ]);
-
-function mm(a, b) {
-
-  const o =
-    new Float32Array(16);
-
-  for (
-    let c = 0;
-    c < 4;
-    c++
-  ) {
+    let pmxFetch = null;
 
     for (
-      let rr = 0;
-      rr < 4;
-      rr++
+      const p of
+        PMX_CANDIDATES
     ) {
+      try {
+        pmxFetch =
+          await fetchBinary(p);
 
-      o[c * 4 + rr] =
-
-        a[rr] *
-          b[c * 4] +
-
-        a[4 + rr] *
-          b[c * 4 + 1] +
-
-        a[8 + rr] *
-          b[c * 4 + 2] +
-
-        a[12 + rr] *
-          b[c * 4 + 3];
+        break;
+      } catch (e) {}
     }
-  }
 
-  return o;
-}
-
-function mt(
-  x,
-  y,
-  z
-) {
-
-  const o =
-    ident();
-
-  o[12] = x;
-  o[13] = y;
-  o[14] = z;
-
-  return o;
-}
-
-function persp(
-  fov,
-  asp,
-  n,
-  f
-) {
-
-  const q =
-    1 /
-    Math.tan(
-      fov / 2
-    );
-
-  return new Float32Array([
-
-    q / asp,
-    0,
-    0,
-    0,
-
-    0,
-    q,
-    0,
-    0,
-
-    0,
-    0,
-    (f + n) /
-      (n - f),
-    -1,
-
-    0,
-    0,
-    (2 * f * n) /
-      (n - f),
-    0
-
-  ]);
-}
-
-function sub(a, b) {
-
-  return [
-
-    a[0] - b[0],
-
-    a[1] - b[1],
-
-    a[2] - b[2]
-
-  ];
-}
-
-function dot(a, b) {
-
-  return (
-
-    a[0] * b[0] +
-
-    a[1] * b[1] +
-
-    a[2] * b[2]
-
-  );
-}
-
-function cross(a, b) {
-
-  return [
-
-    a[1] * b[2] -
-      a[2] * b[1],
-
-    a[2] * b[0] -
-      a[0] * b[2],
-
-    a[0] * b[1] -
-      a[1] * b[0]
-
-  ];
-}
-
-function norm(a) {
-
-  const l =
-    Math.hypot(...a) ||
-    1;
-
-  return [
-
-    a[0] / l,
-
-    a[1] / l,
-
-    a[2] / l
-
-  ];
-}
-
-function lookAt(e, c) {
-
-  const z =
-    norm(
-      sub(e, c)
-    );
-
-  const x =
-    norm(
-      cross(
-        [0, 1, 0],
-        z
-      )
-    );
-
-  const y =
-    cross(z, x);
-
-  return new Float32Array([
-
-    x[0],
-    y[0],
-    z[0],
-    0,
-
-    x[1],
-    y[1],
-    z[1],
-    0,
-
-    x[2],
-    y[2],
-    z[2],
-    0,
-
-    -dot(x, e),
-    -dot(y, e),
-    -dot(z, e),
-    1
-
-  ]);
-}
-
-function invRigid(a) {
-
-  const o =
-    ident();
-
-  o[0] = a[0];
-  o[1] = a[4];
-  o[2] = a[8];
-
-  o[4] = a[1];
-  o[5] = a[5];
-  o[6] = a[9];
-
-  o[8] = a[2];
-  o[9] = a[6];
-  o[10] = a[10];
-
-  o[12] =
-    -(
-      o[0] * a[12] +
-      o[4] * a[13] +
-      o[8] * a[14]
-    );
-
-  o[13] =
-    -(
-      o[1] * a[12] +
-      o[5] * a[13] +
-      o[9] * a[14]
-    );
-
-  o[14] =
-    -(
-      o[2] * a[12] +
-      o[6] * a[13] +
-      o[10] * a[14]
-    );
-
-  return o;
-}
-
-function mulPoint(
-  m,
-  p
-) {
-
-  return [
-
-    m[0] * p[0] +
-      m[4] * p[1] +
-      m[8] * p[2] +
-      m[12],
-
-    m[1] * p[0] +
-      m[5] * p[1] +
-      m[9] * p[2] +
-      m[13],
-
-    m[2] * p[0] +
-      m[6] * p[1] +
-      m[10] * p[2] +
-      m[14]
-
-  ];
-}
-
-
-/* =========================================================
-   BIND POSE
-========================================================= */
-
-const bindWorld = [];
-const invBind = [];
-
-for (
-  let i = 0;
-  i < pmx.bones.length;
-  i++
-) {
-
-  const b =
-    pmx.bones[i];
-
-  const p =
-    b.parent;
-
-  const local =
-    mt(
-
-      b.pos[0] -
-        (
-          p >= 0
-            ? pmx.bones[p].pos[0]
-            : 0
+    if (!pmxFetch) {
+      throw new Error(
+        "PMXを取得できませんでした。想定パス: ./【阿蕾奇诺】/仆人.pmx\n" +
+        PMX_CANDIDATES.join(
+          "\n",
         ),
+      );
+    }
 
-      b.pos[1] -
-        (
-          p >= 0
-            ? pmx.bones[p].pos[1]
-            : 0
-        ),
+    const pmx =
+      parsePMX(
+        pmxFetch.buf,
+      );
 
-      b.pos[2] -
-        (
-          p >= 0
-            ? pmx.bones[p].pos[2]
-            : 0
-        )
+    loading.textContent =
+      `PMX解析完了：頂点 ${
+        (pmx.vertices.length / 3) | 0
+      } / index ${
+        pmx.indices.length
+      } / 材質 ${
+        pmx.materials.length
+      } / ボーン ${
+        pmx.bones.length
+      }`;
 
+
+    /* =========================================================
+       MATRIX / VECTOR
+    ========================================================= */
+
+    const ident = () =>
+      new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+      ]);
+
+    function mm(a, b) {
+      const o =
+        new Float32Array(16);
+
+      for (
+        let c = 0;
+        c < 4;
+        c++
+      ) {
+        for (
+          let rr = 0;
+          rr < 4;
+          rr++
+        ) {
+          o[
+            c * 4 + rr
+          ] =
+            a[rr] *
+              b[c * 4] +
+            a[4 + rr] *
+              b[c * 4 + 1] +
+            a[8 + rr] *
+              b[c * 4 + 2] +
+            a[12 + rr] *
+              b[c * 4 + 3];
+        }
+      }
+
+      return o;
+    }
+
+    function mt(x, y, z) {
+      const o = ident();
+
+      o[12] = x;
+      o[13] = y;
+      o[14] = z;
+
+      return o;
+    }
+
+    function persp(
+      fov,
+      asp,
+      n,
+      f,
+    ) {
+      const q =
+        1 /
+        Math.tan(
+          fov / 2,
+        );
+
+      return new Float32Array([
+        q / asp,
+        0,
+        0,
+        0,
+
+        0,
+        q,
+        0,
+        0,
+
+        0,
+        0,
+        (f + n) /
+          (n - f),
+        -1,
+
+        0,
+        0,
+        (2 * f * n) /
+          (n - f),
+        0,
+      ]);
+    }
+
+    function sub(a, b) {
+      return [
+        a[0] - b[0],
+        a[1] - b[1],
+        a[2] - b[2],
+      ];
+    }
+
+    function dot(a, b) {
+      return (
+        a[0] * b[0] +
+        a[1] * b[1] +
+        a[2] * b[2]
+      );
+    }
+
+    function cross(a, b) {
+      return [
+        a[1] * b[2] -
+          a[2] * b[1],
+
+        a[2] * b[0] -
+          a[0] * b[2],
+
+        a[0] * b[1] -
+          a[1] * b[0],
+      ];
+    }
+
+    function norm(a) {
+      const l =
+        Math.hypot(...a) ||
+        1;
+
+      return [
+        a[0] / l,
+        a[1] / l,
+        a[2] / l,
+      ];
+    }
+
+    function lookAt(e, c) {
+      const z =
+        norm(
+          sub(e, c),
+        );
+
+      const x =
+        norm(
+          cross(
+            [0, 1, 0],
+            z,
+          ),
+        );
+
+      const y =
+        cross(z, x);
+
+      return new Float32Array([
+        x[0],
+        y[0],
+        z[0],
+        0,
+
+        x[1],
+        y[1],
+        z[1],
+        0,
+
+        x[2],
+        y[2],
+        z[2],
+        0,
+
+        -dot(x, e),
+        -dot(y, e),
+        -dot(z, e),
+        1,
+      ]);
+    }
+
+    function invRigid(a) {
+      const o =
+        ident();
+
+      o[0] = a[0];
+      o[1] = a[4];
+      o[2] = a[8];
+
+      o[4] = a[1];
+      o[5] = a[5];
+      o[6] = a[9];
+
+      o[8] = a[2];
+      o[9] = a[6];
+      o[10] = a[10];
+
+      o[12] =
+        -(
+          o[0] * a[12] +
+          o[4] * a[13] +
+          o[8] * a[14]
+        );
+
+      o[13] =
+        -(
+          o[1] * a[12] +
+          o[5] * a[13] +
+          o[9] * a[14]
+        );
+
+      o[14] =
+        -(
+          o[2] * a[12] +
+          o[6] * a[13] +
+          o[10] * a[14]
+        );
+
+      return o;
+    }
+
+    function mulPoint(m, p) {
+      return [
+        m[0] * p[0] +
+          m[4] * p[1] +
+          m[8] * p[2] +
+          m[12],
+
+        m[1] * p[0] +
+          m[5] * p[1] +
+          m[9] * p[2] +
+          m[13],
+
+        m[2] * p[0] +
+          m[6] * p[1] +
+          m[10] * p[2] +
+          m[14],
+      ];
+    }
+
+
+    /* =========================================================
+       BIND POSE
+    ========================================================= */
+
+    const bindWorld = [];
+    const invBind = [];
+
+    for (
+      let i = 0;
+      i < pmx.bones.length;
+      i++
+    ) {
+      const b =
+        pmx.bones[i];
+
+      const p =
+        b.parent;
+
+      const local =
+        mt(
+          b.pos[0] -
+            (p >= 0
+              ? pmx.bones[p].pos[0]
+              : 0),
+
+          b.pos[1] -
+            (p >= 0
+              ? pmx.bones[p].pos[1]
+              : 0),
+
+          b.pos[2] -
+            (p >= 0
+              ? pmx.bones[p].pos[2]
+              : 0),
+        );
+
+      bindWorld[i] =
+        p >= 0
+          ? mm(
+              bindWorld[p],
+              local,
+            )
+          : local;
+
+      invBind[i] =
+        invRigid(
+          bindWorld[i],
+        );
+    }
+
+
+    /* =========================================================
+       GPU VERTEX BUFFER
+    ========================================================= */
+
+    const stride = 64;
+
+    const vc =
+      pmx.vertices.length /
+      3;
+
+    const raw =
+      new ArrayBuffer(
+        vc * stride,
+      );
+
+    const dv =
+      new DataView(raw);
+
+    for (
+      let i = 0;
+      i < vc;
+      i++
+    ) {
+      const o =
+        i * stride;
+
+      dv.setFloat32(
+        o + 0,
+        pmx.vertices[
+          i * 3
+        ],
+        true,
+      );
+
+      dv.setFloat32(
+        o + 4,
+        pmx.vertices[
+          i * 3 + 1
+        ],
+        true,
+      );
+
+      dv.setFloat32(
+        o + 8,
+        pmx.vertices[
+          i * 3 + 2
+        ],
+        true,
+      );
+
+      dv.setFloat32(
+        o + 12,
+        pmx.normals[
+          i * 3
+        ],
+        true,
+      );
+
+      dv.setFloat32(
+        o + 16,
+        pmx.normals[
+          i * 3 + 1
+        ],
+        true,
+      );
+
+      dv.setFloat32(
+        o + 20,
+        pmx.normals[
+          i * 3 + 2
+        ],
+        true,
+      );
+
+      dv.setFloat32(
+        o + 24,
+        pmx.uv[
+          i * 2
+        ],
+        true,
+      );
+
+      dv.setFloat32(
+        o + 28,
+        pmx.uv[
+          i * 2 + 1
+        ],
+        true,
+      );
+
+      for (
+        let k = 0;
+        k < 4;
+        k++
+      ) {
+        dv.setUint32(
+          o +
+            32 +
+            k * 4,
+
+          pmx.bi[
+            i * 4 + k
+          ],
+
+          true,
+        );
+      }
+
+      for (
+        let k = 0;
+        k < 4;
+        k++
+      ) {
+        dv.setFloat32(
+          o +
+            48 +
+            k * 4,
+
+          pmx.bw[
+            i * 4 + k
+          ],
+
+          true,
+        );
+      }
+    }
+
+    const vb =
+      device.createBuffer({
+        size:
+          raw.byteLength,
+
+        usage:
+          GPUBufferUsage.VERTEX |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    device.queue.writeBuffer(
+      vb,
+      0,
+      raw,
     );
 
-  bindWorld[i] =
-    p >= 0
-      ? mm(
-          bindWorld[p],
-          local
-        )
-      : local;
+    const ib =
+      device.createBuffer({
+        size:
+          pmx.indices.byteLength,
 
-  invBind[i] =
-    invRigid(
-      bindWorld[i]
+        usage:
+          GPUBufferUsage.INDEX |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    device.queue.writeBuffer(
+      ib,
+      0,
+      pmx.indices,
     );
-}
+
+    const camBuf =
+      device.createBuffer({
+        size: 128,
+
+        usage:
+          GPUBufferUsage.UNIFORM |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    const boneBuf =
+      device.createBuffer({
+        size:
+          pmx.bones.length *
+          64,
+
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    const sampler =
+      device.createSampler({
+        magFilter: "linear",
+        minFilter: "linear",
+        mipmapFilter: "linear",
+
+        addressModeU:
+          "repeat",
+
+        addressModeV:
+          "repeat",
+      });
 
 
-/* =========================================================
-   GPU VERTEX BUFFER
-========================================================= */
+    /* =========================================================
+       MODEL SHADER
+    ========================================================= */
 
-const stride = 64;
-
-const vc =
-  pmx.vertices.length / 3;
-
-const raw =
-  new ArrayBuffer(
-    vc * stride
-  );
-
-const dv =
-  new DataView(raw);
-
-for (
-  let i = 0;
-  i < vc;
-  i++
-) {
-
-  const o =
-    i * stride;
-
-  dv.setFloat32(
-    o + 0,
-    pmx.vertices[i * 3],
-    true
-  );
-
-  dv.setFloat32(
-    o + 4,
-    pmx.vertices[
-      i * 3 + 1
-    ],
-    true
-  );
-
-  dv.setFloat32(
-    o + 8,
-    pmx.vertices[
-      i * 3 + 2
-    ],
-    true
-  );
-
-  dv.setFloat32(
-    o + 12,
-    pmx.normals[i * 3],
-    true
-  );
-
-  dv.setFloat32(
-    o + 16,
-    pmx.normals[
-      i * 3 + 1
-    ],
-    true
-  );
-
-  dv.setFloat32(
-    o + 20,
-    pmx.normals[
-      i * 3 + 2
-    ],
-    true
-  );
-
-  dv.setFloat32(
-    o + 24,
-    pmx.uv[i * 2],
-    true
-  );
-
-  dv.setFloat32(
-    o + 28,
-    pmx.uv[
-      i * 2 + 1
-    ],
-    true
-  );
-
-  for (
-    let k = 0;
-    k < 4;
-    k++
-  ) {
-
-    dv.setUint32(
-      o + 32 + k * 4,
-      pmx.bi[
-        i * 4 + k
-      ],
-      true
-    );
-  }
-
-  for (
-    let k = 0;
-    k < 4;
-    k++
-  ) {
-
-    dv.setFloat32(
-      o + 48 + k * 4,
-      pmx.bw[
-        i * 4 + k
-      ],
-      true
-    );
-  }
-}
-
-const vb =
-  device.createBuffer({
-    size:
-      raw.byteLength,
-
-    usage:
-      GPUBufferUsage.VERTEX |
-      GPUBufferUsage.COPY_DST
-  });
-
-device.queue.writeBuffer(
-  vb,
-  0,
-  raw
-);
-
-const ib =
-  device.createBuffer({
-    size:
-      pmx.indices.byteLength,
-
-    usage:
-      GPUBufferUsage.INDEX |
-      GPUBufferUsage.COPY_DST
-  });
-
-device.queue.writeBuffer(
-  ib,
-  0,
-  pmx.indices
-);
-
-const camBuf =
-  device.createBuffer({
-    size: 128,
-
-    usage:
-      GPUBufferUsage.UNIFORM |
-      GPUBufferUsage.COPY_DST
-  });
-
-const boneBuf =
-  device.createBuffer({
-    size:
-      pmx.bones.length *
-      64,
-
-    usage:
-      GPUBufferUsage.STORAGE |
-      GPUBufferUsage.COPY_DST
-  });
-
-const sampler =
-  device.createSampler({
-
-    magFilter:
-      "linear",
-
-    minFilter:
-      "linear",
-
-    mipmapFilter:
-      "linear",
-
-    addressModeU:
-      "repeat",
-
-    addressModeV:
-      "repeat"
-
-  });
-
-
-/* =========================================================
-   SHADER
-========================================================= */
-
-const shader = `
-
+    const shader = `
 struct U {
   vp: mat4x4f,
   model: mat4x4f
 };
 
 struct VOut {
-
-  @builtin(position)
-  pos: vec4f,
-
-  @location(0)
-  uv: vec2f,
-
-  @location(1)
-  n: vec3f
-
+  @builtin(position) pos: vec4f,
+  @location(0) uv: vec2f,
+  @location(1) n: vec3f
 };
 
-@group(0)
-@binding(0)
+@group(0) @binding(0)
+var<uniform> u: U;
 
-var<uniform>
-u: U;
-
-@group(0)
-@binding(1)
-
-var<storage,read>
-bones:
+@group(0) @binding(1)
+var<storage,read> bones:
   array<mat4x4f>;
 
-@group(0)
-@binding(2)
+@group(0) @binding(2)
+var<uniform> materialColor: vec4f;
 
-var<uniform>
-materialColor:
-  vec4f;
+@group(0) @binding(3)
+var texSampler: sampler;
 
-@group(0)
-@binding(3)
-
-var texSampler:
-  sampler;
-
-@group(0)
-@binding(4)
-
-var tex:
-  texture_2d<f32>;
+@group(0) @binding(4)
+var tex: texture_2d<f32>;
 
 @vertex
-
 fn vs(
+  @location(0) p: vec3f,
+  @location(1) n: vec3f,
+  @location(2) uv: vec2f,
+  @location(3) bi: vec4u,
+  @location(4) bw: vec4f
+) -> VOut {
 
-  @location(0)
-  p: vec3f,
-
-  @location(1)
-  n: vec3f,
-
-  @location(2)
-  uv: vec2f,
-
-  @location(3)
-  bi: vec4u,
-
-  @location(4)
-  bw: vec4f
-
-)
--> VOut
-{
-
-  var sk =
-    mat4x4f();
+  var sk = mat4x4f();
 
   sk +=
     bones[bi.x] *
@@ -2111,10 +1911,9 @@ fn vs(
 }
 
 @fragment
-
-fn fs(v: VOut)
--> @location(0) vec4f
-{
+fn fs(
+  v: VOut
+) -> @location(0) vec4f {
 
   let al =
     textureSample(
@@ -2153,399 +1952,233 @@ fn fs(v: VOut)
 }
 `;
 
-const sm =
-  device.createShaderModule({
-    code: shader
-  });
+    const sm =
+      device.createShaderModule({
+        code: shader,
+      });
 
-const ci =
-  await sm.getCompilationInfo();
+    const ci =
+      await sm.getCompilationInfo();
 
-if (
-  ci.messages.some(
-    (m) =>
-      m.type ===
-      "error"
-  )
-) {
-
-  throw new Error(
-    ci.messages
-      .filter(
+    if (
+      ci.messages.some(
         (m) =>
-          m.type ===
-          "error"
+          m.type === "error",
       )
-      .map(
-        (m) =>
-          `WGSL ${m.lineNum}:${m.linePos} ${m.message}`
-      )
-      .join("\n")
-  );
-}
-
-const bgl =
-  device.createBindGroupLayout({
-    entries: [
-
-      {
-        binding: 0,
-
-        visibility:
-          GPUShaderStage.VERTEX,
-
-        buffer: {
-          type:
-            "uniform"
-        }
-      },
-
-      {
-        binding: 1,
-
-        visibility:
-          GPUShaderStage.VERTEX,
-
-        buffer: {
-          type:
-            "read-only-storage"
-        }
-      },
-
-      {
-        binding: 2,
-
-        visibility:
-          GPUShaderStage.FRAGMENT,
-
-        buffer: {
-          type:
-            "uniform"
-        }
-      },
-
-      {
-        binding: 3,
-
-        visibility:
-          GPUShaderStage.FRAGMENT,
-
-        sampler: {
-          type:
-            "filtering"
-        }
-      },
-
-      {
-        binding: 4,
-
-        visibility:
-          GPUShaderStage.FRAGMENT,
-
-        texture: {
-          sampleType:
-            "float",
-
-          viewDimension:
-            "2d"
-        }
-      }
-
-    ]
-  });
-
-const layout =
-  device.createPipelineLayout({
-    bindGroupLayouts: [
-      bgl
-    ]
-  });
-
-const pipe =
-  device.createRenderPipeline({
-
-    layout,
-
-    vertex: {
-
-      module: sm,
-
-      entryPoint:
-        "vs",
-
-      buffers: [
-
-        {
-
-          arrayStride:
-            stride,
-
-          attributes: [
-
-            {
-              shaderLocation: 0,
-              format:
-                "float32x3",
-              offset: 0
-            },
-
-            {
-              shaderLocation: 1,
-              format:
-                "float32x3",
-              offset: 12
-            },
-
-            {
-              shaderLocation: 2,
-              format:
-                "float32x2",
-              offset: 24
-            },
-
-            {
-              shaderLocation: 3,
-              format:
-                "uint32x4",
-              offset: 32
-            },
-
-            {
-              shaderLocation: 4,
-              format:
-                "float32x4",
-              offset: 48
-            }
-
-          ]
-        }
-
-      ]
-    },
-
-    fragment: {
-
-      module: sm,
-
-      entryPoint:
-        "fs",
-
-      targets: [
-
-        {
-          format,
-
-          blend: {
-
-            color: {
-
-              srcFactor:
-                "src-alpha",
-
-              dstFactor:
-                "one-minus-src-alpha",
-
-              operation:
-                "add"
-
-            },
-
-            alpha: {
-
-              srcFactor:
-                "one",
-
-              dstFactor:
-                "one-minus-src-alpha",
-
-              operation:
-                "add"
-
-            }
-
-          }
-        }
-
-      ]
-    },
-
-    primitive: {
-
-      topology:
-        "triangle-list",
-
-      cullMode:
-        "none"
-    },
-
-    depthStencil: {
-
-      format:
-        "depth24plus",
-
-      depthWriteEnabled:
-        true,
-
-      depthCompare:
-        "less"
+    ) {
+      throw new Error(
+        ci.messages
+          .filter(
+            (m) =>
+              m.type === "error",
+          )
+          .map(
+            (m) =>
+              `WGSL ${m.lineNum}:${m.linePos} ${m.message}`,
+          )
+          .join("\n"),
+      );
     }
 
-  });
+    const bgl =
+      device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+
+            visibility:
+              GPUShaderStage.VERTEX,
+
+            buffer: {
+              type:
+                "uniform",
+            },
+          },
+
+          {
+            binding: 1,
+
+            visibility:
+              GPUShaderStage.VERTEX,
+
+            buffer: {
+              type:
+                "read-only-storage",
+            },
+          },
+
+          {
+            binding: 2,
+
+            visibility:
+              GPUShaderStage.FRAGMENT,
+
+            buffer: {
+              type:
+                "uniform",
+            },
+          },
+
+          {
+            binding: 3,
+
+            visibility:
+              GPUShaderStage.FRAGMENT,
+
+            sampler: {
+              type:
+                "filtering",
+            },
+          },
+
+          {
+            binding: 4,
+
+            visibility:
+              GPUShaderStage.FRAGMENT,
+
+            texture: {
+              sampleType:
+                "float",
+
+              viewDimension:
+                "2d",
+            },
+          },
+        ],
+      });
+
+    const layout =
+      device.createPipelineLayout({
+        bindGroupLayouts: [
+          bgl,
+        ],
+      });
+
+    const pipe =
+      device.createRenderPipeline({
+        layout,
+
+        vertex: {
+          module: sm,
+          entryPoint: "vs",
+
+          buffers: [
+            {
+              arrayStride:
+                stride,
+
+              attributes: [
+                {
+                  shaderLocation: 0,
+                  format:
+                    "float32x3",
+                  offset: 0,
+                },
+
+                {
+                  shaderLocation: 1,
+                  format:
+                    "float32x3",
+                  offset: 12,
+                },
+
+                {
+                  shaderLocation: 2,
+                  format:
+                    "float32x2",
+                  offset: 24,
+                },
+
+                {
+                  shaderLocation: 3,
+                  format:
+                    "uint32x4",
+                  offset: 32,
+                },
+
+                {
+                  shaderLocation: 4,
+                  format:
+                    "float32x4",
+                  offset: 48,
+                },
+              ],
+            },
+          ],
+        },
+
+        fragment: {
+          module: sm,
+          entryPoint: "fs",
+
+          targets: [
+            {
+              format,
+
+              blend: {
+                color: {
+                  srcFactor:
+                    "src-alpha",
+
+                  dstFactor:
+                    "one-minus-src-alpha",
+
+                  operation:
+                    "add",
+                },
+
+                alpha: {
+                  srcFactor:
+                    "one",
+
+                  dstFactor:
+                    "one-minus-src-alpha",
+
+                  operation:
+                    "add",
+                },
+              },
+            },
+          ],
+        },
+
+        primitive: {
+          topology:
+            "triangle-list",
+
+          cullMode:
+            "none",
+        },
+
+        depthStencil: {
+          format:
+            "depth24plus",
+
+          depthWriteEnabled:
+            true,
+
+          depthCompare:
+            "less",
+        },
+      });
 
 
-/* =========================================================
-   TEXTURE
-========================================================= */
+    /* =========================================================
+       TEXTURE
+    ========================================================= */
 
-function solidTexture(
-  r,
-  g,
-  b,
-  a = 255
-) {
-
-  const tex =
-    device.createTexture({
-
-      size: {
-        width: 1,
-        height: 1
-      },
-
-      format:
-        "rgba8unorm",
-
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.RENDER_ATTACHMENT
-    });
-
-  device.queue.writeTexture(
-
-    {
-      texture: tex
-    },
-
-    new Uint8Array([
+    function solidTexture(
       r,
       g,
       b,
-      a
-    ]),
-
-    {
-      bytesPerRow: 4
-    },
-
-    {
-      width: 1,
-      height: 1,
-      depthOrArrayLayers: 1
-    }
-
-  );
-
-  return tex;
-}
-
-const whiteTexture =
-  solidTexture(
-    255,
-    255,
-    255,
-    255
-  );
-
-const textureCache =
-  new Map();
-
-const missing = [];
-
-async function getTexture(
-  index
-) {
-
-  if (
-    index < 0 ||
-    index >=
-      pmx.textures.length
-  ) {
-    return whiteTexture;
-  }
-
-  const rawName =
-    pmx.textures[index] ||
-    "";
-
-  if (!rawName) {
-    return whiteTexture;
-  }
-
-  const names =
-    pathVariants(
-      rawName
-    );
-
-  const cacheKey =
-    names[0];
-
-  if (
-    textureCache.has(
-      cacheKey
-    )
-  ) {
-    return textureCache.get(
-      cacheKey
-    );
-  }
-
-  const prefix =
-    "./【阿蕾奇诺】/";
-
-  for (
-    const n of names
-  ) {
-
-    const url =
-      new URL(
-        encodePath(
-          prefix + n
-        ),
-        location.href
-      ).href;
-
-    try {
-
-      const res =
-        await fetch(
-          url,
-          {
-            cache:
-              "no-store"
-          }
-        );
-
-      if (!res.ok)
-        continue;
-
-      const blob =
-        await res.blob();
-
-      const bmp =
-        await createImageBitmap(
-          blob
-        );
-
+      a = 255,
+    ) {
       const tex =
         device.createTexture({
-
           size: {
-            width:
-              bmp.width,
-
-            height:
-              bmp.height
+            width: 1,
+            height: 1,
           },
 
           format:
@@ -2554,2297 +2187,2352 @@ async function getTexture(
           usage:
             GPUTextureUsage.TEXTURE_BINDING |
             GPUTextureUsage.COPY_DST |
-            GPUTextureUsage.RENDER_ATTACHMENT
+            GPUTextureUsage.RENDER_ATTACHMENT,
         });
 
-      device.queue.copyExternalImageToTexture(
+      device.queue.writeTexture(
+        {
+          texture: tex,
+        },
+
+        new Uint8Array([
+          r,
+          g,
+          b,
+          a,
+        ]),
 
         {
-          source: bmp
+          bytesPerRow: 4,
         },
 
         {
-          texture: tex
+          width: 1,
+          height: 1,
+          depthOrArrayLayers: 1,
         },
+      );
 
-        {
-          width:
-            bmp.width,
+      return tex;
+    }
 
-          height:
-            bmp.height
-        }
+    const whiteTexture =
+      solidTexture(
+        255,
+        255,
+        255,
+        255,
+      );
 
+    const textureCache =
+      new Map();
+
+    const missing = [];
+
+    async function getTexture(
+      index,
+    ) {
+      if (
+        index < 0 ||
+        index >=
+          pmx.textures.length
+      ) {
+        return whiteTexture;
+      }
+
+      const rawName =
+        pmx.textures[index] ||
+        "";
+
+      if (!rawName) {
+        return whiteTexture;
+      }
+
+      const names =
+        pathVariants(
+          rawName,
+        );
+
+      const cacheKey =
+        names[0];
+
+      if (
+        textureCache.has(
+          cacheKey,
+        )
+      ) {
+        return textureCache.get(
+          cacheKey,
+        );
+      }
+
+      const prefix =
+        "./【阿蕾奇诺】/";
+
+      for (
+        const n of names
+      ) {
+        const url =
+          new URL(
+            encodePath(
+              prefix + n,
+            ),
+            location.href,
+          ).href;
+
+        try {
+          const res =
+            await fetch(
+              url,
+              {
+                cache:
+                  "no-store",
+              },
+            );
+
+          if (!res.ok) {
+            continue;
+          }
+
+          const blob =
+            await res.blob();
+
+          const bmp =
+            await createImageBitmap(
+              blob,
+            );
+
+          const tex =
+            device.createTexture({
+              size: {
+                width:
+                  bmp.width,
+
+                height:
+                  bmp.height,
+              },
+
+              format:
+                "rgba8unorm",
+
+              usage:
+                GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+
+          device.queue.copyExternalImageToTexture(
+            {
+              source:
+                bmp,
+            },
+
+            {
+              texture:
+                tex,
+            },
+
+            {
+              width:
+                bmp.width,
+
+              height:
+                bmp.height,
+            },
+          );
+
+          textureCache.set(
+            cacheKey,
+            tex,
+          );
+
+          return tex;
+        } catch (e) {}
+      }
+
+      missing.push(
+        rawName,
       );
 
       textureCache.set(
         cacheKey,
-        tex
+        whiteTexture,
       );
 
-      return tex;
-
-    } catch (e) {}
-  }
-
-  missing.push(
-    rawName
-  );
-
-  textureCache.set(
-    cacheKey,
-    whiteTexture
-  );
-
-  return whiteTexture;
-}
-
-const materialBinds = [];
-
-for (
-  const g of
-    pmx.materials
-) {
-
-  const tex =
-    await getTexture(
-      g.tex
-    );
-
-  const mb =
-    device.createBuffer({
-
-      size: 16,
-
-      usage:
-        GPUBufferUsage.UNIFORM |
-        GPUBufferUsage.COPY_DST
-    });
-
-  device.queue.writeBuffer(
-    mb,
-    0,
-    new Float32Array(
-      g.diffuse
-    )
-  );
-
-  materialBinds.push(
-
-    device.createBindGroup({
-
-      layout: bgl,
-
-      entries: [
-
-        {
-          binding: 0,
-
-          resource: {
-            buffer:
-              camBuf
-          }
-        },
-
-        {
-          binding: 1,
-
-          resource: {
-            buffer:
-              boneBuf
-          }
-        },
-
-        {
-          binding: 2,
-
-          resource: {
-            buffer:
-              mb
-          }
-        },
-
-        {
-          binding: 3,
-
-          resource:
-            sampler
-        },
-
-        {
-          binding: 4,
-
-          resource:
-            tex.createView()
-        }
-
-      ]
-
-    })
-
-  );
-}
-
-loading.textContent =
-  `アルレッキーノ読み込み完了　` +
-  `${pmx.materials.length}材質 / ` +
-  `${pmx.textures.length}テクスチャ / ` +
-  `${pmx.bones.length}ボーン`;
-
-
-/* =========================================================
-   BONE LOOKUP
-========================================================= */
-
-function normalizeBoneName(s) {
-
-  return String(
-    s || ""
-  )
-    .replace(
-      /[\s　]+/g,
-      ""
-    )
-    .trim();
-}
-
-const normalizedBoneMap =
-  new Map();
-
-for (
-  let i = 0;
-  i < pmx.bones.length;
-  i++
-) {
-
-  normalizedBoneMap.set(
-    normalizeBoneName(
-      pmx.bones[i].name
-    ),
-    i
-  );
-}
-
-function findBoneIndex(
-  name
-) {
-
-  const direct =
-    pmx.boneMap?.get(
-      name
-    );
-
-  if (
-    direct !==
-    undefined
-  ) {
-    return direct;
-  }
-
-  return normalizedBoneMap.get(
-    normalizeBoneName(
-      name
-    )
-  );
-}
-
-const modelScale =
-  0.12;
-
-const modelHeight =
-  (
-    pmx.bounds.mx[1] -
-    pmx.bounds.mn[1]
-  ) *
-  modelScale;
-
-const centerX =
-  (
-    pmx.bounds.mn[0] +
-    pmx.bounds.mx[0]
-  ) *
-  0.5;
-
-const centerZ =
-  (
-    pmx.bounds.mn[2] +
-    pmx.bounds.mx[2]
-  ) *
-  0.5;
-
-const bottom =
-  pmx.bounds.mn[1];
-
-
-/* =========================================================
-   QUATERNION
-========================================================= */
-
-function qNormalize(q) {
-
-  const l =
-    Math.hypot(
-      q[0],
-      q[1],
-      q[2],
-      q[3]
-    ) || 1;
-
-  return [
-
-    q[0] / l,
-
-    q[1] / l,
-
-    q[2] / l,
-
-    q[3] / l
-
-  ];
-}
-
-function qSlerp(
-  a,
-  b,
-  t
-) {
-
-  let ax = a[0];
-  let ay = a[1];
-  let az = a[2];
-  let aw = a[3];
-
-  let bx = b[0];
-  let by = b[1];
-  let bz = b[2];
-  let bw = b[3];
-
-  let d =
-    ax * bx +
-    ay * by +
-    az * bz +
-    aw * bw;
-
-  if (d < 0) {
-
-    d = -d;
-
-    bx = -bx;
-    by = -by;
-    bz = -bz;
-    bw = -bw;
-  }
-
-  if (
-    d > 0.9995
-  ) {
-
-    return qNormalize([
-
-      ax +
-        (bx - ax) * t,
-
-      ay +
-        (by - ay) * t,
-
-      az +
-        (bz - az) * t,
-
-      aw +
-        (bw - aw) * t
-
-    ]);
-  }
-
-  const th =
-    Math.acos(
-      Math.max(
-        -1,
-        Math.min(
-          1,
-          d
-        )
-      )
-    );
-
-  const st =
-    Math.sin(th) ||
-    1;
-
-  const s0 =
-    Math.sin(
-      (1 - t) * th
-    ) / st;
-
-  const s1 =
-    Math.sin(
-      t * th
-    ) / st;
-
-  return [
-
-    ax * s0 +
-      bx * s1,
-
-    ay * s0 +
-      by * s1,
-
-    az * s0 +
-      bz * s1,
-
-    aw * s0 +
-      bw * s1
-
-  ];
-}
-
-function quatToMat(q) {
-
-  q =
-    qNormalize(q);
-
-  const x = q[0];
-  const y = q[1];
-  const z = q[2];
-  const w = q[3];
-
-  return new Float32Array([
-
-    1 -
-      2 * (
-        y * y +
-        z * z
-      ),
-
-    2 * (
-      x * y +
-      z * w
-    ),
-
-    2 * (
-      x * z -
-      y * w
-    ),
-
-    0,
-
-    2 * (
-      x * y -
-      z * w
-    ),
-
-    1 -
-      2 * (
-        x * x +
-        z * z
-      ),
-
-    2 * (
-      y * z +
-      x * w
-    ),
-
-    0,
-
-    2 * (
-      x * z +
-      y * w
-    ),
-
-    2 * (
-      y * z -
-      x * w
-    ),
-
-    1 -
-      2 * (
-        x * x +
-        y * y
-      ),
-
-    0,
-
-    0,
-    0,
-    0,
-    1
-
-  ]);
-}
-
-function eulerToQuat(
-  x,
-  y,
-  z
-) {
-
-  const cx =
-    Math.cos(x / 2);
-
-  const sx =
-    Math.sin(x / 2);
-
-  const cy =
-    Math.cos(y / 2);
-
-  const sy =
-    Math.sin(y / 2);
-
-  const cz =
-    Math.cos(z / 2);
-
-  const sz =
-    Math.sin(z / 2);
-
-  return qNormalize([
-
-    sx * cy * cz -
-      cx * sy * sz,
-
-    cx * sy * cz +
-      sx * cy * sz,
-
-    cx * cy * sz -
-      sx * sy * cz,
-
-    cx * cy * cz +
-      sx * sy * sz
-
-  ]);
-}
-
-
-/* =========================================================
-   VMD
-========================================================= */
-
-const MOTION_ROOT =
-  "./移動モーション配布v1.3/";
-
-const MOTION_PATHS = {
-
-  walk:
-    MOTION_ROOT +
-    "1.歩く(女)/2.歩き10L_(40f_前移動20).vmd",
-
-  run:
-    MOTION_ROOT +
-    "2.走る/2.走り50L_ランニング_(20f_前移動50).vmd",
-
-  dash:
-    MOTION_ROOT +
-    "2.走る/2.走り75L_ダッシュ_(16f_前移動60).vmd"
-
-};
-
-function parseVMD(
-  buffer
-) {
-
-  const r =
-    new DataView(buffer);
-
-  const u8 =
-    new Uint8Array(buffer);
-
-  const dec =
-    new TextDecoder(
-      "shift-jis"
-    );
-
-  let p = 0;
-
-  const readFixedString =
-    (n) => {
-
-      const bytes =
-        u8.slice(
-          p,
-          p + n
+      return whiteTexture;
+    }
+
+    const materialBinds = [];
+
+    for (
+      const g of
+        pmx.materials
+    ) {
+      const tex =
+        await getTexture(
+          g.tex,
         );
 
-      p += n;
+      const mb =
+        device.createBuffer({
+          size: 16,
 
-      const z =
-        bytes.indexOf(0);
+          usage:
+            GPUBufferUsage.UNIFORM |
+            GPUBufferUsage.COPY_DST,
+        });
 
-      return dec.decode(
-        z >= 0
-          ? bytes.slice(
-              0,
-              z
-            )
-          : bytes
-      ).trim();
+      device.queue.writeBuffer(
+        mb,
+        0,
+        new Float32Array(
+          g.diffuse,
+        ),
+      );
+
+      materialBinds.push(
+        device.createBindGroup({
+          layout: bgl,
+
+          entries: [
+            {
+              binding: 0,
+
+              resource: {
+                buffer:
+                  camBuf,
+              },
+            },
+
+            {
+              binding: 1,
+
+              resource: {
+                buffer:
+                  boneBuf,
+              },
+            },
+
+            {
+              binding: 2,
+
+              resource: {
+                buffer:
+                  mb,
+              },
+            },
+
+            {
+              binding: 3,
+
+              resource:
+                sampler,
+            },
+
+            {
+              binding: 4,
+
+              resource:
+                tex.createView(),
+            },
+          ],
+        }),
+      );
+    }
+
+    loading.textContent =
+      `アルレッキーノ読み込み完了　` +
+      `${pmx.materials.length}材質 / ` +
+      `${pmx.textures.length}テクスチャ / ` +
+      `${pmx.bones.length}ボーン` +
+      (
+        missing.length
+          ? `\n未取得テクスチャ ${missing.length}件`
+          : ""
+      );
+
+
+    /* =========================================================
+       BONE LOOKUP
+    ========================================================= */
+
+    function findBone(
+      ...names
+    ) {
+      for (
+        const name of names
+      ) {
+        const i =
+          pmx.boneMap.get(
+            name,
+          );
+
+        if (
+          i !== undefined
+        ) {
+          return i;
+        }
+      }
+
+      const normalized =
+        new Map();
+
+      for (
+        const [
+          k,
+          v,
+        ] of pmx.boneMap
+      ) {
+        normalized.set(
+          k.replace(
+            /[ 　]/g,
+            "",
+          ),
+          v,
+        );
+      }
+
+      for (
+        const name of names
+      ) {
+        const i =
+          normalized.get(
+            String(
+              name,
+            ).replace(
+              /[ 　]/g,
+              "",
+            ),
+          );
+
+        if (
+          i !== undefined
+        ) {
+          return i;
+        }
+      }
+
+      return -1;
+    }
+
+    const modelScale =
+      0.12;
+
+    const modelHeight =
+      (pmx.bounds.mx[1] -
+        pmx.bounds.mn[1]) *
+      modelScale;
+
+    const centerX =
+      (pmx.bounds.mn[0] +
+        pmx.bounds.mx[0]) *
+      0.5;
+
+    const centerZ =
+      (pmx.bounds.mn[2] +
+        pmx.bounds.mx[2]) *
+      0.5;
+
+    const bottom =
+      pmx.bounds.mn[1];
+
+
+    /* =========================================================
+       MOTION
+    ========================================================= */
+
+    const MOTION_ROOT =
+      "./移動モーション配布v1.3/";
+
+    const MOTION_PATHS = {
+      walk:
+        MOTION_ROOT +
+        "1.歩く(女)/2.歩き10L_(40f_前移動20).vmd",
+
+      run:
+        MOTION_ROOT +
+        "2.走る/2.走り50L_ランニング_(20f_前移動50).vmd",
+
+      dash:
+        MOTION_ROOT +
+        "2.走る/2.走り75L_ダッシュ_(16f_前移動60).vmd",
     };
 
-  const header =
-    readFixedString(30);
+    function qNormalize(q) {
+      const l =
+        Math.hypot(
+          q[0],
+          q[1],
+          q[2],
+          q[3],
+        ) || 1;
 
-  if (
-    !header.startsWith(
-      "Vocaloid Motion Data"
-    )
-  ) {
+      return [
+        q[0] / l,
+        q[1] / l,
+        q[2] / l,
+        q[3] / l,
+      ];
+    }
 
-    throw new Error(
-      "VMDヘッダーが見つかりません"
-    );
-  }
+    function qSlerp(
+      a,
+      b,
+      t,
+    ) {
+      let ax = a[0];
+      let ay = a[1];
+      let az = a[2];
+      let aw = a[3];
 
-  const modelName =
-    readFixedString(20);
+      let bx = b[0];
+      let by = b[1];
+      let bz = b[2];
+      let bw = b[3];
 
-  const boneCount =
-    r.getUint32(
-      p,
-      true
-    );
+      let d =
+        ax * bx +
+        ay * by +
+        az * bz +
+        aw * bw;
 
-  p += 4;
+      if (d < 0) {
+        d = -d;
 
-  const tracks =
-    new Map();
+        bx = -bx;
+        by = -by;
+        bz = -bz;
+        bw = -bw;
+      }
 
-  let maxFrame = 0;
-  let minFrame =
-    Infinity;
+      if (d > 0.9995) {
+        return qNormalize([
+          ax +
+            (bx - ax) * t,
 
-  for (
-    let i = 0;
-    i < boneCount;
-    i++
-  ) {
+          ay +
+            (by - ay) * t,
 
-    const rawName =
-      readFixedString(15);
+          az +
+            (bz - az) * t,
 
-    const frame =
-      r.getUint32(
-        p,
-        true
-      );
+          aw +
+            (bw - aw) * t,
+        ]);
+      }
 
-    p += 4;
+      const th =
+        Math.acos(
+          Math.max(
+            -1,
+            Math.min(
+              1,
+              d,
+            ),
+          ),
+        );
 
-    /*
-     * VMDの位置データは読み取るが、
-     * ゲームでは一切使用しない。
-     *
-     * これが今回の重要な修正。
-     */
-    r.getFloat32(
-      p,
-      true
-    );
+      const st =
+        Math.sin(th) ||
+        1;
 
-    r.getFloat32(
-      p + 4,
-      true
-    );
+      const s0 =
+        Math.sin(
+          (1 - t) * th,
+        ) /
+        st;
 
-    r.getFloat32(
-      p + 8,
-      true
-    );
+      const s1 =
+        Math.sin(
+          t * th,
+        ) /
+        st;
 
-    p += 12;
+      return [
+        ax * s0 +
+          bx * s1,
 
-    const quat =
-      qNormalize([
+        ay * s0 +
+          by * s1,
 
-        r.getFloat32(
-          p,
-          true
-        ),
+        az * s0 +
+          bz * s1,
 
-        r.getFloat32(
-          p + 4,
-          true
-        ),
+        aw * s0 +
+          bw * s1,
+      ];
+    }
 
-        r.getFloat32(
-          p + 8,
-          true
-        ),
+    function quatToMat(q) {
+      q =
+        qNormalize(q);
 
-        r.getFloat32(
-          p + 12,
-          true
-        )
+      const x = q[0];
+      const y = q[1];
+      const z = q[2];
+      const w = q[3];
 
+      return new Float32Array([
+        1 -
+          2 *
+            (y * y +
+              z * z),
+
+        2 *
+          (x * y +
+            z * w),
+
+        2 *
+          (x * z -
+            y * w),
+
+        0,
+
+        2 *
+          (x * y -
+            z * w),
+
+        1 -
+          2 *
+            (x * x +
+              z * z),
+
+        2 *
+          (y * z +
+            x * w),
+
+        0,
+
+        2 *
+          (x * z +
+            y * w),
+
+        2 *
+          (y * z -
+            x * w),
+
+        1 -
+          2 *
+            (x * x +
+              y * y),
+
+        0,
+
+        0,
+        0,
+        0,
+        1,
       ]);
-
-    p += 16;
-
-    /*
-     * Bezier 64 bytes
-     */
-    p += 64;
-
-    const bi =
-      findBoneIndex(
-        rawName
-      );
-
-    if (
-      bi === undefined
-    ) {
-      continue;
     }
 
-    const arr =
-      tracks.get(bi) ||
-      [];
-
-    /*
-     * positionは常にゼロ。
-     *
-     * VMDによるルート移動、
-     * センター移動、
-     * グルーブ移動などを
-     * 完全に無効化する。
-     */
-    arr.push({
-
-      frame,
-
-      pos: [
-        0,
-        0,
-        0
-      ],
-
-      quat
-
-    });
-
-    tracks.set(
-      bi,
-      arr
-    );
-
-    maxFrame =
-      Math.max(
-        maxFrame,
-        frame
-      );
-
-    minFrame =
-      Math.min(
-        minFrame,
-        frame
-      );
-  }
-
-  for (
-    const arr of
-      tracks.values()
-  ) {
-
-    arr.sort(
-      (a, b) =>
-        a.frame -
-        b.frame
-    );
-  }
-
-  return {
-
-    modelName,
-
-    boneCount,
-
-    tracks,
-
-    maxFrame:
-      Number.isFinite(
-        maxFrame
-      )
-        ? maxFrame
-        : 0,
-
-    minFrame:
-      Number.isFinite(
-        minFrame
-      )
-        ? minFrame
-        : 0
-
-  };
-}
-
-async function loadVMD(
-  url
-) {
-
-  const res =
-    await fetch(
-      url,
-      {
-        cache:
-          "no-store"
-      }
-    );
-
-  if (!res.ok) {
-
-    throw new Error(
-      `VMD取得失敗 HTTP ${res.status}: ${url}`
-    );
-  }
-
-  return parseVMD(
-    await res.arrayBuffer()
-  );
-}
-
-function makePose(
-  q = [
-    0,
-    0,
-    0,
-    1
-  ],
-  p = [
-    0,
-    0,
-    0
-  ]
-) {
-
-  return {
-    q,
-    p
-  };
-}
-
-function lerp3(
-  a,
-  b,
-  t
-) {
-
-  return [
-
-    a[0] +
-      (b[0] - a[0]) *
-      t,
-
-    a[1] +
-      (b[1] - a[1]) *
-      t,
-
-    a[2] +
-      (b[2] - a[2]) *
-      t
-
-  ];
-}
-
-function sampleVMD(
-  motion,
-  frame
-) {
-
-  const pose =
-    new Array(
-      pmx.bones.length
-    );
-
-  for (
-    let i = 0;
-    i < pose.length;
-    i++
-  ) {
-
-    pose[i] =
-      makePose();
-  }
-
-  if (!motion) {
-    return pose;
-  }
-
-  for (
-    const [
-      bi,
-      arr
-    ] of motion.tracks
-  ) {
-
-    if (
-      !arr.length
-    ) {
-      continue;
-    }
-
-    if (
-      frame <=
-      arr[0].frame
-    ) {
-
-      pose[bi] =
-        makePose(
-
-          arr[0].quat.slice(),
-
-          [
-            0,
-            0,
-            0
-          ]
-
-        );
-
-      continue;
-    }
-
-    if (
-      frame >=
-      arr[
-        arr.length - 1
-      ].frame
-    ) {
-
-      pose[bi] =
-        makePose(
-
-          arr[
-            arr.length - 1
-          ].quat.slice(),
-
-          [
-            0,
-            0,
-            0
-          ]
-
-        );
-
-      continue;
-    }
-
-    let lo = 0;
-
-    let hi =
-      arr.length - 1;
-
-    while (
-      hi - lo > 1
-    ) {
-
-      const mid =
-        (lo + hi) >> 1;
-
-      if (
-        arr[mid].frame <=
-        frame
-      ) {
-
-        lo = mid;
-
-      } else {
-
-        hi = mid;
-      }
-    }
-
-    const a =
-      arr[lo];
-
-    const b =
-      arr[hi];
-
-    const t =
-      (
-        frame -
-        a.frame
-      ) /
-      Math.max(
-        1,
-        b.frame -
-        a.frame
-      );
-
-    pose[bi] =
-      makePose(
-
-        qSlerp(
-          a.quat,
-          b.quat,
-          t
-        ),
-
-        [
-          0,
-          0,
-          0
-        ]
-
-      );
-  }
-
-  return pose;
-}
-
-const motions = {};
-
-let activeMotionState =
-  "idle";
-
-let motionBlendFrom =
-  null;
-
-let motionBlendElapsed =
-  1;
-
-let motionStateTime =
-  0;
-
-const MOTION_BLEND =
-  0.12;
-
-function poseForState(
-  state,
-  elapsed
-) {
-
-  const pose =
-    new Array(
-      pmx.bones.length
-    );
-
-  for (
-    let i = 0;
-    i < pose.length;
-    i++
-  ) {
-
-    pose[i] =
-      makePose();
-  }
-
-  const motion =
-    state === "walk"
-      ? motions.walk
-      : state === "run"
-        ? motions.run
-        : state === "dodge"
-          ? motions.dash
-          : null;
-
-  if (motion) {
-
-    const span =
-      Math.max(
-        1,
-        motion.maxFrame -
-        motion.minFrame +
-        1
-      );
-
-    const frame =
-      motion.minFrame +
-      (
-        (
-          elapsed *
-          30
-        ) %
-        span
-      );
-
-    return sampleVMD(
-      motion,
-      frame
-    );
-  }
-
-  const t =
-    elapsed;
-
-  const set =
-    (
-      names,
+    function eulerToQuat(
       x,
       y,
-      z
-    ) => {
-
-      const bi =
-        findBoneIndex(
-          ...names
-        );
-
-      if (
-        bi === undefined ||
-        bi < 0
-      ) {
-        return;
-      }
-
-      pose[bi] =
-        makePose(
-          eulerToQuat(
-            x,
-            y,
-            z
-          )
-        );
-    };
-
-  set(
-    ["左肩"],
-    0.01,
-    0,
-    0.025 *
-      Math.sin(
-        t * 1.6
-      )
-  );
-
-  set(
-    ["右肩"],
-    -0.01,
-    0,
-    -0.025 *
-      Math.sin(
-        t * 1.6
-      )
-  );
-
-  set(
-    ["上半身"],
-    0.01 *
-      Math.sin(
-        t * 1.6
-      ),
-    0,
-    0.006 *
-      Math.cos(
-        t * 1.6
-      )
-  );
-
-  return pose;
-}
-
-function blendPose(
-  a,
-  b,
-  t
-) {
-
-  const out =
-    new Array(
-      pmx.bones.length
-    );
-
-  for (
-    let i = 0;
-    i < out.length;
-    i++
-  ) {
-
-    const pa =
-      a?.[i] ||
-      makePose();
-
-    const pb =
-      b?.[i] ||
-      makePose();
-
-    out[i] =
-      makePose(
-
-        qSlerp(
-          pa.q,
-          pb.q,
-          t
-        ),
-
-        [
-          0,
-          0,
-          0
-        ]
-
-      );
-  }
-
-  return out;
-}
-
-function applyMotionPose() {
-
-  const target =
-    poseForState(
-      activeMotionState,
-      motionStateTime
-    );
-
-  let pose =
-    target;
-
-  if (
-    motionBlendFrom &&
-    motionBlendElapsed <
-      MOTION_BLEND
-  ) {
-
-    pose =
-      blendPose(
-
-        motionBlendFrom,
-
-        target,
-
-        Math.min(
-          1,
-          motionBlendElapsed /
-            MOTION_BLEND
-        )
-
-      );
-  }
-
-  for (
-    let i = 0;
-    i < pmx.bones.length;
-    i++
-  ) {
-
-    pmx.bones[i]
-      .poseQ =
-        pose[i]?.q ||
-        [
-          0,
-          0,
-          0,
-          1
-        ];
-
-    /*
-     * 絶対にVMD位置移動を
-     * モデルへ入れない。
-     */
-    pmx.bones[i]
-      .poseP = [
-        0,
-        0,
-        0
-      ];
-  }
-}
-
-async function initMotions() {
-
-  loading.textContent =
-    "移動VMDを読み込み中…";
-
-  const [
-    walk,
-    run,
-    dashVmd
-  ] =
-    await Promise.all([
-
-      loadVMD(
-        MOTION_PATHS.walk
-      ),
-
-      loadVMD(
-        MOTION_PATHS.run
-      ),
-
-      loadVMD(
-        MOTION_PATHS.dash
-      )
-
-    ]);
-
-  motions.walk =
-    walk;
-
-  motions.run =
-    run;
-
-  motions.dash =
-    dashVmd;
-
-  loading.textContent =
-    `移動VMD読込完了：歩き ${walk.tracks.size}` +
-    ` / 走り ${run.tracks.size}` +
-    ` / ダッシュ ${dashVmd.tracks.size} ボーン`;
-}
-
-
-/* =========================================================
-   IK
-========================================================= */
-
-function matToQuat(m) {
-
-  const tr =
-    m[0] +
-    m[5] +
-    m[10];
-
-  let x;
-  let y;
-  let z;
-  let w;
-
-  if (tr > 0) {
-
-    const q =
-      Math.sqrt(
-        tr + 1
-      ) * 2;
-
-    w =
-      0.25 * q;
-
-    x =
-      (m[6] - m[9]) /
-      q;
-
-    y =
-      (m[8] - m[2]) /
-      q;
-
-    z =
-      (m[1] - m[4]) /
-      q;
-
-  } else if (
-    m[0] > m[5] &&
-    m[0] > m[10]
-  ) {
-
-    const q =
-      Math.sqrt(
-        1 +
-        m[0] -
-        m[5] -
-        m[10]
-      ) * 2;
-
-    w =
-      (m[6] - m[9]) /
-      q;
-
-    x =
-      0.25 * q;
-
-    y =
-      (m[4] + m[1]) /
-      q;
-
-    z =
-      (m[8] + m[2]) /
-      q;
-
-  } else if (
-    m[5] > m[10]
-  ) {
-
-    const q =
-      Math.sqrt(
-        1 +
-        m[5] -
-        m[0] -
-        m[10]
-      ) * 2;
-
-    w =
-      (m[8] - m[2]) /
-      q;
-
-    x =
-      (m[4] + m[1]) /
-      q;
-
-    y =
-      0.25 * q;
-
-    z =
-      (m[9] + m[6]) /
-      q;
-
-  } else {
-
-    const q =
-      Math.sqrt(
-        1 +
-        m[10] -
-        m[0] -
-        m[5]
-      ) * 2;
-
-    w =
-      (m[1] - m[4]) /
-      q;
-
-    x =
-      (m[8] + m[2]) /
-      q;
-
-    y =
-      (m[9] + m[6]) /
-      q;
-
-    z =
-      0.25 * q;
-  }
-
-  return qNormalize([
-    x,
-    y,
-    z,
-    w
-  ]);
-}
-
-function qMul(
-  a,
-  b
-) {
-
-  return qNormalize([
-
-    a[3] * b[0] +
-      a[0] * b[3] +
-      a[1] * b[2] -
-      a[2] * b[1],
-
-    a[3] * b[1] -
-      a[0] * b[2] +
-      a[1] * b[3] +
-      a[2] * b[0],
-
-    a[3] * b[2] +
-      a[0] * b[1] -
-      a[1] * b[0] +
-      a[2] * b[3],
-
-    a[3] * b[3] -
-      a[0] * b[0] -
-      a[1] * b[1] -
-      a[2] * b[2]
-
-  ]);
-}
-
-function qInv(q) {
-
-  return [
-    -q[0],
-    -q[1],
-    -q[2],
-    q[3]
-  ];
-}
-
-function qFromTo(
-  a,
-  b
-) {
-
-  const va =
-    norm(a);
-
-  const vb =
-    norm(b);
-
-  const d =
-    Math.max(
-      -1,
-      Math.min(
-        1,
-        dot(
-          va,
-          vb
-        )
-      )
-    );
-
-  if (
-    d > 0.9999
-  ) {
-
-    return [
-      0,
-      0,
-      0,
-      1
-    ];
-  }
-
-  if (
-    d < -0.9999
-  ) {
-
-    let axis =
-      cross(
-        [1, 0, 0],
-        va
-      );
-
-    if (
-      Math.hypot(
-        ...axis
-      ) < 0.001
+      z,
     ) {
-
-      axis =
-        cross(
-          [0, 1, 0],
-          va
+      const cx =
+        Math.cos(
+          x / 2,
         );
+
+      const sx =
+        Math.sin(
+          x / 2,
+        );
+
+      const cy =
+        Math.cos(
+          y / 2,
+        );
+
+      const sy =
+        Math.sin(
+          y / 2,
+        );
+
+      const cz =
+        Math.cos(
+          z / 2,
+        );
+
+      const sz =
+        Math.sin(
+          z / 2,
+        );
+
+      return qNormalize([
+        sx * cy * cz -
+          cx * sy * sz,
+
+        cx * sy * cz +
+          sx * cy * sz,
+
+        cx * cy * sz -
+          sx * sy * cz,
+
+        cx * cy * cz +
+          sx * sy * sz,
+      ]);
     }
 
-    axis =
-      norm(axis);
+    function normalizeBoneName(
+      s,
+    ) {
+      return String(
+        s || "",
+      )
+        .replace(
+          /[\s　]+/g,
+          "",
+        )
+        .trim();
+    }
 
-    return [
-      axis[0],
-      axis[1],
-      axis[2],
-      0
-    ];
-  }
+    const normalizedBoneMap =
+      new Map();
 
-  const c =
-    cross(
-      va,
-      vb
-    );
+    for (
+      let i = 0;
+      i < pmx.bones.length;
+      i++
+    ) {
+      normalizedBoneMap.set(
+        normalizeBoneName(
+          pmx.bones[i].name,
+        ),
+        i,
+      );
+    }
 
-  return qNormalize([
-    c[0],
-    c[1],
-    c[2],
-    1 + d
-  ]);
-}
+    const findBoneIndex =
+      (name) => {
+        const i =
+          pmx.boneMap?.get(
+            name,
+          );
 
-function qToEulerXYZ(q) {
+        if (
+          i !== undefined
+        ) {
+          return i;
+        }
 
-  const x = q[0];
-  const y = q[1];
-  const z = q[2];
-  const w = q[3];
+        return normalizedBoneMap.get(
+          normalizeBoneName(
+            name,
+          ),
+        );
+      };
 
-  const sinr =
-    2 *
-    (
-      w * x +
-      y * z
-    );
 
-  const cosr =
-    1 -
-    2 *
-    (
-      x * x +
-      y * y
-    );
+    /* =========================================================
+       VMD PARSER
 
-  const roll =
-    Math.atan2(
-      sinr,
-      cosr
-    );
+       VMD内のルート移動は使用しない。
+       実際のプレイヤー移動はplayer.x/zで処理。
+    ========================================================= */
 
-  const sinp =
-    2 *
-    (
-      w * y -
-      z * x
-    );
+    function isRootMotionBone(
+      name,
+    ) {
+      const n =
+        normalizeBoneName(
+          name,
+        );
 
-  let pitch;
+      return (
+        n === "全ての親" ||
+        n === "全ての親D" ||
+        n === "センター" ||
+        n === "センターD" ||
+        n === "グルーブ" ||
+        n === "グルーブD"
+      );
+    }
 
-  if (
-    Math.abs(sinp) >=
-    0.999999
-  ) {
+    function parseVMD(
+      buffer,
+    ) {
+      const r =
+        new DataView(buffer);
 
-    pitch =
-      (
-        Math.sign(
-          sinp
-        ) *
-        Math.PI
-      ) /
-      2;
+      const u8 =
+        new Uint8Array(buffer);
 
-  } else {
+      const dec =
+        new TextDecoder(
+          "shift-jis",
+        );
 
-    pitch =
-      Math.asin(
+      let p = 0;
+
+      const readFixedString = (
+        n,
+      ) => {
+        const bytes =
+          u8.slice(
+            p,
+            p + n,
+          );
+
+        p += n;
+
+        const z =
+          bytes.indexOf(0);
+
+        return dec
+          .decode(
+            z >= 0
+              ? bytes.slice(
+                  0,
+                  z,
+                )
+              : bytes,
+          )
+          .trim();
+      };
+
+      const header =
+        readFixedString(30);
+
+      if (
+        !header.startsWith(
+          "Vocaloid Motion Data",
+        )
+      ) {
+        throw new Error(
+          "VMDヘッダーが見つかりません",
+        );
+      }
+
+      const modelName =
+        readFixedString(20);
+
+      const boneCount =
+        r.getUint32(
+          p,
+          true,
+        );
+
+      p += 4;
+
+      const tracks =
+        new Map();
+
+      let maxFrame = 0;
+
+      let minFrame =
+        Infinity;
+
+      for (
+        let i = 0;
+        i < boneCount;
+        i++
+      ) {
+        const rawName =
+          readFixedString(
+            15,
+          );
+
+        const frame =
+          r.getUint32(
+            p,
+            true,
+          );
+
+        p += 4;
+
+        const pos = [
+          r.getFloat32(
+            p,
+            true,
+          ),
+
+          r.getFloat32(
+            p + 4,
+            true,
+          ),
+
+          r.getFloat32(
+            p + 8,
+            true,
+          ),
+        ];
+
+        p += 12;
+
+        const quat =
+          qNormalize([
+            r.getFloat32(
+              p,
+              true,
+            ),
+
+            r.getFloat32(
+              p + 4,
+              true,
+            ),
+
+            r.getFloat32(
+              p + 8,
+              true,
+            ),
+
+            r.getFloat32(
+              p + 12,
+              true,
+            ),
+          ]);
+
+        p += 16;
+
+        p += 64;
+
+        const bi =
+          findBoneIndex(
+            rawName,
+          );
+
+        if (
+          bi === undefined
+        ) {
+          continue;
+        }
+
+        const arr =
+          tracks.get(bi) ||
+          [];
+
+        const storedPos =
+          isRootMotionBone(
+            pmx.bones[bi]
+              ?.name,
+          )
+            ? [
+                0,
+                0,
+                0,
+              ]
+            : pos;
+
+        arr.push({
+          frame,
+          pos:
+            storedPos,
+          quat,
+        });
+
+        tracks.set(
+          bi,
+          arr,
+        );
+
+        maxFrame =
+          Math.max(
+            maxFrame,
+            frame,
+          );
+
+        minFrame =
+          Math.min(
+            minFrame,
+            frame,
+          );
+      }
+
+      for (
+        const arr of
+          tracks.values()
+      ) {
+        arr.sort(
+          (a, b) =>
+            a.frame -
+            b.frame,
+        );
+      }
+
+      return {
+        modelName,
+        boneCount,
+        tracks,
+
+        maxFrame:
+          Number.isFinite(
+            maxFrame,
+          )
+            ? maxFrame
+            : 0,
+
+        minFrame:
+          Number.isFinite(
+            minFrame,
+          )
+            ? minFrame
+            : 0,
+      };
+    }
+
+    async function loadVMD(
+      url,
+    ) {
+      const res =
+        await fetch(
+          url,
+          {
+            cache:
+              "no-store",
+          },
+        );
+
+      if (!res.ok) {
+        throw new Error(
+          `VMD取得失敗 HTTP ${res.status}: ${url}`,
+        );
+      }
+
+      return parseVMD(
+        await res.arrayBuffer(),
+      );
+    }
+
+    function makePose(
+      q = [
+        0,
+        0,
+        0,
+        1,
+      ],
+
+      p = [
+        0,
+        0,
+        0,
+      ],
+    ) {
+      return {
+        q,
+        p,
+      };
+    }
+
+    function lerp3(
+      a,
+      b,
+      t,
+    ) {
+      return [
+        a[0] +
+          (b[0] - a[0]) *
+            t,
+
+        a[1] +
+          (b[1] - a[1]) *
+            t,
+
+        a[2] +
+          (b[2] - a[2]) *
+            t,
+      ];
+    }
+
+    function sampleVMD(
+      motion,
+      frame,
+    ) {
+      const pose =
+        new Array(
+          pmx.bones.length,
+        );
+
+      for (
+        let i = 0;
+        i < pose.length;
+        i++
+      ) {
+        pose[i] =
+          makePose();
+      }
+
+      if (!motion) {
+        return pose;
+      }
+
+      for (
+        const [
+          bi,
+          arr,
+        ] of motion.tracks
+      ) {
+        if (
+          !arr.length
+        ) {
+          continue;
+        }
+
+        if (
+          frame <=
+          arr[0].frame
+        ) {
+          pose[bi] =
+            makePose(
+              arr[0].quat.slice(),
+              arr[0].pos.slice(),
+            );
+
+          continue;
+        }
+
+        if (
+          frame >=
+          arr[
+            arr.length - 1
+          ].frame
+        ) {
+          pose[bi] =
+            makePose(
+              arr[
+                arr.length - 1
+              ].quat.slice(),
+
+              arr[
+                arr.length - 1
+              ].pos.slice(),
+            );
+
+          continue;
+        }
+
+        let lo = 0;
+        let hi =
+          arr.length - 1;
+
+        while (
+          hi - lo >
+          1
+        ) {
+          const mid =
+            (lo + hi) >> 1;
+
+          if (
+            arr[mid].frame <=
+            frame
+          ) {
+            lo = mid;
+          } else {
+            hi = mid;
+          }
+        }
+
+        const a =
+          arr[lo];
+
+        const b =
+          arr[hi];
+
+        const t =
+          (frame -
+            a.frame) /
+          Math.max(
+            1,
+            b.frame -
+              a.frame,
+          );
+
+        pose[bi] =
+          makePose(
+            qSlerp(
+              a.quat,
+              b.quat,
+              t,
+            ),
+
+            lerp3(
+              a.pos,
+              b.pos,
+              t,
+            ),
+          );
+      }
+
+      return pose;
+    }
+
+    const motions = {};
+
+    let activeMotionState =
+      "idle";
+
+    let motionBlendFrom =
+      null;
+
+    let motionBlendElapsed =
+      1;
+
+    const MOTION_BLEND =
+      0.12;
+
+    function poseForState(
+      state,
+      elapsed,
+    ) {
+      const pose =
+        new Array(
+          pmx.bones.length,
+        );
+
+      for (
+        let i = 0;
+        i < pose.length;
+        i++
+      ) {
+        pose[i] =
+          makePose();
+      }
+
+      const motion =
+        state === "walk"
+          ? motions.walk
+          : state === "run"
+            ? motions.run
+            : state === "dodge"
+              ? motions.dash
+              : null;
+
+      if (motion) {
+        const span =
+          Math.max(
+            1,
+            motion.maxFrame -
+              motion.minFrame +
+              1,
+          );
+
+        const frame =
+          motion.minFrame +
+          (
+            (elapsed * 30) %
+            span
+          );
+
+        return sampleVMD(
+          motion,
+          frame,
+        );
+      }
+
+      const t =
+        elapsed;
+
+      const set = (
+        names,
+        x,
+        y,
+        z,
+      ) => {
+        const bi =
+          findBoneIndex(
+            ...names,
+          );
+
+        if (
+          bi === undefined ||
+          bi < 0
+        ) {
+          return;
+        }
+
+        pose[bi] =
+          makePose(
+            eulerToQuat(
+              x,
+              y,
+              z,
+            ),
+          );
+      };
+
+      set(
+        ["左肩"],
+        0.01,
+        0,
+        0.025 *
+          Math.sin(
+            t * 1.6,
+          ),
+      );
+
+      set(
+        ["右肩"],
+        -0.01,
+        0,
+        -0.025 *
+          Math.sin(
+            t * 1.6,
+          ),
+      );
+
+      set(
+        ["上半身"],
+        0.01 *
+          Math.sin(
+            t * 1.6,
+          ),
+        0,
+        0.006 *
+          Math.cos(
+            t * 1.6,
+          ),
+      );
+
+      return pose;
+    }
+
+    function blendPose(
+      a,
+      b,
+      t,
+    ) {
+      const out =
+        new Array(
+          pmx.bones.length,
+        );
+
+      for (
+        let i = 0;
+        i < out.length;
+        i++
+      ) {
+        const pa =
+          a?.[i] ||
+          makePose();
+
+        const pb =
+          b?.[i] ||
+          makePose();
+
+        out[i] =
+          makePose(
+            qSlerp(
+              pa.q,
+              pb.q,
+              t,
+            ),
+
+            lerp3(
+              pa.p,
+              pb.p,
+              t,
+            ),
+          );
+      }
+
+      return out;
+    }
+
+    function applyMotionPose() {
+      const target =
+        poseForState(
+          activeMotionState,
+          motionStateTime,
+        );
+
+      let pose =
+        target;
+
+      if (
+        motionBlendFrom &&
+        motionBlendElapsed <
+          MOTION_BLEND
+      ) {
+        pose =
+          blendPose(
+            motionBlendFrom,
+            target,
+            Math.min(
+              1,
+              motionBlendElapsed /
+                MOTION_BLEND,
+            ),
+          );
+      }
+
+      for (
+        let i = 0;
+        i < pmx.bones.length;
+        i++
+      ) {
+        pmx.bones[i]
+          .poseQ =
+          pose[i]?.q ||
+          [
+            0,
+            0,
+            0,
+            1,
+          ];
+
+        pmx.bones[i]
+          .poseP =
+          pose[i]?.p ||
+          [
+            0,
+            0,
+            0,
+          ];
+      }
+    }
+
+    async function initMotions() {
+      loading.textContent =
+        "移動VMDを読み込み中…";
+
+      const [
+        walk,
+        run,
+        dashVmd,
+      ] =
+        await Promise.all([
+          loadVMD(
+            MOTION_PATHS.walk,
+          ),
+
+          loadVMD(
+            MOTION_PATHS.run,
+          ),
+
+          loadVMD(
+            MOTION_PATHS.dash,
+          ),
+        ]);
+
+      motions.walk =
+        walk;
+
+      motions.run =
+        run;
+
+      motions.dash =
+        dashVmd;
+
+      loading.textContent =
+        `移動VMD読込完了：歩き ${walk.tracks.size}` +
+        ` / 走り ${run.tracks.size}` +
+        ` / ダッシュ ${dashVmd.tracks.size} ボーン`;
+    }
+
+
+    /* =========================================================
+       QUATERNION / IK
+    ========================================================= */
+
+    function matToQuat(m) {
+      const tr =
+        m[0] +
+        m[5] +
+        m[10];
+
+      let x;
+      let y;
+      let z;
+      let w;
+
+      if (tr > 0) {
+        const q =
+          Math.sqrt(
+            tr + 1,
+          ) * 2;
+
+        w =
+          0.25 * q;
+
+        x =
+          (m[6] - m[9]) /
+          q;
+
+        y =
+          (m[8] - m[2]) /
+          q;
+
+        z =
+          (m[1] - m[4]) /
+          q;
+      } else if (
+        m[0] > m[5] &&
+        m[0] > m[10]
+      ) {
+        const q =
+          Math.sqrt(
+            1 +
+              m[0] -
+              m[5] -
+              m[10],
+          ) * 2;
+
+        w =
+          (m[6] - m[9]) /
+          q;
+
+        x =
+          0.25 * q;
+
+        y =
+          (m[4] + m[1]) /
+          q;
+
+        z =
+          (m[8] + m[2]) /
+          q;
+      } else if (
+        m[5] > m[10]
+      ) {
+        const q =
+          Math.sqrt(
+            1 +
+              m[5] -
+              m[0] -
+              m[10],
+          ) * 2;
+
+        w =
+          (m[8] - m[2]) /
+          q;
+
+        x =
+          (m[4] + m[1]) /
+          q;
+
+        y =
+          0.25 * q;
+
+        z =
+          (m[9] + m[6]) /
+          q;
+      } else {
+        const q =
+          Math.sqrt(
+            1 +
+              m[10] -
+              m[0] -
+              m[5],
+          ) * 2;
+
+        w =
+          (m[1] - m[4]) /
+          q;
+
+        x =
+          (m[8] + m[2]) /
+          q;
+
+        y =
+          (m[9] + m[6]) /
+          q;
+
+        z =
+          0.25 * q;
+      }
+
+      return qNormalize([
+        x,
+        y,
+        z,
+        w,
+      ]);
+    }
+
+    function qMul(a, b) {
+      return qNormalize([
+        a[3] * b[0] +
+          a[0] * b[3] +
+          a[1] * b[2] -
+          a[2] * b[1],
+
+        a[3] * b[1] -
+          a[0] * b[2] +
+          a[1] * b[3] +
+          a[2] * b[0],
+
+        a[3] * b[2] +
+          a[0] * b[1] -
+          a[1] * b[0] +
+          a[2] * b[3],
+
+        a[3] * b[3] -
+          a[0] * b[0] -
+          a[1] * b[1] -
+          a[2] * b[2],
+      ]);
+    }
+
+    function qInv(q) {
+      return [
+        -q[0],
+        -q[1],
+        -q[2],
+        q[3],
+      ];
+    }
+
+    function qFromTo(a, b) {
+      const va =
+        norm(a);
+
+      const vb =
+        norm(b);
+
+      const d =
         Math.max(
           -1,
           Math.min(
             1,
-            sinp
-          )
-        )
-      );
-  }
-
-  const siny =
-    2 *
-    (
-      w * z +
-      x * y
-    );
-
-  const cosy =
-    1 -
-    2 *
-    (
-      y * y +
-      z * z
-    );
-
-  const yaw =
-    Math.atan2(
-      siny,
-      cosy
-    );
-
-  return [
-    roll,
-    pitch,
-    yaw
-  ];
-}
-
-function applyIKLinkLimit(
-  joint,
-  q,
-  link
-) {
-
-  let result =
-    qNormalize(q);
-
-  if (
-    link?.limited &&
-    link.min &&
-    link.max
-  ) {
-
-    const e =
-      qToEulerXYZ(
-        result
-      );
-
-    let x =
-      Math.max(
-        link.min[0],
-        Math.min(
-          link.max[0],
-          e[0]
-        )
-      );
-
-    let y =
-      Math.max(
-        link.min[1],
-        Math.min(
-          link.max[1],
-          e[1]
-        )
-      );
-
-    let z =
-      Math.max(
-        link.min[2],
-        Math.min(
-          link.max[2],
-          e[2]
-        )
-      );
-
-    result =
-      eulerToQuat(
-        x,
-        y,
-        z
-      );
-  }
-
-  const name =
-    normalizeBoneName(
-      pmx.bones[joint]
-        ?.name || ""
-    );
-
-  if (
-
-    name.includes(
-      "左ひざ"
-    ) ||
-
-    name.includes(
-      "右ひざ"
-    ) ||
-
-    name.includes(
-      "左膝"
-    ) ||
-
-    name.includes(
-      "右膝"
-    ) ||
-
-    name.includes(
-      "左ひざD"
-    ) ||
-
-    name.includes(
-      "右ひざD"
-    ) ||
-
-    name.includes(
-      "左膝D"
-    ) ||
-
-    name.includes(
-      "右膝D"
-    )
-
-  ) {
-
-    const e =
-      qToEulerXYZ(
-        result
-      );
-
-    let minX =
-      -Math.PI;
-
-    let maxX =
-      -0.0087266;
-
-    if (
-      link?.limited &&
-      link.min &&
-      link.max
-    ) {
-
-      minX =
-        link.min[0];
-
-      maxX =
-        link.max[0];
-    }
-
-    const x =
-      Math.max(
-        minX,
-        Math.min(
-          maxX,
-          e[0]
-        )
-      );
-
-    result =
-      eulerToQuat(
-        x,
-        e[1],
-        e[2]
-      );
-  }
-
-  return result;
-}
-
-
-/* =========================================================
-   WORLD BONE MATRICES
-========================================================= */
-
-function buildWorld() {
-
-  const world = [];
-
-  for (
-    let i = 0;
-    i < pmx.bones.length;
-    i++
-  ) {
-
-    const b =
-      pmx.bones[i];
-
-    const p =
-      b.parent;
-
-    const base =
-      p >= 0
-        ? [
-
-            b.pos[0] -
-              pmx.bones[p]
-                .pos[0],
-
-            b.pos[1] -
-              pmx.bones[p]
-                .pos[1],
-
-            b.pos[2] -
-              pmx.bones[p]
-                .pos[2]
-
-          ]
-        : b.pos.slice();
-
-    /*
-     * posePは今回すべてゼロ。
-     */
-    const local =
-      mm(
-
-        mt(
-          base[0],
-          base[1],
-          base[2]
-        ),
-
-        quatToMat(
-          b.poseQ ||
-          [
-            0,
-            0,
-            0,
-            1
-          ]
-        )
-
-      );
-
-    world[i] =
-      p >= 0
-        ? mm(
-            world[p],
-            local
-          )
-        : local;
-  }
-
-  return world;
-}
-
-
-/* =========================================================
-   FOOT IK
-========================================================= */
-
-function solveFootIK(
-  world,
-  ikName
-) {
-
-  const ik =
-    findBoneIndex(
-      ikName
-    );
-
-  if (
-    ik === undefined ||
-    ik < 0
-  ) {
-    return false;
-  }
-
-  const def =
-    pmx.bones[ik]?.ik;
-
-  if (
-    !def ||
-    !def.links ||
-    def.links.length <
-      1
-  ) {
-    return false;
-  }
-
-  const targetBone =
-    def.target;
-
-  if (
-    targetBone < 0 ||
-    targetBone >=
-      pmx.bones.length
-  ) {
-    return false;
-  }
-
-  const target =
-    mulPoint(
-      world[ik],
-      [0, 0, 0]
-    );
-
-  const iterations =
-    ikName.includes(
-      "つま先"
-    )
-      ? 7
-      : 10;
-
-  for (
-    let iter = 0;
-    iter < iterations;
-    iter++
-  ) {
-
-    for (
-      const rawLink of
-        def.links
-    ) {
-
-      const link =
-        typeof rawLink ===
-        "number"
-          ? {
-              bone:
-                rawLink,
-
-              limited:
-                false,
-
-              min:
-                null,
-
-              max:
-                null
-            }
-          : rawLink;
-
-      const joint =
-        link.bone;
+            dot(
+              va,
+              vb,
+            ),
+          ),
+        );
 
       if (
-        joint ===
-          undefined ||
-        joint < 0 ||
-        joint >=
+        d > 0.9999
+      ) {
+        return [
+          0,
+          0,
+          0,
+          1,
+        ];
+      }
+
+      if (
+        d < -0.9999
+      ) {
+        let axis =
+          cross(
+            [1, 0, 0],
+            va,
+          );
+
+        if (
+          Math.hypot(
+            ...axis,
+          ) < 0.001
+        ) {
+          axis =
+            cross(
+              [0, 1, 0],
+              va,
+            );
+        }
+
+        axis =
+          norm(axis);
+
+        return [
+          axis[0],
+          axis[1],
+          axis[2],
+          0,
+        ];
+      }
+
+      const c =
+        cross(
+          va,
+          vb,
+        );
+
+      return qNormalize([
+        c[0],
+        c[1],
+        c[2],
+        1 + d,
+      ]);
+    }
+
+
+    /* =========================================================
+       QUAT -> EULER
+    ========================================================= */
+
+    function qToEulerXYZ(q) {
+      const x =
+        q[0];
+
+      const y =
+        q[1];
+
+      const z =
+        q[2];
+
+      const w =
+        q[3];
+
+      const sinr =
+        2 *
+        (
+          w * x +
+          y * z
+        );
+
+      const cosr =
+        1 -
+        2 *
+          (
+            x * x +
+            y * y
+          );
+
+      const roll =
+        Math.atan2(
+          sinr,
+          cosr,
+        );
+
+      const sinp =
+        2 *
+        (
+          w * y -
+          z * x
+        );
+
+      let pitch;
+
+      if (
+        Math.abs(
+          sinp,
+        ) >=
+        0.999999
+      ) {
+        pitch =
+          (
+            Math.sign(
+              sinp,
+            ) *
+            Math.PI
+          ) /
+          2;
+      } else {
+        pitch =
+          Math.asin(
+            Math.max(
+              -1,
+              Math.min(
+                1,
+                sinp,
+              ),
+            ),
+          );
+      }
+
+      const siny =
+        2 *
+        (
+          w * z +
+          x * y
+        );
+
+      const cosy =
+        1 -
+        2 *
+          (
+            y * y +
+            z * z
+          );
+
+      const yaw =
+        Math.atan2(
+          siny,
+          cosy,
+        );
+
+      return [
+        roll,
+        pitch,
+        yaw,
+      ];
+    }
+
+
+    /* =========================================================
+       IK LINK LIMIT
+    ========================================================= */
+
+    function applyIKLinkLimit(
+      joint,
+      q,
+      link,
+    ) {
+      let result =
+        qNormalize(q);
+
+      if (
+        link?.limited &&
+        link.min &&
+        link.max
+      ) {
+        let e =
+          qToEulerXYZ(
+            result,
+          );
+
+        let x =
+          e[0];
+
+        let y =
+          e[1];
+
+        let z =
+          e[2];
+
+        x =
+          Math.max(
+            link.min[0],
+            Math.min(
+              link.max[0],
+              x,
+            ),
+          );
+
+        y =
+          Math.max(
+            link.min[1],
+            Math.min(
+              link.max[1],
+              y,
+            ),
+          );
+
+        z =
+          Math.max(
+            link.min[2],
+            Math.min(
+              link.max[2],
+              z,
+            ),
+          );
+
+        result =
+          eulerToQuat(
+            x,
+            y,
+            z,
+          );
+      }
+
+      const name =
+        normalizeBoneName(
+          pmx.bones[joint]
+            ?.name || "",
+        );
+
+      if (
+        name.includes(
+          "左ひざ",
+        ) ||
+        name.includes(
+          "右ひざ",
+        ) ||
+        name.includes(
+          "左膝",
+        ) ||
+        name.includes(
+          "右膝",
+        ) ||
+        name.includes(
+          "左ひざD",
+        ) ||
+        name.includes(
+          "右ひざD",
+        ) ||
+        name.includes(
+          "左膝D",
+        ) ||
+        name.includes(
+          "右膝D",
+        )
+      ) {
+        const e =
+          qToEulerXYZ(
+            result,
+          );
+
+        let minX =
+          -Math.PI;
+
+        let maxX =
+          -0.0087266;
+
+        if (
+          link?.limited &&
+          link.min &&
+          link.max
+        ) {
+          minX =
+            link.min[0];
+
+          maxX =
+            link.max[0];
+        }
+
+        const x =
+          Math.max(
+            minX,
+            Math.min(
+              maxX,
+              e[0],
+            ),
+          );
+
+        result =
+          eulerToQuat(
+            x,
+            e[1],
+            e[2],
+          );
+      }
+
+      return result;
+    }
+
+
+    /* =========================================================
+       WORLD BONE MATRICES
+    ========================================================= */
+
+    function buildWorld() {
+      const world = [];
+
+      for (
+        let i = 0;
+        i < pmx.bones.length;
+        i++
+      ) {
+        const b =
+          pmx.bones[i];
+
+        const p =
+          b.parent;
+
+        const base =
+          p >= 0
+            ? [
+                b.pos[0] -
+                  pmx.bones[p]
+                    .pos[0],
+
+                b.pos[1] -
+                  pmx.bones[p]
+                    .pos[1],
+
+                b.pos[2] -
+                  pmx.bones[p]
+                    .pos[2],
+              ]
+            : b.pos.slice();
+
+        const pp =
+          b.poseP || [
+            0,
+            0,
+            0,
+          ];
+
+        const local =
+          mm(
+            mt(
+              base[0] +
+                pp[0],
+
+              base[1] +
+                pp[1],
+
+              base[2] +
+                pp[2],
+            ),
+
+            quatToMat(
+              b.poseQ ||
+                [
+                  0,
+                  0,
+                  0,
+                  1,
+                ],
+            ),
+          );
+
+        world[i] =
+          p >= 0
+            ? mm(
+                world[p],
+                local,
+              )
+            : local;
+      }
+
+      return world;
+    }
+
+
+    /* =========================================================
+       PMX IK SOLVER
+    ========================================================= */
+
+    function solveFootIK(
+      world,
+      ikName,
+    ) {
+      const ik =
+        findBoneIndex(
+          ikName,
+        );
+
+      if (
+        ik === undefined ||
+        ik < 0
+      ) {
+        return false;
+      }
+
+      const def =
+        pmx.bones[ik]?.ik;
+
+      if (
+        !def ||
+        !def.links ||
+        def.links.length <
+          1
+      ) {
+        return false;
+      }
+
+      const targetBone =
+        def.target;
+
+      if (
+        targetBone < 0 ||
+        targetBone >=
           pmx.bones.length
       ) {
-        continue;
+        return false;
       }
 
-      const jointPos =
+      const target =
         mulPoint(
-          world[joint],
-          [0, 0, 0]
+          world[ik],
+          [0, 0, 0],
         );
 
-      const endPos =
-        mulPoint(
-          world[
-            targetBone
-          ],
-          [0, 0, 0]
-        );
-
-      const toEnd =
-        sub(
-          endPos,
-          jointPos
-        );
-
-      const toTarget =
-        sub(
-          target,
-          jointPos
-        );
-
-      if (
-        Math.hypot(
-          ...toEnd
-        ) < 1e-5 ||
-        Math.hypot(
-          ...toTarget
-        ) < 1e-5
-      ) {
-        continue;
-      }
-
-      let delta =
-        qFromTo(
-          toEnd,
-          toTarget
-        );
-
-      const strength =
+      const iterations =
         ikName.includes(
-          "つま先"
+          "つま先",
         )
-          ? 0.5
-          : 0.28;
+          ? 7
+          : 10;
 
-      delta =
-        qSlerp(
-          [
-            0,
-            0,
-            0,
-            1
-          ],
-          delta,
-          strength
-        );
+      for (
+        let iter = 0;
+        iter < iterations;
+        iter++
+      ) {
+        for (
+          const rawLink of
+            def.links
+        ) {
+          const link =
+            typeof rawLink ===
+            "number"
+              ? {
+                  bone: rawLink,
+                  limited: false,
+                  min: null,
+                  max: null,
+                }
+              : rawLink;
 
-      const jointWorldQ =
-        matToQuat(
-          world[joint]
-        );
+          const joint =
+            link.bone;
 
-      const desiredWorldQ =
-        qMul(
-          delta,
-          jointWorldQ
-        );
+          if (
+            joint ===
+              undefined ||
+            joint < 0 ||
+            joint >=
+              pmx.bones.length
+          ) {
+            continue;
+          }
 
-      const parent =
-        pmx.bones[joint]
-          .parent;
+          const jointPos =
+            mulPoint(
+              world[joint],
+              [0, 0, 0],
+            );
 
-      const parentWorldQ =
-        parent >= 0
-          ? matToQuat(
-              world[parent]
+          const endPos =
+            mulPoint(
+              world[
+                targetBone
+              ],
+              [0, 0, 0],
+            );
+
+          const toEnd =
+            sub(
+              endPos,
+              jointPos,
+            );
+
+          const toTarget =
+            sub(
+              target,
+              jointPos,
+            );
+
+          if (
+            Math.hypot(
+              ...toEnd,
+            ) < 1e-5 ||
+            Math.hypot(
+              ...toTarget,
+            ) < 1e-5
+          ) {
+            continue;
+          }
+
+          let delta =
+            qFromTo(
+              toEnd,
+              toTarget,
+            );
+
+          const strength =
+            ikName.includes(
+              "つま先",
             )
-          : [
-              0,
-              0,
-              0,
-              1
-            ];
+              ? 0.5
+              : 0.28;
 
-      let localQ =
-        qMul(
-          qInv(
-            parentWorldQ
-          ),
-          desiredWorldQ
-        );
+          delta =
+            qSlerp(
+              [
+                0,
+                0,
+                0,
+                1,
+              ],
+              delta,
+              strength,
+            );
 
-      localQ =
-        applyIKLinkLimit(
-          joint,
-          localQ,
-          link
-        );
+          const jointWorldQ =
+            matToQuat(
+              world[joint],
+            );
 
-      pmx.bones[
-        joint
-      ].poseQ =
-        localQ;
+          const desiredWorldQ =
+            qMul(
+              delta,
+              jointWorldQ,
+            );
 
-      const rebuilt =
+          const parent =
+            pmx.bones[joint]
+              .parent;
+
+          const parentWorldQ =
+            parent >= 0
+              ? matToQuat(
+                  world[parent],
+                )
+              : [
+                  0,
+                  0,
+                  0,
+                  1,
+                ];
+
+          let localQ =
+            qMul(
+              qInv(
+                parentWorldQ,
+              ),
+              desiredWorldQ,
+            );
+
+          localQ =
+            applyIKLinkLimit(
+              joint,
+              localQ,
+              link,
+            );
+
+          pmx.bones[
+            joint
+          ].poseQ =
+            localQ;
+
+          const rebuilt =
+            buildWorld();
+
+          world.splice(
+            0,
+            world.length,
+            ...rebuilt,
+          );
+        }
+
+        const endPos =
+          mulPoint(
+            world[targetBone],
+            [0, 0, 0],
+          );
+
+        const error =
+          Math.hypot(
+            endPos[0] -
+              target[0],
+
+            endPos[1] -
+              target[1],
+
+            endPos[2] -
+              target[2],
+          );
+
+        if (
+          error < 0.025
+        ) {
+          break;
+        }
+      }
+
+      return true;
+    }
+
+
+    /* =========================================================
+       D BONE SYNCHRONIZATION
+    ========================================================= */
+
+    const deformMirrorPairs = [
+      [
+        "左足",
+        "左足D",
+      ],
+
+      [
+        "左ひざ",
+        "左ひざD",
+      ],
+
+      [
+        "左足首",
+        "左足首D",
+      ],
+
+      [
+        "右足",
+        "右足D",
+      ],
+
+      [
+        "右ひざ",
+        "右ひざD",
+      ],
+
+      [
+        "右足首",
+        "右足首D",
+      ],
+    ]
+      .map(
+        ([src, dst]) => [
+          findBoneIndex(src),
+          findBoneIndex(dst),
+        ],
+      )
+      .filter(
+        ([src, dst]) =>
+          src !== undefined &&
+          dst !== undefined &&
+          src >= 0 &&
+          dst >= 0,
+      );
+
+    function syncDeformLegsFromSource() {
+      for (
+        const [
+          src,
+          dst,
+        ] of deformMirrorPairs
+      ) {
+        if (
+          src < 0 ||
+          dst < 0
+        ) {
+          continue;
+        }
+
+        pmx.bones[
+          dst
+        ].poseQ =
+          pmx.bones[
+            src
+          ].poseQ.slice();
+
+        pmx.bones[
+          dst
+        ].poseP =
+          pmx.bones[
+            src
+          ].poseP.slice();
+      }
+    }
+
+
+    /* =========================================================
+       FINAL BONE MATRICES
+    ========================================================= */
+
+    function boneMatrices() {
+      applyMotionPose();
+
+      let world =
         buildWorld();
 
-      world.splice(
-        0,
-        world.length,
-        ...rebuilt
-      );
+      if (
+        activeMotionState ===
+          "walk" ||
+        activeMotionState ===
+          "run" ||
+        activeMotionState ===
+          "dodge"
+      ) {
+        solveFootIK(
+          world,
+          "左足ＩＫ",
+        );
+
+        solveFootIK(
+          world,
+          "右足ＩＫ",
+        );
+
+        world =
+          buildWorld();
+
+        solveFootIK(
+          world,
+          "左つま先ＩＫ",
+        );
+
+        solveFootIK(
+          world,
+          "右つま先ＩＫ",
+        );
+
+        world =
+          buildWorld();
+      }
+
+      syncDeformLegsFromSource();
+
+      world =
+        buildWorld();
+
+      const out =
+        new Float32Array(
+          pmx.bones.length *
+            16,
+        );
+
+      for (
+        let i = 0;
+        i < pmx.bones.length;
+        i++
+      ) {
+        out.set(
+          mm(
+            world[i],
+            invBind[i],
+          ),
+          i * 16,
+        );
+      }
+
+      return out;
     }
 
-    const endPos =
-      mulPoint(
-        world[targetBone],
-        [0, 0, 0]
-      );
 
-    const error =
-      Math.hypot(
+    /* =========================================================
+       GROUND
+    ========================================================= */
 
-        endPos[0] -
-          target[0],
+    const GROUND_SIZE =
+      100;
 
-        endPos[1] -
-          target[1],
-
-        endPos[2] -
-          target[2]
-
-      );
-
-    if (
-      error < 0.025
-    ) {
-      break;
-    }
-  }
-
-  return true;
-}
-
-
-/* =========================================================
-   D BONE
-========================================================= */
-
-const deformMirrorPairs = [
-
-  [
-    "左足",
-    "左足D"
-  ],
-
-  [
-    "左ひざ",
-    "左ひざD"
-  ],
-
-  [
-    "左足首",
-    "左足首D"
-  ],
-
-  [
-    "右足",
-    "右足D"
-  ],
-
-  [
-    "右ひざ",
-    "右ひざD"
-  ],
-
-  [
-    "右足首",
-    "右足首D"
-  ]
-
-]
-  .map(
-    ([src, dst]) => [
-
-      findBoneIndex(src),
-
-      findBoneIndex(dst)
-
-    ]
-  )
-  .filter(
-    ([src, dst]) =>
-
-      src !==
-        undefined &&
-
-      dst !==
-        undefined &&
-
-      src >= 0 &&
-      dst >= 0
-  );
-
-function syncDeformLegsFromSource() {
-
-  for (
-    const [
-      src,
-      dst
-    ] of deformMirrorPairs
-  ) {
-
-    if (
-      src < 0 ||
-      dst < 0
-    ) {
-      continue;
-    }
-
-    pmx.bones[dst].poseQ =
-      pmx.bones[
-        src
-      ].poseQ.slice();
-
-    pmx.bones[dst].poseP =
-      [
+    const groundVerts =
+      new Float32Array([
+        -GROUND_SIZE,
         0,
+        -GROUND_SIZE,
+
+         GROUND_SIZE,
         0,
-        0
-      ];
-  }
-}
+        -GROUND_SIZE,
 
+         GROUND_SIZE,
+        0,
+         GROUND_SIZE,
 
-/* =========================================================
-   FINAL BONE MATRICES
-========================================================= */
+        -GROUND_SIZE,
+        0,
+        -GROUND_SIZE,
 
-function boneMatrices() {
+         GROUND_SIZE,
+        0,
+         GROUND_SIZE,
 
-  applyMotionPose();
+        -GROUND_SIZE,
+        0,
+         GROUND_SIZE,
+      ]);
 
-  let world =
-    buildWorld();
+    const groundVB =
+      device.createBuffer({
+        size:
+          groundVerts.byteLength,
 
-  if (
+        usage:
+          GPUBufferUsage.VERTEX |
+          GPUBufferUsage.COPY_DST,
+      });
 
-    activeMotionState ===
-      "walk" ||
-
-    activeMotionState ===
-      "run" ||
-
-    activeMotionState ===
-      "dodge"
-
-  ) {
-
-    solveFootIK(
-      world,
-      "左足ＩＫ"
+    device.queue.writeBuffer(
+      groundVB,
+      0,
+      groundVerts,
     );
 
-    solveFootIK(
-      world,
-      "右足ＩＫ"
-    );
-
-    world =
-      buildWorld();
-
-    solveFootIK(
-      world,
-      "左つま先ＩＫ"
-    );
-
-    solveFootIK(
-      world,
-      "右つま先ＩＫ"
-    );
-
-    world =
-      buildWorld();
-  }
-
-  syncDeformLegsFromSource();
-
-  world =
-    buildWorld();
-
-  const out =
-    new Float32Array(
-      pmx.bones.length *
-      16
-    );
-
-  for (
-    let i = 0;
-    i < pmx.bones.length;
-    i++
-  ) {
-
-    out.set(
-      mm(
-        world[i],
-        invBind[i]
-      ),
-      i * 16
-    );
-  }
-
-  return out;
-}
-
-
-/* =========================================================
-   GROUND
-========================================================= */
-
-const GROUND_SIZE =
-  100;
-
-const groundVerts =
-  new Float32Array([
-
-    -GROUND_SIZE,
-    0,
-    -GROUND_SIZE,
-
-     GROUND_SIZE,
-    0,
-    -GROUND_SIZE,
-
-     GROUND_SIZE,
-    0,
-     GROUND_SIZE,
-
-    -GROUND_SIZE,
-    0,
-    -GROUND_SIZE,
-
-     GROUND_SIZE,
-    0,
-     GROUND_SIZE,
-
-    -GROUND_SIZE,
-    0,
-     GROUND_SIZE
-
-  ]);
-
-const groundVB =
-  device.createBuffer({
-
-    size:
-      groundVerts.byteLength,
-
-    usage:
-      GPUBufferUsage.VERTEX |
-      GPUBufferUsage.COPY_DST
-
-  });
-
-device.queue.writeBuffer(
-  groundVB,
-  0,
-  groundVerts
-);
-
-const groundShader = `
-
+    const groundShader = `
 struct U {
   vp: mat4x4f,
   model: mat4x4f
 };
 
 struct O {
-
-  @builtin(position)
-  p: vec4f,
-
-  @location(0)
-  worldPos: vec3f
-
+  @builtin(position) p: vec4f,
+  @location(0) worldPos: vec3f
 };
 
-@group(0)
-@binding(0)
-
-var<uniform>
-u: U;
+@group(0) @binding(0)
+var<uniform> u: U;
 
 @vertex
-
 fn vs(
-  @location(0)
-  p: vec3f
-)
--> O
-{
+  @location(0) p: vec3f
+) -> O {
 
   var o: O;
 
@@ -4866,20 +4554,18 @@ fn vs(
 }
 
 @fragment
-
 fn fs(i: O)
--> @location(0) vec4f
-{
+  -> @location(0) vec4f {
 
   let cell =
-    i.worldPos.xz /
-    10.0;
+    i.worldPos.xz / 10.0;
 
   let f =
     abs(
       fract(
         cell - 0.5
-      ) - 0.5
+      ) -
+      0.5
     );
 
   let line =
@@ -4893,15 +4579,15 @@ fn fs(i: O)
       )
     );
 
-  let major =
-    i.worldPos.xz /
-    50.0;
+  let majorCell =
+    i.worldPos.xz / 50.0;
 
   let mf =
     abs(
       fract(
-        major - 0.5
-      ) - 0.5
+        majorCell - 0.5
+      ) -
+      0.5
     );
 
   let majorLine =
@@ -4926,14 +4612,14 @@ fn fs(i: O)
     vec3f(
       0.075,
       0.105,
-      0.16
+      0.160
     );
 
   let majorGrid =
     vec3f(
-      0.12,
-      0.15,
-      0.22
+      0.120,
+      0.150,
+      0.220
     );
 
   let c =
@@ -4954,1459 +4640,1593 @@ fn fs(i: O)
 }
 `;
 
-const gsm =
-  device.createShaderModule({
-    code:
-      groundShader
-  });
+    const gsm =
+      device.createShaderModule({
+        code:
+          groundShader,
+      });
 
-const gbgl =
-  device.createBindGroupLayout({
+    const gbgl =
+      device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
 
-    entries: [
+            visibility:
+              GPUShaderStage.VERTEX,
 
-      {
-        binding: 0,
+            buffer: {
+              type:
+                "uniform",
+            },
+          },
+        ],
+      });
 
-        visibility:
-          GPUShaderStage.VERTEX,
+    const glayout =
+      device.createPipelineLayout({
+        bindGroupLayouts: [
+          gbgl,
+        ],
+      });
 
-        buffer: {
-          type:
-            "uniform"
-        }
-      }
+    const gpipe =
+      device.createRenderPipeline({
+        layout: glayout,
 
-    ]
+        vertex: {
+          module: gsm,
+          entryPoint: "vs",
 
-  });
-
-const glayout =
-  device.createPipelineLayout({
-
-    bindGroupLayouts: [
-      gbgl
-    ]
-
-  });
-
-const gpipe =
-  device.createRenderPipeline({
-
-    layout:
-      glayout,
-
-    vertex: {
-
-      module:
-        gsm,
-
-      entryPoint:
-        "vs",
-
-      buffers: [
-
-        {
-
-          arrayStride:
-            12,
-
-          attributes: [
-
+          buffers: [
             {
-
-              shaderLocation:
-                0,
-
-              format:
-                "float32x3",
-
-              offset:
-                0
-
-            }
-
-          ]
-
-        }
-
-      ]
-
-    },
-
-    fragment: {
-
-      module:
-        gsm,
-
-      entryPoint:
-        "fs",
-
-      targets: [
-
-        {
-          format
-        }
-
-      ]
-
-    },
-
-    primitive: {
-
-      topology:
-        "triangle-list",
-
-      cullMode:
-        "none"
-
-    },
-
-    depthStencil: {
-
-      format:
-        "depth24plus",
-
-      depthWriteEnabled:
-        true,
-
-      depthCompare:
-        "less"
-
-    }
-
-  });
-
-const gbind =
-  device.createBindGroup({
-
-    layout:
-      gbgl,
-
-    entries: [
-
-      {
-
-        binding: 0,
-
-        resource: {
-
-          buffer:
-            camBuf
-
-        }
-
-      }
-
-    ]
-
-  });
-
-
-/* =========================================================
-   INPUT
-========================================================= */
-
-const keys = {};
-
-addEventListener(
-  "keydown",
-  (e) => {
-
-    keys[
-      e.key.toLowerCase()
-    ] = true;
-
-    keys[
-      e.code.toLowerCase()
-    ] = true;
-
-    if (
-      [
-        " ",
-        "arrowup",
-        "arrowdown",
-        "arrowleft",
-        "arrowright"
-      ].includes(
-        e.key.toLowerCase()
-      )
-    ) {
-
-      e.preventDefault();
-    }
-
-    if (
-      e.key.toLowerCase() ===
-      "r"
-    ) {
-
-      reset();
-    }
-  }
-);
-
-addEventListener(
-  "keyup",
-  (e) => {
-
-    keys[
-      e.key.toLowerCase()
-    ] = false;
-
-    keys[
-      e.code.toLowerCase()
-    ] = false;
-  }
-);
-
-
-/* =========================================================
-   CAMERA
-========================================================= */
-
-let cameraYaw =
-  0;
-
-let cameraPitch =
-  0.48;
-
-let mouseCaptured =
-  false;
-
-canvas.addEventListener(
-  "click",
-  () => {
-
-    if (
-      document.pointerLockElement !==
-      canvas
-    ) {
-
-      canvas.requestPointerLock();
-    }
-
-  }
-);
-
-document.addEventListener(
-  "pointerlockchange",
-  () => {
-
-    mouseCaptured =
-      document.pointerLockElement ===
-      canvas;
-
-  }
-);
-
-document.addEventListener(
-  "mousemove",
-  (e) => {
-
-    if (!mouseCaptured) {
-      return;
-    }
-
-    /*
-     * マウスで変えるのは
-     * カメラだけ。
-     */
-
-    cameraYaw +=
-      e.movementX *
-      0.003;
-
-    cameraPitch =
-      Math.max(
-        0.18,
-        Math.min(
-          1.15,
-          cameraPitch +
-            e.movementY *
-            0.0025
-        )
-      );
-  }
-);
-
-
-/* =========================================================
-   GAME STATE
-========================================================= */
-
-let player;
-
-let enemies;
-
-let score;
-
-let wave;
-
-let hp;
-
-let stamina;
-
-let invuln;
-
-let dash;
-
-let dashDir;
-
-let spawn;
-
-let time;
-
-let animTime;
-
-let dead;
-
-let latched;
-
-let actionState;
-
-let actionTime;
-
-/*
- * キャラクターの向き。
- *
- * cameraYawとは別。
- */
-let playerFacing =
-  0;
-
-function reset() {
-
-  player = {
-
-    x: 0,
-
-    z: 0,
-
-    vx: 0,
-
-    vz: 0
-
-  };
-
-  enemies = [];
-
-  score = 0;
-
-  wave = 1;
-
-  hp = 100;
-
-  stamina = 100;
-
-  invuln = 0;
-
-  dash = 0;
-
-  dashDir = {
-
-    x: 0,
-
-    z: 1
-
-  };
-
-  spawn = 0.5;
-
-  time = 0;
-
-  animTime = 0;
-
-  actionState =
-    "idle";
-
-  actionTime = 0;
-
-  motionStateTime = 0;
-
-  activeMotionState =
-    "idle";
-
-  motionBlendFrom =
-    null;
-
-  motionBlendElapsed =
-    1;
-
-  cameraYaw = 0;
-
-  cameraPitch =
-    0.48;
-
-  /*
-   * 初期状態では
-   * キャラクターも
-   * カメラ正面を向く。
-   */
-  playerFacing =
-    cameraYaw;
-
-  dead = false;
-
-  latched = false;
-
-  msg.hidden = true;
+              arrayStride: 12,
+
+              attributes: [
+                {
+                  shaderLocation: 0,
+                  format:
+                    "float32x3",
+                  offset: 0,
+                },
+              ],
+            },
+          ],
+        },
+
+        fragment: {
+          module: gsm,
+          entryPoint: "fs",
+
+          targets: [
+            {
+              format,
+            },
+          ],
+        },
+
+        primitive: {
+          topology:
+            "triangle-list",
+
+          cullMode:
+            "none",
+        },
+
+        depthStencil: {
+          format:
+            "depth24plus",
+
+          depthWriteEnabled:
+            true,
+
+          depthCompare:
+            "less",
+        },
+      });
+
+    const gbind =
+      device.createBindGroup({
+        layout: gbgl,
+
+        entries: [
+          {
+            binding: 0,
+
+            resource: {
+              buffer:
+                camBuf,
+            },
+          },
+        ],
+      });
+
+
+    /* =========================================================
+       SHADOW
+    ========================================================= */
+
+    const shadowVerts =
+      new Float32Array([
+        -1.0,
+        0,
+        -0.55,
+
+         1.0,
+        0,
+        -0.55,
+
+         1.0,
+        0,
+         0.55,
+
+        -1.0,
+        0,
+        -0.55,
+
+         1.0,
+        0,
+         0.55,
+
+        -1.0,
+        0,
+         0.55,
+      ]);
+
+    const shadowVB =
+      device.createBuffer({
+        size:
+          shadowVerts.byteLength,
+
+        usage:
+          GPUBufferUsage.VERTEX |
+          GPUBufferUsage.COPY_DST,
+      });
+
+    device.queue.writeBuffer(
+      shadowVB,
+      0,
+      shadowVerts,
+    );
+
+    const shadowShader = `
+struct U {
+  vp: mat4x4f,
+  model: mat4x4f
+};
+
+struct O {
+  @builtin(position) p: vec4f
+};
+
+@group(0) @binding(0)
+var<uniform> u: U;
+
+@vertex
+fn vs(
+  @location(0) p: vec3f
+) -> O {
+
+  var o: O;
+
+  let wp =
+    u.model *
+    vec4f(
+      p,
+      1.0
+    );
+
+  o.p =
+    u.vp *
+    wp;
+
+  return o;
 }
 
+@fragment
+fn fs()
+  -> @location(0) vec4f {
 
-/* =========================================================
-   CAMERA RELATIVE MOVEMENT
-========================================================= */
-
-function getMoveDirection() {
-
-  let right =
-
-    (
-      keys.d ||
-      keys.arrowright
-        ? 1
-        : 0
-    ) -
-
-    (
-      keys.a ||
-      keys.arrowleft
-        ? 1
-        : 0
-    );
-
-  let forward =
-
-    (
-      keys.w ||
-      keys.arrowup
-        ? 1
-        : 0
-    ) -
-
-    (
-      keys.s ||
-      keys.arrowdown
-        ? 1
-        : 0
-    );
-
-  const len =
-    Math.hypot(
-      right,
-      forward
-    );
-
-  if (
-    len === 0
-  ) {
-
-    return {
-
-      x: 0,
-
-      z: 0
-
-    };
-  }
-
-  right /=
-    len;
-
-  forward /=
-    len;
-
-  /*
-   * cameraYawから
-   * カメラの前方向と右方向を作る。
-   *
-   * W = カメラ正面
-   * S = カメラ後方
-   * D = カメラ右
-   * A = カメラ左
-   */
-
-  const sinY =
-    Math.sin(
-      cameraYaw
-    );
-
-  const cosY =
-    Math.cos(
-      cameraYaw
-    );
-
-  const forwardX =
-    sinY;
-
-  const forwardZ =
-    -cosY;
-
-  const rightX =
-    cosY;
-
-  const rightZ =
-    sinY;
-
-  return {
-
-    x:
-      forwardX *
-        forward +
-
-      rightX *
-        right,
-
-    z:
-      forwardZ *
-        forward +
-
-      rightZ *
-        right
-
-  };
-}
-
-function directionAngle(
-  d
-) {
-
-  /*
-   * モデルの正面は -Z。
-   */
-  return Math.atan2(
-    d.x,
-    -d.z
+  return vec4f(
+    0.0,
+    0.0,
+    0.0,
+    0.30
   );
 }
+`;
+
+    const shsm =
+      device.createShaderModule({
+        code:
+          shadowShader,
+      });
+
+    const shbgl =
+      device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+
+            visibility:
+              GPUShaderStage.VERTEX,
+
+            buffer: {
+              type:
+                "uniform",
+            },
+          },
+        ],
+      });
+
+    const shlayout =
+      device.createPipelineLayout({
+        bindGroupLayouts: [
+          shbgl,
+        ],
+      });
+
+    const shadowPipe =
+      device.createRenderPipeline({
+        layout:
+          shlayout,
+
+        vertex: {
+          module: shsm,
+
+          entryPoint:
+            "vs",
+
+          buffers: [
+            {
+              arrayStride: 12,
+
+              attributes: [
+                {
+                  shaderLocation: 0,
+
+                  format:
+                    "float32x3",
+
+                  offset: 0,
+                },
+              ],
+            },
+          ],
+        },
+
+        fragment: {
+          module: shsm,
+
+          entryPoint:
+            "fs",
+
+          targets: [
+            {
+              format,
+
+              blend: {
+                color: {
+                  srcFactor:
+                    "src-alpha",
+
+                  dstFactor:
+                    "one-minus-src-alpha",
+
+                  operation:
+                    "add",
+                },
+
+                alpha: {
+                  srcFactor:
+                    "one",
+
+                  dstFactor:
+                    "one-minus-src-alpha",
+
+                  operation:
+                    "add",
+                },
+              },
+            },
+          ],
+        },
+
+        primitive: {
+          topology:
+            "triangle-list",
+
+          cullMode:
+            "none",
+        },
+
+        depthStencil: {
+          format:
+            "depth24plus",
+
+          depthWriteEnabled:
+            false,
+
+          depthCompare:
+            "less-equal",
+        },
+      });
+
+    const shadowBind =
+      device.createBindGroup({
+        layout:
+          shbgl,
+
+        entries: [
+          {
+            binding: 0,
+
+            resource: {
+              buffer:
+                camBuf,
+            },
+          },
+        ],
+      });
 
 
-/* =========================================================
-   DODGE
-========================================================= */
+    /* =========================================================
+       INPUT
+    ========================================================= */
 
-function dodge() {
+    const keys = {};
 
-  if (
-    dead ||
-    dash > 0 ||
-    stamina < 25
-  ) {
+    addEventListener(
+      "keydown",
+      (e) => {
+        keys[
+          e.key.toLowerCase()
+        ] = true;
 
-    return;
-  }
+        keys[
+          e.code.toLowerCase()
+        ] = true;
 
-  let d =
-    getMoveDirection();
+        if (
+          [
+            " ",
+            "arrowup",
+            "arrowdown",
+            "arrowleft",
+            "arrowright",
+          ].includes(
+            e.key.toLowerCase(),
+          )
+        ) {
+          e.preventDefault();
+        }
 
-  if (
-    !d.x &&
-    !d.z
-  ) {
+        if (
+          e.key.toLowerCase() ===
+          "r"
+        ) {
+          reset();
+        }
+      },
+    );
 
-    const speed =
-      Math.hypot(
-        player.vx,
-        player.vz
-      );
+    addEventListener(
+      "keyup",
+      (e) => {
+        keys[
+          e.key.toLowerCase()
+        ] = false;
 
-    if (
-      speed > 0.05
-    ) {
+        keys[
+          e.code.toLowerCase()
+        ] = false;
+      },
+    );
 
-      d = {
 
-        x:
-          player.vx /
-          speed,
+    /* =========================================================
+       CAMERA
+    ========================================================= */
 
-        z:
-          player.vz /
-          speed
+    let cameraYaw =
+      0;
 
+    let cameraPitch =
+      0.48;
+
+    let mouseCaptured =
+      false;
+
+    canvas.addEventListener(
+      "click",
+      () => {
+        if (
+          document.pointerLockElement !==
+          canvas
+        ) {
+          canvas.requestPointerLock();
+        }
+      },
+    );
+
+    document.addEventListener(
+      "pointerlockchange",
+      () => {
+        mouseCaptured =
+          document.pointerLockElement ===
+          canvas;
+      },
+    );
+
+    document.addEventListener(
+      "mousemove",
+      (e) => {
+        if (
+          !mouseCaptured
+        ) {
+          return;
+        }
+
+        /*
+         * カメラYaw/Pitchだけ変更。
+         * playerFacingは変更しない。
+         */
+
+        cameraYaw +=
+          e.movementX *
+          0.003;
+
+        cameraPitch =
+          Math.max(
+            0.18,
+            Math.min(
+              1.15,
+              cameraPitch +
+                e.movementY *
+                  0.0025,
+            ),
+          );
+      },
+    );
+
+
+    /* =========================================================
+       GAME STATE
+    ========================================================= */
+
+    let player;
+    let enemies;
+    let score;
+    let wave;
+    let hp;
+    let stamina;
+    let invuln;
+    let dash;
+    let dashDir;
+    let spawn;
+    let time;
+    let animTime;
+    let dead;
+    let latched;
+    let actionState;
+    let actionTime;
+
+    /*
+     * カメラの向きとは別の
+     * キャラクター自身の向き。
+     */
+
+    let playerFacing =
+      0;
+
+    let motionStateTime =
+      0;
+
+
+    function reset() {
+      player = {
+        x: 0,
+        z: 0,
+
+        vx: 0,
+        vz: 0,
       };
 
-    } else {
+      enemies = [];
 
-      d = {
+      score = 0;
+      wave = 1;
 
+      hp = 100;
+      stamina = 100;
+
+      invuln = 0;
+
+      dash = 0;
+
+      dashDir = {
+        x: 0,
+        z: 1,
+      };
+
+      spawn = 0.5;
+
+      time = 0;
+      animTime = 0;
+
+      actionState =
+        "idle";
+
+      actionTime = 0;
+
+      motionStateTime =
+        0;
+
+      activeMotionState =
+        "idle";
+
+      motionBlendFrom =
+        null;
+
+      motionBlendElapsed =
+        1;
+
+      dead = false;
+
+      latched = false;
+
+      /*
+       * 最初だけカメラと
+       * プレイヤー向きを一致。
+       */
+
+      cameraYaw = 0;
+
+      cameraPitch =
+        0.48;
+
+      playerFacing = 0;
+
+      msg.hidden = true;
+    }
+
+
+    /* =========================================================
+       MOVEMENT
+    ========================================================= */
+
+    function getMoveDirection() {
+      let right =
+        (
+          keys.d ||
+          keys.arrowright
+            ? 1
+            : 0
+        ) -
+        (
+          keys.a ||
+          keys.arrowleft
+            ? 1
+            : 0
+        );
+
+      let forward =
+        (
+          keys.w ||
+          keys.arrowup
+            ? 1
+            : 0
+        ) -
+        (
+          keys.s ||
+          keys.arrowdown
+            ? 1
+            : 0
+        );
+
+      const len =
+        Math.hypot(
+          right,
+          forward,
+        );
+
+      if (
+        len < 0.0001
+      ) {
+        return {
+          x: 0,
+          z: 0,
+        };
+      }
+
+      right /= len;
+      forward /= len;
+
+      /*
+       * カメラのYawだけを基準に
+       * 入力方向をワールド方向へ変換。
+       */
+
+      const sy =
+        Math.sin(
+          cameraYaw,
+        );
+
+      const cy =
+        Math.cos(
+          cameraYaw,
+        );
+
+      return {
         x:
-          Math.sin(
-            cameraYaw
-          ),
+          sy * forward +
+          cy * right,
 
         z:
-          -Math.cos(
-            cameraYaw
-          )
-
+          -cy * forward +
+          sy * right,
       };
     }
-  }
 
-  dashDir =
-    d;
-
-  /*
-   * 回避方向だけ
-   * キャラクターを向ける。
-   * カメラは一切変更しない。
-   */
-  playerFacing =
-    directionAngle(d);
-
-  dash =
-    0.3;
-
-  invuln =
-    0.42;
-
-  stamina -=
-    25;
-
-  actionState =
-    "dodge";
-
-  actionTime = 0;
-}
-
-
-/* =========================================================
-   UPDATE
-========================================================= */
-
-function update(dt) {
-
-  if (dead) {
-    return;
-  }
-
-  time += dt;
-
-  wave =
-    1 +
-    Math.floor(
-      score / 10
-    );
-
-  const dodgeHeld =
-    keys[" "] ||
-    keys.shift;
-
-  if (
-    dodgeHeld &&
-    !latched
-  ) {
-
-    dodge();
-  }
-
-  latched =
-    dodgeHeld;
-
-  stamina =
-    Math.min(
-      100,
-      stamina +
-        20 * dt
-    );
-
-  invuln =
-    Math.max(
-      0,
-      invuln - dt
-    );
-
-  let nextState =
-    "idle";
-
-  if (
-    dash > 0
-  ) {
-
-    dash -= dt;
-
-    /*
-     * プレイヤー座標そのものを
-     * 実際に動かす。
-     */
-    player.x +=
-      dashDir.x *
-      15 *
-      dt;
-
-    player.z +=
-      dashDir.z *
-      15 *
-      dt;
-
-    nextState =
-      "dodge";
-
-  } else {
-
-    const dir =
-      getMoveDirection();
-
-    const run =
-      !!(
-        keys.control ||
-        keys.c
+    function directionAngle(d) {
+      return Math.atan2(
+        d.x,
+        -d.z,
       );
+    }
 
-    const maxSpeed =
-      run
-        ? 8.5
-        : 4.4;
-
-    const targetVX =
-      dir.x *
-      maxSpeed;
-
-    const targetVZ =
-      dir.z *
-      maxSpeed;
-
-    /*
-     * 実際の速度。
-     */
-    player.vx +=
-      (
-        targetVX -
-        player.vx
-      ) *
-      Math.min(
-        1,
-        14 * dt
-      );
-
-    player.vz +=
-      (
-        targetVZ -
-        player.vz
-      ) *
-      Math.min(
-        1,
-        14 * dt
-      );
-
-    /*
-     * 実際のワールド座標を変更。
-     */
-    player.x +=
-      player.vx *
-      dt;
-
-    player.z +=
-      player.vz *
-      dt;
-
-    /*
-     * 入力がある場合は
-     * キャラクターだけを
-     * 移動方向へ向ける。
-     *
-     * cameraYawには触らない。
-     */
-    if (
-      dir.x !== 0 ||
-      dir.z !== 0
+    function shortestAngleDelta(
+      from,
+      to,
     ) {
+      let d =
+        to - from;
+
+      while (
+        d > Math.PI
+      ) {
+        d -=
+          Math.PI * 2;
+      }
+
+      while (
+        d < -Math.PI
+      ) {
+        d +=
+          Math.PI * 2;
+      }
+
+      return d;
+    }
+
+
+    /* =========================================================
+       DODGE
+    ========================================================= */
+
+    function dodge() {
+      if (
+        dead ||
+        dash > 0 ||
+        stamina < 25
+      ) {
+        return;
+      }
+
+      let d =
+        getMoveDirection();
+
+      if (
+        !d.x &&
+        !d.z
+      ) {
+        const sp =
+          Math.hypot(
+            player.vx,
+            player.vz,
+          );
+
+        if (
+          sp > 0.05
+        ) {
+          d = {
+            x:
+              player.vx /
+              sp,
+
+            z:
+              player.vz /
+              sp,
+          };
+        } else {
+          d = {
+            x:
+              Math.sin(
+                cameraYaw,
+              ),
+
+            z:
+              -Math.cos(
+                cameraYaw,
+              ),
+          };
+        }
+      }
+
+      dashDir = d;
 
       playerFacing =
         directionAngle(
-          dir
+          d,
         );
+
+      dash =
+        0.3;
+
+      invuln =
+        0.42;
+
+      stamina -=
+        25;
+
+      actionState =
+        "dodge";
+
+      actionTime = 0;
     }
 
-    const speed =
-      Math.hypot(
-        player.vx,
-        player.vz
-      );
 
-    if (
-      speed < 0.15
-    ) {
+    /* =========================================================
+       UPDATE
+    ========================================================= */
 
-      nextState =
-        "idle";
-
-    } else if (
-      run &&
-      speed > 5.2
-    ) {
-
-      nextState =
-        "run";
-
-    } else {
-
-      nextState =
-        "walk";
-    }
-  }
-
-  if (
-    nextState !==
-    activeMotionState
-  ) {
-
-    motionBlendFrom =
-      poseForState(
-        activeMotionState,
-        motionStateTime
-      );
-
-    motionBlendElapsed =
-      0;
-
-    motionStateTime =
-      0;
-
-    activeMotionState =
-      nextState;
-
-  } else {
-
-    motionStateTime +=
-      dt;
-  }
-
-  motionBlendElapsed +=
-    dt;
-
-  actionTime += dt;
-
-  animTime += dt;
-
-  /*
-   * 地面境界。
-   */
-  player.x =
-    Math.max(
-      -98,
-      Math.min(
-        98,
-        player.x
-      )
-    );
-
-  player.z =
-    Math.max(
-      -98,
-      Math.min(
-        98,
-        player.z
-      )
-    );
-
-  /*
-   * UI
-   */
-  scoreEl.textContent =
-    score;
-
-  waveEl.textContent =
-    wave;
-
-  staminaEl.textContent =
-    Math.round(
-      stamina
-    );
-
-  hpEl.style.width =
-    hp + "%";
-}
-
-
-/* =========================================================
-   MODEL MATRIX
-========================================================= */
-
-function modelMatrix() {
-
-  /*
-   * cameraYawではなく
-   * playerFacingだけで
-   * キャラクターを回転。
-   */
-
-  const c =
-    Math.cos(
-      playerFacing
-    );
-
-  const s =
-    Math.sin(
-      playerFacing
-    );
-
-  return new Float32Array([
-
-    c * modelScale,
-
-    0,
-
-    -s * modelScale,
-
-    0,
-
-    0,
-
-    modelScale,
-
-    0,
-
-    0,
-
-    s * modelScale,
-
-    0,
-
-    c * modelScale,
-
-    0,
-
-    /*
-     * ここが実際のワールド位置。
-     */
-    player.x -
-      centerX *
-      modelScale,
-
-    -bottom *
-      modelScale,
-
-    player.z -
-      centerZ *
-      modelScale,
-
-    1
-
-  ]);
-}
-
-
-/* =========================================================
-   RENDER
-========================================================= */
-
-function render() {
-
-  const aspect =
-    canvas.width /
-    canvas.height;
-
-  const targetY =
-    Math.max(
-      1,
-      modelHeight *
-        0.58
-    );
-
-  /*
-   * カメラ方向。
-   *
-   * ここはcameraYawだけ。
-   */
-  const fx =
-    Math.sin(
-      cameraYaw
-    ) *
-    Math.cos(
-      cameraPitch
-    );
-
-  const fy =
-    -Math.sin(
-      cameraPitch
-    );
-
-  const fz =
-    -Math.cos(
-      cameraYaw
-    ) *
-    Math.cos(
-      cameraPitch
-    );
-
-  const camDistance =
-    10.5;
-
-  /*
-   * cameraYawは固定されていても、
-   * player.x / player.z が変われば
-   * カメラ位置はプレイヤーと一緒に移動する。
-   */
-
-  const camX =
-    player.x -
-    fx *
-    camDistance;
-
-  const camY =
-    targetY -
-    fy *
-    camDistance;
-
-  const camZ =
-    player.z -
-    fz *
-    camDistance;
-
-  /*
-   * 注視点もplayer座標。
-   */
-  const lookX =
-    player.x +
-    fx * 3;
-
-  const lookY =
-    targetY +
-    fy * 3;
-
-  const lookZ =
-    player.z +
-    fz * 3;
-
-  const vp =
-    mm(
-
-      persp(
-        Math.PI / 3,
-        aspect,
-        0.1,
-        300
-      ),
-
-      lookAt(
-
-        [
-          camX,
-          camY,
-          camZ
-        ],
-
-        [
-          lookX,
-          lookY,
-          lookZ
-        ]
-
-      )
-
-    );
-
-  device.queue.writeBuffer(
-    camBuf,
-    0,
-    vp
-  );
-
-  device.queue.writeBuffer(
-    camBuf,
-    64,
-    modelMatrix()
-  );
-
-  device.queue.writeBuffer(
-    boneBuf,
-    0,
-    boneMatrices()
-  );
-
-  const enc =
-    device.createCommandEncoder();
-
-  const pass =
-    enc.beginRenderPass({
-
-      colorAttachments: [
-
-        {
-
-          view:
-            ctx
-              .getCurrentTexture()
-              .createView(),
-
-          clearValue: {
-
-            r: 0.025,
-
-            g: 0.035,
-
-            b: 0.075,
-
-            a: 1
-
-          },
-
-          loadOp:
-            "clear",
-
-          storeOp:
-            "store"
-
-        }
-
-      ],
-
-      depthStencilAttachment: {
-
-        view:
-          depthTex.createView(),
-
-        depthClearValue:
-          1,
-
-        depthLoadOp:
-          "clear",
-
-        depthStoreOp:
-          "store"
-
+    function update(dt) {
+      if (dead) {
+        return;
       }
 
-    });
+      time += dt;
 
+      wave =
+        1 +
+        Math.floor(
+          score / 10,
+        );
 
-  /* =======================================================
-     GROUND
-  ======================================================= */
+      const dodgeHeld =
+        keys[" "] ||
+        keys.shift;
 
-  pass.setPipeline(
-    gpipe
-  );
+      if (
+        dodgeHeld &&
+        !latched
+      ) {
+        dodge();
+      }
 
-  pass.setBindGroup(
-    0,
-    gbind
-  );
+      latched =
+        dodgeHeld;
 
-  pass.setVertexBuffer(
-    0,
-    groundVB
-  );
+      stamina =
+        Math.min(
+          100,
+          stamina +
+            20 * dt,
+        );
 
-  const groundMat =
-    new Float32Array([
+      invuln =
+        Math.max(
+          0,
+          invuln - dt,
+        );
 
-      1, 0, 0, 0,
+      let nextState =
+        "idle";
 
-      0, 1, 0, 0,
+      /* =======================================================
+         DASH
+      ======================================================= */
 
-      0, 0, 1, 0,
+      if (
+        dash > 0
+      ) {
+        dash -= dt;
 
-      0, -1, 0, 1
+        /*
+         * 実際にplayer座標を変更。
+         */
 
-    ]);
+        player.x +=
+          dashDir.x *
+          15 *
+          dt;
 
-  device.queue.writeBuffer(
-    camBuf,
-    64,
-    groundMat
-  );
+        player.z +=
+          dashDir.z *
+          15 *
+          dt;
 
-  pass.draw(6);
+        playerFacing =
+          directionAngle(
+            dashDir,
+          );
 
+        nextState =
+          "dodge";
+      }
 
-  /* =======================================================
-     MODEL
-  ======================================================= */
+      /* =======================================================
+         NORMAL MOVEMENT
+      ======================================================= */
 
-  device.queue.writeBuffer(
-    camBuf,
-    64,
-    modelMatrix()
-  );
+      else {
+        const dir =
+          getMoveDirection();
 
-  pass.setPipeline(
-    pipe
-  );
+        const running =
+          !!(
+            keys.control ||
+            keys["control"] ||
+            keys.c
+          );
 
-  pass.setVertexBuffer(
-    0,
-    vb
-  );
+        const maxSpeed =
+          running
+            ? 8.5
+            : 4.4;
 
-  pass.setIndexBuffer(
-    ib,
-    "uint32"
-  );
+        const targetVX =
+          dir.x *
+          maxSpeed;
 
-  for (
-    let i = 0;
-    i < pmx.materials.length;
-    i++
-  ) {
+        const targetVZ =
+          dir.z *
+          maxSpeed;
 
-    const g =
-      pmx.materials[i];
+        const accel =
+          Math.min(
+            1,
+            14 * dt,
+          );
 
-    if (
-      g.faceCount <= 0
-    ) {
-      continue;
+        player.vx +=
+          (
+            targetVX -
+            player.vx
+          ) * accel;
+
+        player.vz +=
+          (
+            targetVZ -
+            player.vz
+          ) * accel;
+
+        /*
+         * ここで本当にワールド座標が動く。
+         */
+
+        player.x +=
+          player.vx * dt;
+
+        player.z +=
+          player.vz * dt;
+
+        const speed =
+          Math.hypot(
+            player.vx,
+            player.vz,
+          );
+
+        /*
+         * キャラクターは
+         * 入力方向を向く。
+         *
+         * cameraYawは絶対に変更しない。
+         */
+
+        if (
+          dir.x !== 0 ||
+          dir.z !== 0
+        ) {
+          const targetFacing =
+            directionAngle(
+              dir,
+            );
+
+          const delta =
+            shortestAngleDelta(
+              playerFacing,
+              targetFacing,
+            );
+
+          playerFacing +=
+            delta *
+            Math.min(
+              1,
+              18 * dt,
+            );
+        }
+
+        if (
+          speed < 0.15
+        ) {
+          nextState =
+            "idle";
+        } else if (
+          running &&
+          speed > 5.2
+        ) {
+          nextState =
+            "run";
+        } else {
+          nextState =
+            "walk";
+        }
+      }
+
+      /*
+       * 地面の範囲。
+       */
+
+      player.x =
+        Math.max(
+          -98,
+          Math.min(
+            98,
+            player.x,
+          ),
+        );
+
+      player.z =
+        Math.max(
+          -98,
+          Math.min(
+            98,
+            player.z,
+          ),
+        );
+
+      /*
+       * 状態遷移。
+       */
+
+      if (
+        nextState !==
+        activeMotionState
+      ) {
+        motionBlendFrom =
+          poseForState(
+            activeMotionState,
+            motionStateTime,
+          );
+
+        motionBlendElapsed =
+          0;
+
+        motionStateTime =
+          0;
+
+        activeMotionState =
+          nextState;
+      } else {
+        motionStateTime +=
+          dt;
+      }
+
+      motionBlendElapsed +=
+        dt;
+
+      actionTime +=
+        dt;
+
+      animTime +=
+        dt;
+
+      /*
+       * UI
+       */
+
+      scoreEl.textContent =
+        score;
+
+      waveEl.textContent =
+        wave;
+
+      staminaEl.textContent =
+        Math.round(
+          stamina,
+        );
+
+      hpEl.style.width =
+        hp + "%";
     }
 
-    pass.setBindGroup(
-      0,
-      materialBinds[i]
-    );
 
-    pass.drawIndexed(
+    /* =========================================================
+       MODEL MATRIX
+    ========================================================= */
 
-      g.faceCount,
+    function modelMatrix() {
+      /*
+       * キャラクター自身の向きだけ使う。
+       */
 
-      1,
+      const c =
+        Math.cos(
+          playerFacing,
+        );
 
-      g.faceOffset,
+      const s =
+        Math.sin(
+          playerFacing,
+        );
 
-      0,
+      return new Float32Array([
+        c *
+          modelScale,
 
-      0
+        0,
 
-    );
-  }
+        -s *
+          modelScale,
 
-  pass.end();
+        0,
 
-  device.queue.submit([
-    enc.finish()
-  ]);
+        0,
+
+        modelScale,
+
+        0,
+
+        0,
+
+        s *
+          modelScale,
+
+        0,
+
+        c *
+          modelScale,
+
+        0,
+
+        /*
+         * 実際のplayer座標。
+         */
+
+        player.x -
+          centerX *
+            modelScale,
+
+        -bottom *
+          modelScale,
+
+        player.z -
+          centerZ *
+            modelScale,
+
+        1,
+      ]);
+    }
 
 
-  /* =======================================================
-     DEBUG
-  ======================================================= */
+    /* =========================================================
+       SHADOW MATRIX
+    ========================================================= */
 
-  const leftKnee =
-    findBoneIndex(
-      "左ひざD"
-    );
+    function shadowMatrix() {
+      /*
+       * 影は必ずplayer.x / player.zと同じ場所。
+       */
 
-  const rightKnee =
-    findBoneIndex(
-      "右ひざD"
-    );
+      const shadowScaleX =
+        1.25;
 
-  let leftKneeInfo =
-    "左膝D—";
+      const shadowScaleZ =
+        0.72;
 
-  let rightKneeInfo =
-    "右膝D—";
+      return new Float32Array([
+        shadowScaleX,
+        0,
+        0,
+        0,
 
-  if (
-    leftKnee !==
-      undefined &&
-    leftKnee >= 0
-  ) {
+        0,
+        1,
+        0,
+        0,
 
-    const e =
-      qToEulerXYZ(
-        pmx.bones[
-          leftKnee
-        ].poseQ
+        0,
+        0,
+        shadowScaleZ,
+        0,
+
+        player.x,
+        0.012,
+        player.z,
+        1,
+      ]);
+    }
+
+
+    /* =========================================================
+       RENDER
+    ========================================================= */
+
+    function render() {
+      const aspect =
+        canvas.width /
+        canvas.height;
+
+      const targetY =
+        Math.max(
+          1,
+          modelHeight *
+            0.58,
+        );
+
+      /*
+       * カメラの正面方向。
+       */
+
+      const fx =
+        Math.sin(
+          cameraYaw,
+        ) *
+        Math.cos(
+          cameraPitch,
+        );
+
+      const fy =
+        -Math.sin(
+          cameraPitch,
+        );
+
+      const fz =
+        -Math.cos(
+          cameraYaw,
+        ) *
+        Math.cos(
+          cameraPitch,
+        );
+
+      const camDistance =
+        10.5;
+
+      /*
+       * カメラ自身も
+       * プレイヤーのワールド座標へ追従。
+       *
+       * ここでcameraYawを使うのは
+       * カメラの向きだけ。
+       */
+
+      const camX =
+        player.x -
+        fx *
+          camDistance;
+
+      const camY =
+        targetY -
+        fy *
+          camDistance;
+
+      const camZ =
+        player.z -
+        fz *
+          camDistance;
+
+      const vp =
+        mm(
+          persp(
+            Math.PI / 3,
+            aspect,
+            0.1,
+            300,
+          ),
+
+          lookAt(
+            [
+              camX,
+              camY,
+              camZ,
+            ],
+
+            [
+              player.x +
+                fx * 3,
+
+              targetY +
+                fy * 3,
+
+              player.z +
+                fz * 3,
+            ],
+          ),
+        );
+
+      /*
+       * カメラ行列。
+       */
+
+      device.queue.writeBuffer(
+        camBuf,
+        0,
+        vp,
       );
 
-    leftKneeInfo =
-      `左膝D ${(
-        (
-          e[0] *
-          180
-        ) /
-        Math.PI
-      ).toFixed(1)}°`;
-  }
+      /*
+       * ボーン。
+       */
 
-  if (
-    rightKnee !==
-      undefined &&
-    rightKnee >= 0
-  ) {
-
-    const e =
-      qToEulerXYZ(
-        pmx.bones[
-          rightKnee
-        ].poseQ
+      device.queue.writeBuffer(
+        boneBuf,
+        0,
+        boneMatrices(),
       );
 
-    rightKneeInfo =
-      `右膝D ${(
+      const enc =
+        device.createCommandEncoder();
+
+      const pass =
+        enc.beginRenderPass({
+          colorAttachments: [
+            {
+              view:
+                ctx
+                  .getCurrentTexture()
+                  .createView(),
+
+              clearValue: {
+                r: 0.025,
+                g: 0.035,
+                b: 0.075,
+                a: 1,
+              },
+
+              loadOp:
+                "clear",
+
+              storeOp:
+                "store",
+            },
+          ],
+
+          depthStencilAttachment: {
+            view:
+              depthTex.createView(),
+
+            depthClearValue: 1,
+
+            depthLoadOp:
+              "clear",
+
+            depthStoreOp:
+              "store",
+          },
+        });
+
+
+      /* =======================================================
+         GROUND
+      ======================================================= */
+
+      device.queue.writeBuffer(
+        camBuf,
+        64,
+
+        new Float32Array([
+          1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1,
+        ]),
+      );
+
+      pass.setPipeline(
+        gpipe,
+      );
+
+      pass.setBindGroup(
+        0,
+        gbind,
+      );
+
+      pass.setVertexBuffer(
+        0,
+        groundVB,
+      );
+
+      pass.draw(6);
+
+
+      /* =======================================================
+         SHADOW
+      ======================================================= */
+
+      device.queue.writeBuffer(
+        camBuf,
+        64,
+        shadowMatrix(),
+      );
+
+      pass.setPipeline(
+        shadowPipe,
+      );
+
+      pass.setBindGroup(
+        0,
+        shadowBind,
+      );
+
+      pass.setVertexBuffer(
+        0,
+        shadowVB,
+      );
+
+      pass.draw(6);
+
+
+      /* =======================================================
+         MODEL
+      ======================================================= */
+
+      device.queue.writeBuffer(
+        camBuf,
+        64,
+        modelMatrix(),
+      );
+
+      pass.setPipeline(
+        pipe,
+      );
+
+      pass.setVertexBuffer(
+        0,
+        vb,
+      );
+
+      pass.setIndexBuffer(
+        ib,
+        "uint32",
+      );
+
+      for (
+        let i = 0;
+        i < pmx.materials.length;
+        i++
+      ) {
+        const g =
+          pmx.materials[i];
+
+        if (
+          g.faceCount <= 0
+        ) {
+          continue;
+        }
+
+        pass.setBindGroup(
+          0,
+          materialBinds[i],
+        );
+
+        pass.drawIndexed(
+          g.faceCount,
+          1,
+          g.faceOffset,
+          0,
+          0,
+        );
+      }
+
+      pass.end();
+
+      device.queue.submit([
+        enc.finish(),
+      ]);
+
+
+      /* =======================================================
+         DEBUG
+      ======================================================= */
+
+      const leftKnee =
+        findBoneIndex(
+          "左ひざD",
+        );
+
+      const rightKnee =
+        findBoneIndex(
+          "右ひざD",
+        );
+
+      let leftKneeInfo =
+        "左膝D—";
+
+      let rightKneeInfo =
+        "右膝D—";
+
+      if (
+        leftKnee !==
+          undefined &&
+        leftKnee >= 0
+      ) {
+        const q =
+          pmx.bones[
+            leftKnee
+          ].poseQ;
+
+        const e =
+          qToEulerXYZ(q);
+
+        leftKneeInfo =
+          `左膝D ${(
+            (e[0] * 180) /
+            Math.PI
+          ).toFixed(1)}°`;
+      }
+
+      if (
+        rightKnee !==
+          undefined &&
+        rightKnee >= 0
+      ) {
+        const q =
+          pmx.bones[
+            rightKnee
+          ].poseQ;
+
+        const e =
+          qToEulerXYZ(q);
+
+        rightKneeInfo =
+          `右膝D ${(
+            (e[0] * 180) /
+            Math.PI
+          ).toFixed(1)}°`;
+      }
+
+      const playerDeg =
         (
-          e[0] *
-          180
-        ) /
-        Math.PI
-      ).toFixed(1)}°`;
-  }
+          playerFacing *
+          180 /
+          Math.PI +
+          360
+        ) % 360;
 
-  const playerDeg =
-    (
-      (
-        playerFacing *
-        180
-      ) /
-      Math.PI +
-      360
-    ) %
-    360;
+      const cameraDeg =
+        (
+          cameraYaw *
+          180 /
+          Math.PI +
+          360
+        ) % 360;
 
-  const cameraDeg =
-    (
-      (
-        cameraYaw *
-        180
-      ) /
-      Math.PI +
-      360
-    ) %
-    360;
+      const speed =
+        Math.hypot(
+          player.vx,
+          player.vz,
+        );
 
-  debugEl.textContent =
-
-    `PMX: ${pmx.name}\n` +
-
-    `アニメーション: ${actionState}\n` +
-
-    `GPUスキニング: ON\n` +
-
-    `VMDルート移動: OFF\n` +
-
-    `足IK: ON / つま先IK: ON\n` +
-
-    `D系足変形: ON\n` +
-
-    `${leftKneeInfo} / ${rightKneeInfo}\n` +
-
-    `プレイヤー位置: X ${player.x.toFixed(2)} / Z ${player.z.toFixed(2)}\n` +
-
-    `プレイヤー速度: X ${player.vx.toFixed(2)} / Z ${player.vz.toFixed(2)}\n` +
-
-    `キャラクター方向: ${playerDeg.toFixed(0)}°\n` +
-
-    `カメラ方向: ${cameraDeg.toFixed(0)}°\n` +
-
-    `カメラ位置: X ${camX.toFixed(2)} / Z ${camZ.toFixed(2)}\n` +
-
-    `WASD: カメラ基準移動\n` +
-
-    `Space / Shift: 回避\n` +
-
-    `${
-      findBoneIndex("左足") >= 0
-        ? "左足✓"
-        : "左足—"
-    } ` +
-
-    `${
-      findBoneIndex("左足D") >= 0
-        ? "左足D✓"
-        : "左足D—"
-    } ` +
-
-    `${
-      findBoneIndex("左足首D") >= 0
-        ? "左足首D✓"
-        : "左足首D—"
-    } ` +
-
-    `${
-      findBoneIndex("左足先EX") >= 0
-        ? "左足先EX✓"
-        : "左足先EX—"
-    }\n` +
-
-    `${
-      findBoneIndex("右足") >= 0
-        ? "右足✓"
-        : "右足—"
-    } ` +
-
-    `${
-      findBoneIndex("右足D") >= 0
-        ? "右足D✓"
-        : "右足D—"
-    } ` +
-
-    `${
-      findBoneIndex("右足首D") >= 0
-        ? "右足首D✓"
-        : "右足首D—"
-    } ` +
-
-    `${
-      findBoneIndex("右足先EX") >= 0
-        ? "右足先EX✓"
-        : "右足先EX—"
-    }`;
-}
+      debugEl.textContent =
+        `PMX: ${pmx.name}\n` +
+        `アニメーション: ${actionState}\n` +
+        `GPUスキニング: ON\n` +
+        `足IK: ON / つま先IK: ON\n` +
+        `D系足変形: ON\n` +
+        `${leftKneeInfo} / ${rightKneeInfo}\n` +
+        `プレイヤー位置: X ${player.x.toFixed(2)} / Z ${player.z.toFixed(2)}\n` +
+        `プレイヤー速度: ${speed.toFixed(2)}\n` +
+        `キャラクター方向: ${playerDeg.toFixed(0)}°\n` +
+        `カメラ方向: ${cameraDeg.toFixed(0)}°\n` +
+        `カメラとキャラは独立回転\n` +
+        `影: player.x / player.z 直結\n` +
+        `WASD: 移動 / Space・Shift: 回避\n` +
+        `${
+          findBoneIndex(
+            "左足",
+          ) >= 0
+            ? "左足✓"
+            : "左足—"
+        } ` +
+        `${
+          findBoneIndex(
+            "左足D",
+          ) >= 0
+            ? "左足D✓"
+            : "左足D—"
+        } ` +
+        `${
+          findBoneIndex(
+            "左足首D",
+          ) >= 0
+            ? "左足首D✓"
+            : "左足首D—"
+        } ` +
+        `${
+          findBoneIndex(
+            "左足先EX",
+          ) >= 0
+            ? "左足先EX✓"
+            : "左足先EX—"
+        }\n` +
+        `${
+          findBoneIndex(
+            "右足",
+          ) >= 0
+            ? "右足✓"
+            : "右足—"
+        } ` +
+        `${
+          findBoneIndex(
+            "右足D",
+          ) >= 0
+            ? "右足D✓"
+            : "右足D—"
+        } ` +
+        `${
+          findBoneIndex(
+            "右足首D",
+          ) >= 0
+            ? "右足首D✓"
+            : "右足首D—"
+        } ` +
+        `${
+          findBoneIndex(
+            "右足先EX",
+          ) >= 0
+            ? "右足先EX✓"
+            : "右足先EX—"
+        }`;
+    }
 
 
-/* =========================================================
-   START
-========================================================= */
+    /* =========================================================
+       START
+    ========================================================= */
 
-reset();
+    reset();
 
-await initMotions();
+    await initMotions();
 
-loading.textContent =
+    loading.textContent =
+      `移動モーション準備完了：` +
+      `歩き・走り・ダッシュ / ` +
+      `${pmx.bones.length}ボーン / ` +
+      `GPUスキニング / ` +
+      `D系足変形 / ` +
+      `足IK / つま先IK / ` +
+      `膝IK制限 / ` +
+      `ルート移動OFF / ` +
+      `カメラ移動同期 / ` +
+      `影位置同期 / ` +
+      `地面200×200`;
 
-  `移動モーション準備完了：` +
+    let last =
+      performance.now();
 
-  `歩き・走り・ダッシュ / ` +
+    function loop(now) {
+      const dt =
+        Math.min(
+          0.033,
+          (now - last) /
+            1000,
+        );
 
-  `${pmx.bones.length}ボーン / ` +
+      last = now;
 
-  `GPUスキニング / ` +
+      update(dt);
+      render();
 
-  `D系足変形 / ` +
+      requestAnimationFrame(
+        loop,
+      );
+    }
 
-  `足IK / つま先IK / ` +
-
-  `膝IK制限 / ` +
-
-  `VMDルート移動OFF / ` +
-
-  `カメラ基準移動 / ` +
-
-  `200×200地面`;
-
-let last =
-  performance.now();
-
-function loop(now) {
-
-  const dt =
-    Math.min(
-      0.033,
-      (
-        now - last
-      ) /
-      1000
+    requestAnimationFrame(
+      loop,
     );
-
-  last = now;
-
-  update(dt);
-
-  render();
-
-  requestAnimationFrame(
-    loop
-  );
-}
-
-requestAnimationFrame(
-  loop
-);
-
-</script>
+  </script>
 
 </body>
 </html>
