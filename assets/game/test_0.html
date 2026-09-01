@@ -2234,9 +2234,7 @@ fn fs(
              * 0fで最も強く、12fで通常の走りへ近づける。
              * 左右は同じ前方向へ曲げる。
              */
-            const hipBendDeg = 34 * (1 - Math.min(1, elapsed / (12 / 30)));
-            addHipBend(["左足", "左足D"], hipBendDeg);
-            addHipBend(["右足", "右足D"], hipBendDeg);
+            /* 股関節の最終補正は足IK後に適用するため、ここでは加算しない。 */
 
             /* 下半身にも軽く連動させ、股関節だけが折れるのを防ぐ。 */
             const lowerBody = findBoneIndex("下半身");
@@ -2746,6 +2744,37 @@ fn fs(
         }
 
         syncDeformLegsFromSource();
+
+        /*
+         * 重要: 足IKは大腿部（左足/右足）もIKリンクとして回転させるため、
+         * 先に入れた股関節補正がここで上書きされていた。
+         * 走り出しだけはIK確定後に股関節の前屈をもう一度適用する。
+         */
+        if (activeMotionState === "runStart") {
+          const hipStrength = Math.max(0, 1 - Math.min(1, motionStateTime / 0.40));
+          const hipDeg = 68 * hipStrength;
+
+          const addFinalHipBend = (names, deg) => {
+            const bi = findBoneIndex(...names);
+            if (bi === undefined || bi < 0) return;
+            const q = pmx.bones[bi].poseQ || [0, 0, 0, 1];
+            const extra = eulerToQuat((deg * Math.PI) / 180, 0, 0);
+            pmx.bones[bi].poseQ = qMul(q, extra);
+          };
+
+          addFinalHipBend(["左足", "左足D"], hipDeg);
+          addFinalHipBend(["右足", "右足D"], hipDeg);
+
+          /* 股関節の大きな前屈に合わせて骨盤側もごく少量連動。 */
+          const lower = findBoneIndex("下半身");
+          if (lower !== undefined && lower >= 0) {
+            const q = pmx.bones[lower].poseQ || [0, 0, 0, 1];
+            const extra = eulerToQuat((hipDeg * 0.10 * Math.PI) / 180, 0, 0);
+            pmx.bones[lower].poseQ = qMul(q, extra);
+          }
+
+          syncDeformLegsFromSource();
+        }
 
         world = buildWorld();
 
