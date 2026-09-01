@@ -2768,8 +2768,8 @@ fn fs(
           /*
            * 走り出しの膝を明確に後方へ大きく曲げる。
            *
-           * PMXのこのモデルではX軸の正方向回転が
-           * すねを後方(+Z)へ折る向きなので、
+           * PMXのこのモデルではX軸の負方向回転が
+           * すねを後方へ折る向きなので、
            * 走り出し開始時は約90度から徐々に通常姿勢へ戻す。
            * IKより後で適用することで、IKによる膝回転の上書きを防ぐ。
            */
@@ -2780,7 +2780,7 @@ fn fs(
             const bi = findBoneIndex(...names);
             if (bi === undefined || bi < 0) return;
             const q = pmx.bones[bi].poseQ || [0, 0, 0, 1];
-            const extra = eulerToQuat((deg * Math.PI) / 180, 0, 0);
+            const extra = eulerToQuat((-deg * Math.PI) / 180, 0, 0);
             pmx.bones[bi].poseQ = qMul(q, extra);
           };
 
