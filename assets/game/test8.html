@@ -398,7 +398,6 @@
 
       u8() {
         this.need(1);
-
         return this.b[
           this.p++
         ];
@@ -406,7 +405,6 @@
 
       i8() {
         this.need(1);
-
         return this.v.getInt8(
           this.p++,
         );
@@ -1069,16 +1067,13 @@
         ];
 
         r.bytes(12);
-
         r.f32();
-
         r.bytes(12);
 
         const flags =
           r.u8();
 
         r.bytes(16);
-
         r.f32();
 
         const ti =
@@ -1371,7 +1366,7 @@
 
 
     /* =========================================================
-       MATRIX
+       MATRIX / VECTOR
     ========================================================= */
 
     const ident = () =>
@@ -1628,24 +1623,21 @@
           b.pos[0] -
             (
               p >= 0
-                ? pmx.bones[p]
-                    .pos[0]
+                ? pmx.bones[p].pos[0]
                 : 0
             ),
 
           b.pos[1] -
             (
               p >= 0
-                ? pmx.bones[p]
-                    .pos[1]
+                ? pmx.bones[p].pos[1]
                 : 0
             ),
 
           b.pos[2] -
             (
               p >= 0
-                ? pmx.bones[p]
-                    .pos[2]
+                ? pmx.bones[p].pos[2]
                 : 0
             ),
         );
@@ -1666,7 +1658,7 @@
 
 
     /* =========================================================
-       VERTEX BUFFER
+       GPU VERTEX BUFFER
     ========================================================= */
 
     const stride = 64;
@@ -1826,7 +1818,7 @@
 
 
     /* =========================================================
-       SEPARATE UNIFORM BUFFERS
+       INDEPENDENT UNIFORM BUFFERS
     ========================================================= */
 
     const modelCamBuf =
@@ -2544,7 +2536,7 @@ fn fs(
 
 
     /* =========================================================
-       MODEL SCALE / BOUNDS
+       BONE LOOKUP
     ========================================================= */
 
     function findBone(
@@ -2606,6 +2598,11 @@ fn fs(
       return -1;
     }
 
+
+    /* =========================================================
+       MODEL INFO
+    ========================================================= */
+
     const modelScale =
       0.12;
 
@@ -2632,24 +2629,6 @@ fn fs(
 
     const bottom =
       pmx.bounds.mn[1];
-
-
-    /* =========================================================
-       MODEL FRONT CORRECTION
-    ========================================================= */
-
-    /*
-     * 移動方向は完全にそのまま。
-     *
-     * この値は「描画されるPMXの正面」だけを
-     * 補正する。
-     *
-     * 仆人.pmxの見た目が移動方向の反対を向く
-     * 場合に180度補正する。
-     */
-
-    const MODEL_FACING_OFFSET =
-      Math.PI;
 
 
     /* =========================================================
@@ -2723,16 +2702,20 @@ fn fs(
       if (d > 0.9995) {
         return qNormalize([
           ax +
-            (bx - ax) * t,
+            (bx - ax) *
+              t,
 
           ay +
-            (by - ay) * t,
+            (by - ay) *
+              t,
 
           az +
-            (bz - az) * t,
+            (bz - az) *
+              t,
 
           aw +
-            (bw - aw) * t,
+            (bw - aw) *
+              t,
         ]);
       }
 
@@ -2753,7 +2736,8 @@ fn fs(
 
       const s0 =
         Math.sin(
-          (1 - t) * th,
+          (1 - t) *
+            th,
         ) /
         st;
 
@@ -3119,6 +3103,12 @@ fn fs(
           tracks.get(bi) ||
           [];
 
+        /*
+         * VMD自身のルート移動は
+         * ゲームのplayer座標と二重になるので
+         * 使用しない。
+         */
+
         const storedPos =
           isRootMotionBone(
             pmx.bones[bi]
@@ -3373,6 +3363,11 @@ fn fs(
 
       return pose;
     }
+
+
+    /* =========================================================
+       MOTION STATE
+    ========================================================= */
 
     const motions = {};
 
@@ -3978,7 +3973,7 @@ fn fs(
 
 
     /* =========================================================
-       IK LIMIT
+       IK LINK LIMIT
     ========================================================= */
 
     function applyIKLinkLimit(
@@ -4111,7 +4106,7 @@ fn fs(
 
 
     /* =========================================================
-       WORLD BONE MATRICES
+       BUILD WORLD
     ========================================================= */
 
     function buildWorld() {
@@ -4260,13 +4255,10 @@ fn fs(
               ? {
                   bone:
                     rawLink,
-
                   limited:
                     false,
-
                   min:
                     null,
-
                   max:
                     null,
                 }
@@ -4293,7 +4285,9 @@ fn fs(
 
           const endPos =
             mulPoint(
-              world[targetBone],
+              world[
+                targetBone
+              ],
               [0, 0, 0],
             );
 
@@ -4797,8 +4791,7 @@ fn fs(i: O)
 
           buffers: [
             {
-              arrayStride:
-                12,
+              arrayStride: 12,
 
               attributes: [
                 {
@@ -5005,8 +4998,7 @@ fn fs()
 
           buffers: [
             {
-              arrayStride:
-                12,
+              arrayStride: 12,
 
               attributes: [
                 {
@@ -5199,11 +5191,7 @@ fn fs()
         }
 
         /*
-         * ★ カメラ回転は
-         * マウス入力だけ。
-         *
-         * WASDからcameraYawへ
-         * 書き込む箇所は存在しない。
+         * ★ カメラ回転はマウスのみ。
          */
 
         cameraYaw +=
@@ -5246,9 +5234,9 @@ fn fs()
     let actionTime;
 
     /*
-     * cameraYawとは完全に別の角度。
+     * キャラクター自身の向き。
      *
-     * これはキャラクター自身の向き。
+     * カメラの向きとは別。
      */
 
     let playerFacing =
@@ -5315,7 +5303,8 @@ fn fs()
       latched = false;
 
       /*
-       * カメラの向き。
+       * カメラとキャラクターの
+       * 初期方向。
        */
 
       cameraYaw =
@@ -5323,10 +5312,6 @@ fn fs()
 
       cameraPitch =
         0.48;
-
-      /*
-       * キャラクターの初期向き。
-       */
 
       playerFacing =
         0;
@@ -5398,10 +5383,10 @@ fn fs()
         len;
 
       /*
-       * ★ 現在のcameraYawを
-       * 「移動方向を決める基準」として使用。
+       * ★ ここは前回、
+       * 完全に正しかった部分。
        *
-       * cameraYaw自身は変更しない。
+       * 変更しない。
        */
 
       const sy =
@@ -5513,13 +5498,17 @@ fn fs()
       dashDir =
         d;
 
+      /*
+       * キャラクター自身の向き。
+       */
+
       playerFacing =
         directionAngle(
           d,
         );
 
       dash =
-        0.3;
+        0.30;
 
       invuln =
         0.42;
@@ -5593,7 +5582,7 @@ fn fs()
         dash -= dt;
 
         /*
-         * ★ 本当のワールド移動。
+         * 実際のワールド座標を変更。
          */
 
         player.x +=
@@ -5607,8 +5596,8 @@ fn fs()
           dt;
 
         /*
-         * キャラクターだけ
-         * ダッシュ方向を向く。
+         * キャラクターだけを
+         * 移動方向へ向ける。
          */
 
         playerFacing =
@@ -5670,9 +5659,9 @@ fn fs()
           accel;
 
         /*
-         * ★ プレイヤーのワールド座標を変更。
+         * ★ 実際のプレイヤー移動。
          *
-         * カメラの座標は変更しない。
+         * cameraYawは変更しない。
          */
 
         player.x +=
@@ -5690,9 +5679,7 @@ fn fs()
           );
 
         /*
-         * ★ キャラクターだけ向きを変更。
-         *
-         * cameraYawは絶対に変更しない。
+         * ★ キャラクター自身だけ回転。
          */
 
         if (
@@ -5824,20 +5811,28 @@ fn fs()
 
     function modelMatrix() {
       /*
-       * ★ 重要
+       * =======================================================
+       * ★ 今回の一番重要な修正
+       * =======================================================
        *
-       * playerFacing
-       * = ゲーム側で計算した本来の向き
+       * playerFacingは
+       * 「実際にキャラクターが進む方向」。
        *
-       * MODEL_FACING_OFFSET
-       * = PMXの正面軸の補正
+       * これまでの行列は、この角度をそのまま
+       * 描画回転に使っていたため、XZ平面での
+       * 左右符号が移動方向と逆になっていた。
        *
-       * 移動方向そのものには影響しない。
+       * そこで描画だけ
+       *
+       *      -playerFacing
+       *
+       * とする。
+       *
+       * 移動処理自体は完全に変更しない。
        */
 
       const renderFacing =
-        playerFacing +
-        MODEL_FACING_OFFSET;
+        -playerFacing;
 
       const c =
         Math.cos(
@@ -5849,10 +5844,9 @@ fn fs()
           renderFacing,
         );
 
-
       /*
        * モデル中心補正も
-       * 同じrenderFacingで回転。
+       * 同じ描画回転で処理。
        */
 
       const offsetX =
@@ -5886,8 +5880,7 @@ fn fs()
         0,
 
         /*
-         * ★ キャラクター位置は
-         * player.x / player.z
+         * キャラクターのワールド位置。
          */
 
         player.x -
@@ -5910,10 +5903,10 @@ fn fs()
 
     function shadowMatrix() {
       /*
-       * ★ 影のX/Zは
-       * キャラクターのplayer.x/zと完全一致。
+       * ★ 影はキャラクターと同じ位置。
        *
-       * playerFacingは影位置に関与しない。
+       * playerFacingやcameraYawは
+       * 影位置には使用しない。
        */
 
       return new Float32Array([
@@ -5958,7 +5951,7 @@ fn fs()
 
 
       /* =======================================================
-         CAMERA FORWARD
+         CAMERA DIRECTION
       ======================================================= */
 
       const fx =
@@ -5989,12 +5982,6 @@ fn fs()
 
       const camDistance =
         10.5;
-
-      /*
-       * カメラ位置はプレイヤー位置から決定。
-       *
-       * cameraYawは向きを決定するだけ。
-       */
 
       const camX =
         player.x -
@@ -6059,7 +6046,7 @@ fn fs()
 
 
       /* =======================================================
-         ★ BUFFERを3つ独立して更新
+         3つのUniform Bufferを別々に更新
       ======================================================= */
 
       /*
@@ -6326,7 +6313,7 @@ fn fs()
           ).toFixed(1)}°`;
       }
 
-      const playerDeg =
+      const movementDeg =
         (
           playerFacing *
           180 /
@@ -6334,12 +6321,12 @@ fn fs()
           360
         ) % 360;
 
+      const renderFacing =
+        -playerFacing;
+
       const renderDeg =
         (
-          (
-            playerFacing +
-            MODEL_FACING_OFFSET
-          ) *
+          renderFacing *
           180 /
           Math.PI +
           360
@@ -6368,22 +6355,18 @@ fn fs()
         `${leftKneeInfo} / ${rightKneeInfo}\n` +
         `プレイヤー位置: X ${player.x.toFixed(2)} / Z ${player.z.toFixed(2)}\n` +
         `速度: ${speed.toFixed(2)}\n` +
-        `移動方向: ${playerDeg.toFixed(0)}°\n` +
-        `描画モデル方向: ${renderDeg.toFixed(0)}°\n` +
-        `モデル正面補正: ${(
-          MODEL_FACING_OFFSET *
-          180 /
-          Math.PI
-        ).toFixed(0)}°\n` +
+        `移動方向: ${movementDeg.toFixed(0)}°\n` +
+        `キャラクター描画方向: ${renderDeg.toFixed(0)}°\n` +
         `カメラ方向: ${cameraDeg.toFixed(0)}°\n` +
+        `モデル描画Yaw = -playerFacing\n` +
         `WASD → cameraYaw変更: OFF\n` +
         `マウス → cameraYaw変更: ON\n` +
-        `WASD → player座標変更: ON\n` +
+        `WASD → player移動: ON\n` +
         `キャラクター → 移動方向を向く: ON\n` +
+        `影 → player座標直結: ON\n` +
         `Ground Buffer: 独立\n` +
         `Shadow Buffer: 独立\n` +
         `Model Buffer: 独立\n` +
-        `影座標: X ${player.x.toFixed(2)} / Z ${player.z.toFixed(2)}\n` +
         `${
           findBoneIndex(
             "左足",
@@ -6464,10 +6447,9 @@ fn fs()
       `マウスカメラ回転ON / ` +
       `W=カメラ正面 / ` +
       `キャラクター方向同期 / ` +
-      `モデル正面180°補正 / ` +
+      `モデルYaw反転補正 / ` +
       `影位置同期 / ` +
-      `地面200×200 / ` +
-      `独立Uniform Buffer`;
+      `地面200×200`;
 
     let last =
       performance.now();
