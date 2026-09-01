@@ -111,15 +111,14 @@ function parsePMX(buf){
  for(let i=0;i<bc;i++){
   const bn=str(),ben=str(),p=[r.f32(),r.f32(),r.f32()],parent=r.idx(bIS),layer=r.i32(),flags=r.u16();
   if(flags&1)r.idx(bIS);else r.bytes(12);
-  let appendRot=null, appendMove=null, fixedAxis=null, localAxis=null, externalParent=null;
-  if(flags&0x100){appendRot={target:r.idx(bIS),ratio:r.f32()};}
-  if(flags&0x200){appendMove={target:r.idx(bIS),ratio:r.f32()};}
-  if(flags&0x400)fixedAxis=[r.f32(),r.f32(),r.f32()];
-  if(flags&0x800)localAxis={x:[r.f32(),r.f32(),r.f32()],z:[r.f32(),r.f32(),r.f32()]};
-  if(flags&0x2000)externalParent=r.idx(bIS);
+  if(flags&0x100){r.idx(bIS);r.f32()}
+  if(flags&0x200){r.idx(bIS);r.f32()}
+  if(flags&0x400)r.bytes(12);
+  if(flags&0x800)r.bytes(24);
+  if(flags&0x2000)r.idx(bIS);
   let ik=null;
-  if(flags&0x20){const target=r.idx(bIS),loops=r.i32(),limit=r.f32();const lc=r.i32();const links=[];for(let j=0;j<lc;j++){const li=r.idx(bIS);const lim=r.u8();let min=null,max=null;if(lim){min=[r.f32(),r.f32(),r.f32()];max=[r.f32(),r.f32(),r.f32()];}links.push({bone:li,hasLimit:!!lim,min,max});}ik={target,loops,limit,links};}
-  const b={name:bn,en:ben,pos:p,parent,flags,rot:[0,0,0],poseQ:[0,0,0,1],poseP:[0,0,0],appendRot,appendMove,fixedAxis,localAxis,externalParent,ik};bones.push(b);boneMap.set(bn,i);
+  if(flags&0x20){const target=r.idx(bIS),loops=r.i32(),limit=r.f32();const lc=r.i32();const links=[];for(let j=0;j<lc;j++){const li=r.idx(bIS);const lim=r.u8();if(lim)r.bytes(24);links.push(li);}ik={target,loops,limit,links};}
+  const b={name:bn,en:ben,pos:p,parent,flags,rot:[0,0,0],poseQ:[0,0,0,1],poseP:[0,0,0],ik};bones.push(b);boneMap.set(bn,i);
  }
  return {name,vertices:pos,normals:nor,uv,bi,bw,indices,textures,materials,bones,boneMap,bounds:boundsOf(pos)};
 }
@@ -309,7 +308,7 @@ const findBoneIndex=(name)=>{
   if(i!==undefined) return i;
   return normalizedBoneMap.get(normalizeBoneName(name));
 };
-const footRig={left:{ik:findBoneIndex('左足ＩＫ'),hip:findBoneIndex('左足D'),knee:findBoneIndex('左ひざD'),ankle:findBoneIndex('左足首D'),toeEx:findBoneIndex('左足先EX'),srcHip:findBoneIndex('左足'),srcKnee:findBoneIndex('左ひざ'),srcAnkle:findBoneIndex('左足首')},right:{ik:findBoneIndex('右足ＩＫ'),hip:findBoneIndex('右足D'),knee:findBoneIndex('右ひざD'),ankle:findBoneIndex('右足首D'),toeEx:findBoneIndex('右足先EX'),srcHip:findBoneIndex('右足'),srcKnee:findBoneIndex('右ひざ'),srcAnkle:findBoneIndex('右足首')}};
+const footRig={left:{ik:findBoneIndex('左足ＩＫ'),hip:findBoneIndex('左足D'),knee:findBoneIndex('左ひざD'),ankle:findBoneIndex('左足首D'),srcHip:findBoneIndex('左足'),srcKnee:findBoneIndex('左ひざ'),srcAnkle:findBoneIndex('左足首')},right:{ik:findBoneIndex('右足ＩＫ'),hip:findBoneIndex('右足D'),knee:findBoneIndex('右ひざD'),ankle:findBoneIndex('右足首D'),srcHip:findBoneIndex('右足'),srcKnee:findBoneIndex('右ひざ'),srcAnkle:findBoneIndex('右足首')}};
 
 function parseVMD(buffer){
   const r=new DataView(buffer);
@@ -384,13 +383,12 @@ function applyMotionPose(){
     pmx.bones[i].poseQ=pose[i]?.q||[0,0,0,1];
     pmx.bones[i].poseP=pose[i]?.p||[0,0,0];
   }
-  // D系脚ボーンはPMX本来の「回転付与」をbuildWorld側で解決するため、
-  // 通常脚ボーンの姿勢を直接コピーしない。これにより二重回転を防ぐ。
-  // 足先EXは独自回転を加えず、親である足首Dの変形だけで追従させる。
+  // このモデルの実メッシュはD系脚ボーンで変形するため、まず通常脚ボーンの姿勢をD系へコピーする。
   for(const side of [footRig.left,footRig.right]){
-    if(!side||side.toeEx<0)continue;
-    pmx.bones[side.toeEx].poseQ=[0,0,0,1];
-    pmx.bones[side.toeEx].poseP=[0,0,0];
+    if(!side)continue;
+    if(side.srcHip>=0&&side.hip>=0)pmx.bones[side.hip].poseQ=pmx.bones[side.srcHip].poseQ.slice();
+    if(side.srcKnee>=0&&side.knee>=0)pmx.bones[side.knee].poseQ=pmx.bones[side.srcKnee].poseQ.slice();
+    if(side.srcAnkle>=0&&side.ankle>=0)pmx.bones[side.ankle].poseQ=pmx.bones[side.srcAnkle].poseQ.slice();
   }
 }
 
@@ -406,70 +404,62 @@ function matToQuat(m){
 function qMul(a,b){return qNormalize([a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]]);}
 function qInv(q){return[-q[0],-q[1],-q[2],q[3]];}
 function qFromTo(a,b){const va=norm(a),vb=norm(b),d=Math.max(-1,Math.min(1,dot(va,vb)));if(d>.9999)return[0,0,0,1];if(d<-.9999){let axis=cross([1,0,0],va);if(Math.hypot(...axis)<.001)axis=cross([0,1,0],va);axis=norm(axis);return[axis[0],axis[1],axis[2],0];}const c=cross(va,vb);return qNormalize([c[0],c[1],c[2],1+d]);}
-function buildWorld(){
-  const world=[];
-  for(let i=0;i<pmx.bones.length;i++){
-    const b=pmx.bones[i],p=b.parent;
-    const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();
-    const pp=b.poseP||[0,0,0];
-    let q=b.poseQ||[0,0,0,1];
-    // PMX 0x0100: inherit rotation from an earlier/source bone with the stored ratio.
-    // Most importantly this is what carries the regular leg motion into the model's D bones.
-    if(b.appendRot && world[b.appendRot.target]){
-      const sourceWorldQ=matToQuat(world[b.appendRot.target]);
-      const granted=eulerToQuat(0,0,0);
-      const scaled=[sourceWorldQ[0]*b.appendRot.ratio,sourceWorldQ[1]*b.appendRot.ratio,sourceWorldQ[2]*b.appendRot.ratio,1+(sourceWorldQ[3]-1)*b.appendRot.ratio];
-      const gq=qNormalize(scaled);
-      q=qMul(q,gq);
-    }
-    const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(q));
-    world[i]=p>=0?mm(world[p],lm):lm;
-  }
-  return world;
-}
-const IK_ITERATIONS=4;
-const IK_STEP=.14;
-const IK_KNEE_BLEND=.28;
-function quatApproxAngle(q){return 2*Math.acos(Math.max(-1,Math.min(1,qNormalize(q)[3])));}
-function clampKneeDirection(baseQ,candQ){
-  // Keep the IK correction only on the same general bend hemisphere as the VMD pose.
-  // This prevents the knee from folding through the opposite direction.
-  const qb=qNormalize(baseQ),qc=qNormalize(candQ);
-  const baseSign=Math.sign(qb[0])||1;
-  if(Math.sign(qc[0])!==baseSign && Math.abs(qc[0])>0.015) return qb;
-  return qc;
-}
+function buildWorld(){const world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();const pp=b.poseP||[0,0,0];const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(b.poseQ||[0,0,0,1]));world[i]=p>=0?mm(world[p],lm):lm;}return world;}
 function solveDeformFootIK(world,side){
   if(!side||side.ik<0||side.hip<0||side.knee<0||side.ankle<0)return false;
-  const target=mulPoint(world[side.ik],[0,0,0]);
-  const baseKnee=pmx.bones[side.knee].poseQ?.slice()||[0,0,0,1];
-  const chain=[side.knee,side.hip];
-  for(let iter=0;iter<IK_ITERATIONS;iter++){
-    for(const joint of chain){
-      const jp=mulPoint(world[joint],[0,0,0]);
-      const ep=mulPoint(world[side.ankle],[0,0,0]);
-      const a=sub(ep,jp), b=sub(target,jp);
-      if(Math.hypot(...a)<1e-5||Math.hypot(...b)<1e-5)continue;
-      let delta=qFromTo(a,b);
-      const step = joint===side.knee ? IK_STEP*0.45 : IK_STEP;
-      delta=qSlerp([0,0,0,1],delta,step);
-      const jw=matToQuat(world[joint]);
-      const desired=qMul(delta,jw);
-      const parent=pmx.bones[joint].parent;
-      const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];
-      let q=qMul(qInv(pw),desired);
-      if(joint===side.knee){
-        q=clampKneeDirection(baseKnee,q);
-        // Preserve most of the VMD knee bend, but allow enough IK to position the foot.
-        q=qSlerp(baseKnee,q,0.48);
-      }
-      pmx.bones[joint].poseQ=q;
-      world.splice(0,world.length,...buildWorld());
-    }
-    const ep=mulPoint(world[side.ankle],[0,0,0]);
-    if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<0.08)break;
+  const H=mulPoint(world[side.hip],[0,0,0]);
+  const K=mulPoint(world[side.knee],[0,0,0]);
+  const A=mulPoint(world[side.ankle],[0,0,0]);
+  const T=mulPoint(world[side.ik],[0,0,0]);
+  const L1=Math.hypot(K[0]-H[0],K[1]-H[1],K[2]-H[2]);
+  const L2=Math.hypot(A[0]-K[0],A[1]-K[1],A[2]-K[2]);
+  if(L1<1e-5||L2<1e-5)return false;
+
+  const raw=sub(T,H);
+  const dist=Math.hypot(...raw);
+  const minDist=Math.max(0.15,Math.abs(L1-L2)+0.01);
+  const maxDist=Math.max(minDist+0.01,L1+L2-0.01);
+  const D=Math.max(minDist,Math.min(maxDist,dist));
+  const dir=norm(raw);
+
+  // キャラクターの後方(+Z)を膝の優先曲げ方向にする。
+  function projectPole(v){return sub(v,[dir[0]*dot(v,dir),dir[1]*dot(v,dir),dir[2]*dot(v,dir)]);}
+  let pole=projectPole([0,0,1]);
+  if(Math.hypot(...pole)<1e-5) pole=projectPole([1,0,0]);
+  pole=norm(pole);
+
+  // 解析的2ボーンIK。必要な曲げ量だけを使い、膝を過剰に折らない。
+  const along=(L1*L1-L2*L2+D*D)/(2*D);
+  const hIdeal=Math.sqrt(Math.max(0,L1*L1-along*along));
+  const h=Math.min(hIdeal,Math.min(L1,L2)*0.58);
+  const Kt=[H[0]+dir[0]*along+pole[0]*h,H[1]+dir[1]*along+pole[1]*h,H[2]+dir[2]*along+pole[2]*h];
+
+  const bH=mulPoint(bindWorld[side.hip],[0,0,0]);
+  const bK=mulPoint(bindWorld[side.knee],[0,0,0]);
+  const bA=mulPoint(bindWorld[side.ankle],[0,0,0]);
+  const bindHipDir=norm(sub(bK,bH));
+  const bindKneeDir=norm(sub(bA,bK));
+  const wantHipDir=norm(sub(Kt,H));
+  const wantKneeDir=norm(sub(T,Kt));
+
+  const desiredHipWorld=qMul(qFromTo(bindHipDir,wantHipDir),matToQuat(bindWorld[side.hip]));
+  const hipParent=pmx.bones[side.hip].parent;
+  const hipParentWorld=hipParent>=0?matToQuat(world[hipParent]):[0,0,0,1];
+  pmx.bones[side.hip].poseQ=qMul(qInv(hipParentWorld),desiredHipWorld);
+  world.splice(0,world.length,...buildWorld());
+
+  const desiredKneeWorld=qMul(qFromTo(bindKneeDir,wantKneeDir),matToQuat(bindWorld[side.knee]));
+  const kneeParent=pmx.bones[side.knee].parent;
+  const kneeParentWorld=kneeParent>=0?matToQuat(world[kneeParent]):[0,0,0,1];
+  pmx.bones[side.knee].poseQ=qMul(qInv(kneeParentWorld),desiredKneeWorld);
+  world.splice(0,world.length,...buildWorld());
+
+  // 足首のVMD回転を維持。足先EXは親階層の移動をそのまま受ける。
+  if(side.srcAnkle>=0 && side.ankle>=0){
+    pmx.bones[side.ankle].poseQ=pmx.bones[side.srcAnkle].poseQ?.slice()||[0,0,0,1];
+    world.splice(0,world.length,...buildWorld());
   }
-  pmx.bones[side.knee].poseQ=clampKneeDirection(baseKnee,pmx.bones[side.knee].poseQ||baseKnee);
+  if(side.toeEx>=0)pmx.bones[side.toeEx].poseQ=[0,0,0,1];
   return true;
 }
 
@@ -565,7 +555,7 @@ function render(){
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
- debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\n足IK: VMD + PMX回転付与 + 膝方向制限\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${findBoneIndex('左足')>=0?'左足✓':'左足—'} ${findBoneIndex('右足')>=0?'右足✓':'右足—'} ${findBoneIndex('左腕')>=0?'左腕✓':'左腕—'} ${findBoneIndex('右腕')>=0?'右腕✓':'右腕—'}`;
+ debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${findBoneIndex('左足')>=0?'左足✓':'左足—'} ${findBoneIndex('右足')>=0?'右足✓':'右足—'} ${findBoneIndex('左腕')>=0?'左腕✓':'左腕—'} ${findBoneIndex('右腕')>=0?'右腕✓':'右腕—'}`;
 }
 reset();
 await initMotions();
