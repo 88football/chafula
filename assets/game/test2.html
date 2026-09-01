@@ -111,15 +111,14 @@ function parsePMX(buf){
  for(let i=0;i<bc;i++){
   const bn=str(),ben=str(),p=[r.f32(),r.f32(),r.f32()],parent=r.idx(bIS),layer=r.i32(),flags=r.u16();
   if(flags&1)r.idx(bIS);else r.bytes(12);
-  let inheritRotationSource=-1, inheritRotationWeight=0, inheritTranslationSource=-1, inheritTranslationWeight=0;
-  if(flags&0x100){inheritRotationSource=r.idx(bIS);inheritRotationWeight=r.f32()}
-  if(flags&0x200){inheritTranslationSource=r.idx(bIS);inheritTranslationWeight=r.f32()}
+  if(flags&0x100){r.idx(bIS);r.f32()}
+  if(flags&0x200){r.idx(bIS);r.f32()}
   if(flags&0x400)r.bytes(12);
   if(flags&0x800)r.bytes(24);
   if(flags&0x2000)r.idx(bIS);
   let ik=null;
   if(flags&0x20){const target=r.idx(bIS),loops=r.i32(),limit=r.f32();const lc=r.i32();const links=[];for(let j=0;j<lc;j++){const li=r.idx(bIS);const lim=r.u8();if(lim)r.bytes(24);links.push(li);}ik={target,loops,limit,links};}
-  const b={name:bn,en:ben,pos:p,parent,flags,rot:[0,0,0],poseQ:[0,0,0,1],poseP:[0,0,0],ik,inheritRotationSource,inheritRotationWeight,inheritTranslationSource,inheritTranslationWeight};bones.push(b);boneMap.set(bn,i);
+  const b={name:bn,en:ben,pos:p,parent,flags,rot:[0,0,0],poseQ:[0,0,0,1],poseP:[0,0,0],ik};bones.push(b);boneMap.set(bn,i);
  }
  return {name,vertices:pos,normals:nor,uv,bi,bw,indices,textures,materials,bones,boneMap,bounds:boundsOf(pos)};
 }
@@ -289,7 +288,16 @@ function qSlerp(a,b,t){
   const s1=Math.sin(t*th)/st;
   return [ax*s0+bx*s1,ay*s0+by*s1,az*s0+bz*s1,aw*s0+bw*s1];
 }
-function quatToMat(q){q=qNormalize(q);const x=q[0],y=q[1],z=q[2],w=q[3];return new Float32Array([1-2*(y*y+z*z),2*(x*y+z*w),2*(x*z-y*w),0,2*(x*y-z*w),1-2*(x*x+z*z),2*(y*z+x*w),0,2*(x*z+y*w),2*(y*z-x*w),1-2*(x*x+y*y),0,0,0,0,1]);}
+function quatToMat(q){
+  q=qNormalize(q);
+  const x=q[0],y=q[1],z=q[2],w=q[3];
+  return new Float32Array([
+    1-2*y*y-2*z*z, 2*x*y-2*z*w, 2*x*z+2*y*w, 0,
+    2*x*y+2*z*w, 1-2*x*x-2*z*z, 2*y*z-2*x*w, 0,
+    2*x*z-2*y*w, 2*y*z+2*x*w, 1-2*x*x-2*y*y, 0,
+    0,0,0,1
+  ]);
+}
 function eulerToQuat(x,y,z){
   const cx=Math.cos(x/2),sx=Math.sin(x/2),cy=Math.cos(y/2),sy=Math.sin(y/2),cz=Math.cos(z/2),sz=Math.sin(z/2);
   return qNormalize([
@@ -388,36 +396,32 @@ function matToQuat(m){
 function qMul(a,b){return qNormalize([a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]]);}
 function qInv(q){return[-q[0],-q[1],-q[2],q[3]];}
 function qFromTo(a,b){const va=norm(a),vb=norm(b),d=Math.max(-1,Math.min(1,dot(va,vb)));if(d>.9999)return[0,0,0,1];if(d<-.9999){let axis=cross([1,0,0],va);if(Math.hypot(...axis)<.001)axis=cross([0,1,0],va);axis=norm(axis);return[axis[0],axis[1],axis[2],0];}const c=cross(va,vb);return qNormalize([c[0],c[1],c[2],1+d]);}
-function qPow(q,w){if(Math.abs(w)<1e-6)return [0,0,0,1];q=qNormalize(q);const a=Math.acos(Math.max(-1,Math.min(1,q[3])));const s=Math.sin(a);if(Math.abs(s)<1e-6)return [0,0,0,1];const na=a*w;const k=Math.sin(na)/s;return qNormalize([q[0]*k,q[1]*k,q[2]*k,Math.cos(na)]);}
-function buildWorld(){const world=[];for(let i=0;i<pmx.bones.length;i++){const b=pmx.bones[i],p=b.parent;const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();let q=b.poseQ||[0,0,0,1];if(b.inheritRotationSource>=0&&b.inheritRotationSource<i){const src=pmx.bones[b.inheritRotationSource].poseQ||[0,0,0,1];q=qMul(qPow(src,b.inheritRotationWeight||0),q);}const pp=b.poseP||[0,0,0];const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(q));world[i]=p>=0?mm(world[p],lm):lm;}return world;}
-function solveFootIK(world,ikName){const ik=findBoneIndex(ikName);if(ik===undefined||ik<0)return false;const def=pmx.bones[ik].ik;if(!def||def.links.length<2)return false;const ankle=def.target;if(ankle<0)return false;const target=mulPoint(world[ik],[0,0,0]);for(let iter=0;iter<6;iter++){for(const joint of def.links){const jp=mulPoint(world[joint],[0,0,0]),ep=mulPoint(world[ankle],[0,0,0]);const d=qFromTo(sub(ep,jp),sub(target,jp));const parent=pmx.bones[joint].parent;const jw=matToQuat(world[joint]);const desired=qMul(d,jw);const pw=parent>=0?matToQuat(world[parent]):[0,0,0,1];pmx.bones[joint].poseQ=qMul(qInv(pw),desired);world.splice(0,world.length,...buildWorld());}const ep=mulPoint(world[ankle],[0,0,0]);if(Math.hypot(ep[0]-target[0],ep[1]-target[1],ep[2]-target[2])<.03)break;}return true;}
+function buildWorld(){
+  const world=[];
+  for(let i=0;i<pmx.bones.length;i++){
+    const b=pmx.bones[i],p=b.parent;
+    const base=p>=0?[b.pos[0]-pmx.bones[p].pos[0],b.pos[1]-pmx.bones[p].pos[1],b.pos[2]-pmx.bones[p].pos[2]]:b.pos.slice();
+    const pp=b.poseP||[0,0,0];
+    let q=b.poseQ||[0,0,0,1];
+    // MMDの回転付与を簡易再現。足/腕などのDボーンは元ボーンの回転を継承する。
+    if(b.inheritBone>=0 && b.inheritWeight!==0){
+      const parentPose=(pmx.bones[b.inheritBone]?.poseQ)||[0,0,0,1];
+      const iw=Math.abs(b.inheritWeight);
+      const id=[0,0,0,1];
+      const inh=qSlerp(id,parentPose,iw);
+      q=b.inheritWeight<0?qMul(qInv(inh),q):qMul(inh,q);
+    }
+    const lm=mm(mt(base[0]+pp[0],base[1]+pp[1],base[2]+pp[2]),quatToMat(q));
+    world[i]=p>=0?mm(world[p],lm):lm;
+  }
+  return world;
+}
 function boneMatrices(){
   applyMotionPose();
-  let world=buildWorld();
-  // VMDの左足IK/右足IKの位置を、実際の太腿・膝回転へ反映する。
-  // これまでここが呼ばれていなかったため、足IKのキーは描画へ届いていなかった。
-  // PMXの足Dは通常の足ボーンから回転を継承するため、ここでは追加IK補正を行わず
-  // VMDの「左足/右足/左ひざ/右ひざ/足首」の姿勢をそのまま反映する。
+  const world=buildWorld();
   const out=new Float32Array(pmx.bones.length*16);
   for(let i=0;i<pmx.bones.length;i++)out.set(mm(world[i],invBind[i]),i*16);
   return out;
-}
-
-const groundVerts=new Float32Array([-1,0,-1, 1,0,-1, 1,0,1, -1,0,-1, 1,0,1, -1,0,1]);
-const groundVB=device.createBuffer({size:groundVerts.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(groundVB,0,groundVerts);
-const groundShader=`struct U { vp: mat4x4f, model: mat4x4f }; struct O { @builtin(position) p: vec4f, @location(0) c: vec4f }; @group(0) @binding(0) var<uniform> u:U; @vertex fn vs(@location(0)p:vec3f)->O{var o:O;o.p=u.vp*u.model*vec4f(p,1);o.c=vec4f(.06,.09,.14,1);return o;} @fragment fn fs(i:O)->@location(0)vec4f{return i.c;}`;
-const gsm=device.createShaderModule({code:groundShader});const gbgl=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]});const glayout=device.createPipelineLayout({bindGroupLayouts:[gbgl]});const gpipe=device.createRenderPipeline({layout:glayout,vertex:{module:gsm,entryPoint:'vs',buffers:[{arrayStride:12,attributes:[{shaderLocation:0,format:'float32x3',offset:0}]}]},fragment:{module:gsm,entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});const gbind=device.createBindGroup({layout:gbgl,entries:[{binding:0,resource:{buffer:camBuf}}]});
-
-const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;keys[e.code.toLowerCase()]=true;if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key.toLowerCase()==='r')reset()});addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.code.toLowerCase()]=false});
-let cameraYaw=0,cameraPitch=.48,mouseCaptured=false;canvas.addEventListener('click',()=>{if(document.pointerLockElement!==canvas)canvas.requestPointerLock()});document.addEventListener('pointerlockchange',()=>mouseCaptured=document.pointerLockElement===canvas);document.addEventListener('mousemove',e=>{if(!mouseCaptured)return;cameraYaw+=e.movementX*.003;cameraPitch=Math.max(.18,Math.min(1.15,cameraPitch+e.movementY*.0025));});
-let player,enemies,score,wave,hp,stamina,invuln,dash,dashDir,spawn,time,animTime=0,dead,latched,actionState,actionTime,lastMoveAngle,motionStateTime=0;
-function reset(){
-  player={x:0,z:0,vx:0,vz:0};
-  enemies=[];score=0;wave=1;hp=100;stamina=100;invuln=0;
-  dash=0;dashDir={x:0,z:1};spawn=.5;time=0;animTime=0;
-  actionState='idle';actionTime=0;motionStateTime=0;
-  activeMotionState='idle';motionBlendFrom=null;motionBlendElapsed=1;
-  lastMoveAngle=cameraYaw;dead=false;latched=false;cameraYaw=0;cameraPitch=.48;msg.hidden=true;
 }
 function getMoveDirection(){let right=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),forward=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0);const l=Math.hypot(right,forward);if(!l)return{x:0,z:0};right/=l;forward/=l;const sy=Math.sin(cameraYaw),cy=Math.cos(cameraYaw);return{x:sy*forward+cy*right,z:-cy*forward+sy*right}}
 function dodge(){if(dead||dash>0||stamina<25)return;let d=getMoveDirection();if(!d.x&&!d.z){const sp=Math.hypot(player.vx,player.vz);d=sp>.05?{x:player.vx/sp,z:player.vz/sp}:{x:Math.sin(cameraYaw),z:-Math.cos(cameraYaw)}}dashDir=d;dash=.30;invuln=.42;stamina-=25;actionState='dodge';actionTime=0}
@@ -493,7 +497,7 @@ function render(){
  // model
  device.queue.writeBuffer(camBuf,64,modelMatrix());pass.setPipeline(pipe);pass.setVertexBuffer(0,vb);pass.setIndexBuffer(ib,'uint32');for(let i=0;i<pmx.materials.length;i++){const g=pmx.materials[i];if(g.faceCount<=0)continue;pass.setBindGroup(0,materialBinds[i]);pass.drawIndexed(g.faceCount,1,g.faceOffset,0,0)}
  pass.end();device.queue.submit([enc.finish()]);
- debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON / 足IK: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${findBoneIndex('左足')>=0?'左足✓':'左足—'} ${findBoneIndex('右足')>=0?'右足✓':'右足—'} ${findBoneIndex('左腕')>=0?'左腕✓':'左腕—'} ${findBoneIndex('右腕')>=0?'右腕✓':'右腕—'}`;
+ debugEl.textContent=`PMX: ${pmx.name}\nアニメーション: ${actionState}\nGPUスキニング: ON\nWASD: 移動 / Space・Shift: 回避\n速度: ${Math.hypot(player.vx,player.vz).toFixed(2)} / 方向: ${((Math.atan2(player.vx,-player.vz)*180/Math.PI+360)%360).toFixed(0)}°\n${findBoneIndex('左足D')>=0?'左足D✓':'左足D—'} ${findBoneIndex('右足D')>=0?'右足D✓':'右足D—'} ${findBoneIndex('左腕')>=0?'左腕✓':'左腕—'} ${findBoneIndex('右腕')>=0?'右腕✓':'右腕—'}`;
 }
 reset();
 await initMotions();
