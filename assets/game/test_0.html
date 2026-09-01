@@ -2144,13 +2144,13 @@ fn fs(
            * 脚だけを数フレーム先行させる。
            *
            * ・下半身／上半身は現在フレームのまま
-           * ・左右の脚、膝、足首、足IK、つま先IKは+4f先行
+           * ・左右の脚、膝、足首、足IK、つま先IKは+8f先行
            *
            * これにより「体が先に傾く→あとから脚が動く」ではなく、
            * 「脚を踏み出しながら体が前傾する」見え方に近づける。
            */
           if (state === "runStart") {
-            const LEG_LEAD_FRAMES = 4;
+            const LEG_LEAD_FRAMES = 8;
             const legFrame = Math.min(
               motion.maxFrame,
               frame + LEG_LEAD_FRAMES,
