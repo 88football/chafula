@@ -1,9 +1,11 @@
 <!doctype html>
-
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  />
 
   <title>
     Native WebGPU Arlecchino Dodge Arena - GPU Skinning
@@ -126,7 +128,6 @@
       white-space: pre-line;
     }
   </style>
-
 </head>
 
 <body>
@@ -136,30 +137,27 @@
     <div id="top">
       <div id="title">DODGE ARENA</div>
 
-```
-  <div id="stats">
-    SCORE <b id="score">0</b>　
-    WAVE <b id="wave">1</b>　
-    STAMINA <b id="stamina">100</b>
-  </div>
+      <div id="stats">
+        SCORE <b id="score">0</b>　
+        WAVE <b id="wave">1</b>　
+        STAMINA <b id="stamina">100</b>
+      </div>
 
-  <div id="bar">
-    <div id="hp"></div>
-  </div>
-</div>
+      <div id="bar">
+        <div id="hp"></div>
+      </div>
+    </div>
 
-<div id="help">
-  WASD / 矢印：移動（カメラ方向基準）<br />
-  マウス：カメラ回転のみ<br />
-  Space / Shift：回避<br />
-  R：リスタート
-</div>
+    <div id="help">
+      WASD / 矢印：移動（カメラ方向基準）<br />
+      マウス：カメラ回転のみ<br />
+      Space / Shift：回避<br />
+      R：リスタート
+    </div>
 
-<div id="message" hidden></div>
-<div id="loading">WebGPUを初期化中…</div>
-<div id="debug"></div>
-```
-
+    <div id="message" hidden></div>
+    <div id="loading">WebGPUを初期化中…</div>
+    <div id="debug"></div>
   </div>
 
   <script type="module">
@@ -473,7 +471,8 @@
       }
 
       str(enc) {
-        const n = this.i32();
+        const n =
+          this.i32();
 
         if (
           n < 0 ||
@@ -583,7 +582,10 @@
           const head =
             Array.from(
               new Uint8Array(
-                buf.slice(0, 4),
+                buf.slice(
+                  0,
+                  4,
+                ),
               ),
             )
               .map(
@@ -890,8 +892,7 @@
             r.f32();
 
           ws[1] =
-            1 -
-            ws[0];
+            1 - ws[0];
         } else if (wt === 2) {
           for (
             let k = 0;
@@ -930,8 +931,7 @@
             r.f32();
 
           ws[1] =
-            1 -
-            ws[0];
+            1 - ws[0];
 
           r.bytes(36);
         } else if (wt === 4) {
@@ -1052,16 +1052,13 @@
         ];
 
         r.bytes(12);
-
         r.f32();
-
         r.bytes(12);
 
         const flags =
           r.u8();
 
         r.bytes(16);
-
         r.f32();
 
         const ti =
@@ -1336,7 +1333,7 @@
 
 
     /* =========================================================
-       MATRIX / VECTOR
+       MATRIX
     ========================================================= */
 
     const ident = () =>
@@ -1588,17 +1585,23 @@
         mt(
           b.pos[0] -
             (p >= 0
-              ? pmx.bones[p].pos[0]
+              ? pmx.bones[
+                  p
+                ].pos[0]
               : 0),
 
           b.pos[1] -
             (p >= 0
-              ? pmx.bones[p].pos[1]
+              ? pmx.bones[
+                  p
+                ].pos[1]
               : 0),
 
           b.pos[2] -
             (p >= 0
-              ? pmx.bones[p].pos[2]
+              ? pmx.bones[
+                  p
+                ].pos[2]
               : 0),
         );
 
@@ -1775,6 +1778,13 @@
       0,
       pmx.indices,
     );
+
+    /*
+     * 128 bytes:
+     *
+     * [0..63]   vp
+     * [64..127] model
+     */
 
     const camBuf =
       device.createBuffer({
@@ -2071,36 +2081,46 @@ fn fs(
               attributes: [
                 {
                   shaderLocation: 0,
+
                   format:
                     "float32x3",
+
                   offset: 0,
                 },
 
                 {
                   shaderLocation: 1,
+
                   format:
                     "float32x3",
+
                   offset: 12,
                 },
 
                 {
                   shaderLocation: 2,
+
                   format:
                     "float32x2",
+
                   offset: 24,
                 },
 
                 {
                   shaderLocation: 3,
+
                   format:
                     "uint32x4",
+
                   offset: 32,
                 },
 
                 {
                   shaderLocation: 4,
+
                   format:
                     "float32x4",
+
                   offset: 48,
                 },
               ],
@@ -2192,7 +2212,8 @@ fn fs(
 
       device.queue.writeTexture(
         {
-          texture: tex,
+          texture:
+            tex,
         },
 
         new Uint8Array([
@@ -2519,18 +2540,24 @@ fn fs(
       0.12;
 
     const modelHeight =
-      (pmx.bounds.mx[1] -
-        pmx.bounds.mn[1]) *
+      (
+        pmx.bounds.mx[1] -
+        pmx.bounds.mn[1]
+      ) *
       modelScale;
 
     const centerX =
-      (pmx.bounds.mn[0] +
-        pmx.bounds.mx[0]) *
+      (
+        pmx.bounds.mn[0] +
+        pmx.bounds.mx[0]
+      ) *
       0.5;
 
     const centerZ =
-      (pmx.bounds.mn[2] +
-        pmx.bounds.mx[2]) *
+      (
+        pmx.bounds.mn[2] +
+        pmx.bounds.mx[2]
+      ) *
       0.5;
 
     const bottom =
@@ -2731,34 +2758,22 @@ fn fs(
       z,
     ) {
       const cx =
-        Math.cos(
-          x / 2,
-        );
+        Math.cos(x / 2);
 
       const sx =
-        Math.sin(
-          x / 2,
-        );
+        Math.sin(x / 2);
 
       const cy =
-        Math.cos(
-          y / 2,
-        );
+        Math.cos(y / 2);
 
       const sy =
-        Math.sin(
-          y / 2,
-        );
+        Math.sin(y / 2);
 
       const cz =
-        Math.cos(
-          z / 2,
-        );
+        Math.cos(z / 2);
 
       const sz =
-        Math.sin(
-          z / 2,
-        );
+        Math.sin(z / 2);
 
       return qNormalize([
         sx * cy * cz -
@@ -2775,9 +2790,7 @@ fn fs(
       ]);
     }
 
-    function normalizeBoneName(
-      s,
-    ) {
+    function normalizeBoneName(s) {
       return String(
         s || "",
       )
@@ -2826,10 +2839,7 @@ fn fs(
 
 
     /* =========================================================
-       VMD PARSER
-
-       VMD内のルート移動は使用しない。
-       実際のプレイヤー移動はplayer.x/zで処理。
+       VMD ROOT MOTION
     ========================================================= */
 
     function isRootMotionBone(
@@ -2849,6 +2859,11 @@ fn fs(
         n === "グルーブD"
       );
     }
+
+
+    /* =========================================================
+       VMD PARSER
+    ========================================================= */
 
     function parseVMD(
       buffer,
@@ -2893,7 +2908,9 @@ fn fs(
       };
 
       const header =
-        readFixedString(30);
+        readFixedString(
+          30,
+        );
 
       if (
         !header.startsWith(
@@ -2906,7 +2923,9 @@ fn fs(
       }
 
       const modelName =
-        readFixedString(20);
+        readFixedString(
+          20,
+        );
 
       const boneCount =
         r.getUint32(
@@ -2920,7 +2939,6 @@ fn fs(
         new Map();
 
       let maxFrame = 0;
-
       let minFrame =
         Infinity;
 
@@ -2986,6 +3004,9 @@ fn fs(
 
         p += 16;
 
+        /*
+         * Bezier補間情報
+         */
         p += 64;
 
         const bi =
@@ -3002,6 +3023,11 @@ fn fs(
         const arr =
           tracks.get(bi) ||
           [];
+
+        /*
+         * ルート移動成分はゲーム側の
+         * player座標だけで処理。
+         */
 
         const storedPos =
           isRootMotionBone(
@@ -3230,8 +3256,10 @@ fn fs(
           arr[hi];
 
         const t =
-          (frame -
-            a.frame) /
+          (
+            frame -
+            a.frame
+          ) /
           Math.max(
             1,
             b.frame -
@@ -3256,6 +3284,11 @@ fn fs(
 
       return pose;
     }
+
+
+    /* =========================================================
+       MOTION STATE
+    ========================================================= */
 
     const motions = {};
 
@@ -3292,10 +3325,13 @@ fn fs(
       const motion =
         state === "walk"
           ? motions.walk
+
           : state === "run"
             ? motions.run
+
             : state === "dodge"
               ? motions.dash
+
               : null;
 
       if (motion) {
@@ -3522,7 +3558,7 @@ fn fs(
 
 
     /* =========================================================
-       QUATERNION / IK
+       QUAT / IK
     ========================================================= */
 
     function matToQuat(m) {
@@ -3798,9 +3834,7 @@ fn fs(
       let pitch;
 
       if (
-        Math.abs(
-          sinp,
-        ) >=
+        Math.abs(sinp) >=
         0.999999
       ) {
         pitch =
@@ -3854,7 +3888,7 @@ fn fs(
 
 
     /* =========================================================
-       IK LINK LIMIT
+       IK LIMIT
     ========================================================= */
 
     function applyIKLinkLimit(
@@ -3870,44 +3904,35 @@ fn fs(
         link.min &&
         link.max
       ) {
-        let e =
+        const e =
           qToEulerXYZ(
             result,
           );
 
-        let x =
-          e[0];
-
-        let y =
-          e[1];
-
-        let z =
-          e[2];
-
-        x =
+        const x =
           Math.max(
             link.min[0],
             Math.min(
               link.max[0],
-              x,
+              e[0],
             ),
           );
 
-        y =
+        const y =
           Math.max(
             link.min[1],
             Math.min(
               link.max[1],
-              y,
+              e[1],
             ),
           );
 
-        z =
+        const z =
           Math.max(
             link.min[2],
             Math.min(
               link.max[2],
-              z,
+              e[2],
             ),
           );
 
@@ -4017,16 +4042,19 @@ fn fs(
           p >= 0
             ? [
                 b.pos[0] -
-                  pmx.bones[p]
-                    .pos[0],
+                  pmx.bones[
+                    p
+                  ].pos[0],
 
                 b.pos[1] -
-                  pmx.bones[p]
-                    .pos[1],
+                  pmx.bones[
+                    p
+                  ].pos[1],
 
                 b.pos[2] -
-                  pmx.bones[p]
-                    .pos[2],
+                  pmx.bones[
+                    p
+                  ].pos[2],
               ]
             : b.pos.slice();
 
@@ -4075,7 +4103,7 @@ fn fs(
 
 
     /* =========================================================
-       PMX IK SOLVER
+       PMX IK
     ========================================================= */
 
     function solveFootIK(
@@ -4143,10 +4171,17 @@ fn fs(
             typeof rawLink ===
             "number"
               ? {
-                  bone: rawLink,
-                  limited: false,
-                  min: null,
-                  max: null,
+                  bone:
+                    rawLink,
+
+                  limited:
+                    false,
+
+                  min:
+                    null,
+
+                  max:
+                    null,
                 }
               : rawLink;
 
@@ -4515,6 +4550,11 @@ fn fs(
       groundVerts,
     );
 
+
+    /* =========================================================
+       GROUND SHADER
+    ========================================================= */
+
     const groundShader = `
 struct U {
   vp: mat4x4f,
@@ -4672,11 +4712,14 @@ fn fs(i: O)
 
     const gpipe =
       device.createRenderPipeline({
-        layout: glayout,
+        layout:
+          glayout,
 
         vertex: {
           module: gsm,
-          entryPoint: "vs",
+
+          entryPoint:
+            "vs",
 
           buffers: [
             {
@@ -4685,8 +4728,10 @@ fn fs(i: O)
               attributes: [
                 {
                   shaderLocation: 0,
+
                   format:
                     "float32x3",
+
                   offset: 0,
                 },
               ],
@@ -4696,7 +4741,9 @@ fn fs(i: O)
 
         fragment: {
           module: gsm,
-          entryPoint: "fs",
+
+          entryPoint:
+            "fs",
 
           targets: [
             {
@@ -4727,7 +4774,8 @@ fn fs(i: O)
 
     const gbind =
       device.createBindGroup({
-        layout: gbgl,
+        layout:
+          gbgl,
 
         entries: [
           {
@@ -4872,7 +4920,8 @@ fn fs()
           shlayout,
 
         vertex: {
-          module: shsm,
+          module:
+            shsm,
 
           entryPoint:
             "vs",
@@ -4896,7 +4945,8 @@ fn fs()
         },
 
         fragment: {
-          module: shsm,
+          module:
+            shsm,
 
           entryPoint:
             "fs",
@@ -4974,18 +5024,21 @@ fn fs()
        INPUT
     ========================================================= */
 
-    const keys = {};
+    const keys = Object.create(
+      null,
+    );
 
     addEventListener(
       "keydown",
       (e) => {
-        keys[
-          e.key.toLowerCase()
-        ] = true;
+        const key =
+          e.key.toLowerCase();
 
-        keys[
-          e.code.toLowerCase()
-        ] = true;
+        const code =
+          e.code.toLowerCase();
+
+        keys[key] = true;
+        keys[code] = true;
 
         if (
           [
@@ -4994,17 +5047,12 @@ fn fs()
             "arrowdown",
             "arrowleft",
             "arrowright",
-          ].includes(
-            e.key.toLowerCase(),
-          )
+          ].includes(key)
         ) {
           e.preventDefault();
         }
 
-        if (
-          e.key.toLowerCase() ===
-          "r"
-        ) {
+        if (key === "r") {
           reset();
         }
       },
@@ -5013,13 +5061,14 @@ fn fs()
     addEventListener(
       "keyup",
       (e) => {
-        keys[
-          e.key.toLowerCase()
-        ] = false;
+        const key =
+          e.key.toLowerCase();
 
-        keys[
-          e.code.toLowerCase()
-        ] = false;
+        const code =
+          e.code.toLowerCase();
+
+        keys[key] = false;
+        keys[code] = false;
       },
     );
 
@@ -5028,8 +5077,7 @@ fn fs()
        CAMERA
     ========================================================= */
 
-    let cameraYaw =
-      0;
+    let cameraYaw = 0;
 
     let cameraPitch =
       0.48;
@@ -5068,8 +5116,10 @@ fn fs()
         }
 
         /*
-         * カメラYaw/Pitchだけ変更。
-         * playerFacingは変更しない。
+         * マウスだけがカメラを回転させる。
+         *
+         * WASDからcameraYaw/cameraPitchへ
+         * 書き込む処理は存在しない。
          */
 
         cameraYaw +=
@@ -5112,21 +5162,34 @@ fn fs()
     let actionTime;
 
     /*
-     * カメラの向きとは別の
-     * キャラクター自身の向き。
+     * cameraYawとは完全に別。
+     *
+     * playerFacing =
+     *   キャラクター自身の向き
      */
 
-    let playerFacing =
-      0;
+    let playerFacing = 0;
 
     let motionStateTime =
       0;
 
 
+    /* =========================================================
+       RESET
+    ========================================================= */
+
     function reset() {
       player = {
+        /*
+         * キャラクターの実ワールド座標
+         */
+
         x: 0,
         z: 0,
+
+        /*
+         * 実速度
+         */
 
         vx: 0,
         vz: 0,
@@ -5172,43 +5235,33 @@ fn fs()
         1;
 
       dead = false;
-
       latched = false;
 
       /*
-       * 最初だけカメラと
-       * プレイヤー向きを一致。
+       * 初期状態では正面を向く。
        */
 
-      cameraYaw = 0;
+      playerFacing = 0;
 
+      cameraYaw = 0;
       cameraPitch =
         0.48;
-
-      playerFacing = 0;
 
       msg.hidden = true;
     }
 
 
     /* =========================================================
-       MOVEMENT
+       MOVEMENT DIRECTION
     ========================================================= */
 
     function getMoveDirection() {
-      let right =
-        (
-          keys.d ||
-          keys.arrowright
-            ? 1
-            : 0
-        ) -
-        (
-          keys.a ||
-          keys.arrowleft
-            ? 1
-            : 0
-        );
+      /*
+       * forward:
+       *
+       * W = +1
+       * S = -1
+       */
 
       let forward =
         (
@@ -5224,10 +5277,31 @@ fn fs()
             : 0
         );
 
+      /*
+       * right:
+       *
+       * D = +1
+       * A = -1
+       */
+
+      let right =
+        (
+          keys.d ||
+          keys.arrowright
+            ? 1
+            : 0
+        ) -
+        (
+          keys.a ||
+          keys.arrowleft
+            ? 1
+            : 0
+        );
+
       const len =
         Math.hypot(
-          right,
           forward,
+          right,
         );
 
       if (
@@ -5239,12 +5313,15 @@ fn fs()
         };
       }
 
-      right /= len;
       forward /= len;
+      right /= len;
 
       /*
-       * カメラのYawだけを基準に
-       * 入力方向をワールド方向へ変換。
+       * cameraYawを基準に
+       * ローカル入力をワールド方向へ変換。
+       *
+       * cameraYawそのものはここでは
+       * 変更しない。
        */
 
       const sy =
@@ -5316,27 +5393,32 @@ fn fs()
       let d =
         getMoveDirection();
 
+      /*
+       * 入力が無ければ現在の速度。
+       * それも無ければカメラ正面。
+       */
+
       if (
         !d.x &&
         !d.z
       ) {
-        const sp =
+        const speed =
           Math.hypot(
             player.vx,
             player.vz,
           );
 
         if (
-          sp > 0.05
+          speed > 0.05
         ) {
           d = {
             x:
               player.vx /
-              sp,
+              speed,
 
             z:
               player.vz /
-              sp,
+              speed,
           };
         } else {
           d = {
@@ -5355,13 +5437,18 @@ fn fs()
 
       dashDir = d;
 
+      /*
+       * ダッシュ方向へ
+       * キャラクターを向ける。
+       */
+
       playerFacing =
         directionAngle(
           d,
         );
 
       dash =
-        0.3;
+        0.30;
 
       invuln =
         0.42;
@@ -5423,6 +5510,7 @@ fn fs()
       let nextState =
         "idle";
 
+
       /* =======================================================
          DASH
       ======================================================= */
@@ -5433,7 +5521,7 @@ fn fs()
         dash -= dt;
 
         /*
-         * 実際にplayer座標を変更。
+         * 実際のプレイヤー座標を変更。
          */
 
         player.x +=
@@ -5446,6 +5534,11 @@ fn fs()
           15 *
           dt;
 
+        /*
+         * ダッシュ中は
+         * ダッシュ方向を向く。
+         */
+
         playerFacing =
           directionAngle(
             dashDir,
@@ -5454,6 +5547,7 @@ fn fs()
         nextState =
           "dodge";
       }
+
 
       /* =======================================================
          NORMAL MOVEMENT
@@ -5489,20 +5583,28 @@ fn fs()
             14 * dt,
           );
 
+        /*
+         * 加速
+         */
+
         player.vx +=
           (
             targetVX -
             player.vx
-          ) * accel;
+          ) *
+          accel;
 
         player.vz +=
           (
             targetVZ -
             player.vz
-          ) * accel;
+          ) *
+          accel;
 
         /*
-         * ここで本当にワールド座標が動く。
+         * ★ここが本当の移動
+         *
+         * player.x/zが変化する。
          */
 
         player.x +=
@@ -5518,29 +5620,31 @@ fn fs()
           );
 
         /*
-         * キャラクターは
-         * 入力方向を向く。
+         * 入力方向がある場合だけ
+         * キャラクター自身を回転。
          *
-         * cameraYawは絶対に変更しない。
+         * cameraYawは変えない。
          */
 
         if (
-          dir.x !== 0 ||
-          dir.z !== 0
+          Math.abs(dir.x) >
+            0.0001 ||
+          Math.abs(dir.z) >
+            0.0001
         ) {
           const targetFacing =
             directionAngle(
               dir,
             );
 
-          const delta =
+          const diff =
             shortestAngleDelta(
               playerFacing,
               targetFacing,
             );
 
           playerFacing +=
-            delta *
+            diff *
             Math.min(
               1,
               18 * dt,
@@ -5564,9 +5668,10 @@ fn fs()
         }
       }
 
-      /*
-       * 地面の範囲。
-       */
+
+      /* =======================================================
+         BOUNDARY
+      ======================================================= */
 
       player.x =
         Math.max(
@@ -5586,9 +5691,10 @@ fn fs()
           ),
         );
 
-      /*
-       * 状態遷移。
-       */
+
+      /* =======================================================
+         MOTION STATE
+      ======================================================= */
 
       if (
         nextState !==
@@ -5622,9 +5728,10 @@ fn fs()
       animTime +=
         dt;
 
-      /*
-       * UI
-       */
+
+      /* =======================================================
+         UI
+      ======================================================= */
 
       scoreEl.textContent =
         score;
@@ -5648,7 +5755,7 @@ fn fs()
 
     function modelMatrix() {
       /*
-       * キャラクター自身の向きだけ使う。
+       * キャラクターの向き。
        */
 
       const c =
@@ -5661,49 +5768,57 @@ fn fs()
           playerFacing,
         );
 
+      /*
+       * モデルのバウンディングボックス中心を
+       * 回転に合わせて補正。
+       *
+       * これをしないと向きを変えたときに
+       * キャラクターと影の関係がずれる。
+       */
+
+      const offsetX =
+        (
+          c * centerX -
+          s * centerZ
+        ) *
+        modelScale;
+
+      const offsetZ =
+        (
+          s * centerX +
+          c * centerZ
+        ) *
+        modelScale;
+
       return new Float32Array([
-        c *
-          modelScale,
-
+        c * modelScale,
         0,
-
-        -s *
-          modelScale,
-
+        -s * modelScale,
         0,
 
         0,
-
         modelScale,
-
+        0,
         0,
 
+        s * modelScale,
         0,
-
-        s *
-          modelScale,
-
-        0,
-
-        c *
-          modelScale,
-
+        c * modelScale,
         0,
 
         /*
-         * 実際のplayer座標。
+         * player.x / player.zが
+         * キャラクターの中心座標。
          */
 
         player.x -
-          centerX *
-            modelScale,
+          offsetX,
 
         -bottom *
           modelScale,
 
         player.z -
-          centerZ *
-            modelScale,
+          offsetZ,
 
         1,
       ]);
@@ -5716,17 +5831,12 @@ fn fs()
 
     function shadowMatrix() {
       /*
-       * 影は必ずplayer.x / player.zと同じ場所。
+       * 影はplayerとまったく同じ
+       * X/Z座標に配置。
        */
 
-      const shadowScaleX =
-        1.25;
-
-      const shadowScaleZ =
-        0.72;
-
       return new Float32Array([
-        shadowScaleX,
+        1.30,
         0,
         0,
         0,
@@ -5738,11 +5848,11 @@ fn fs()
 
         0,
         0,
-        shadowScaleZ,
+        0.70,
         0,
 
         player.x,
-        0.012,
+        0.015,
         player.z,
         1,
       ]);
@@ -5765,9 +5875,10 @@ fn fs()
             0.58,
         );
 
-      /*
-       * カメラの正面方向。
-       */
+
+      /* =======================================================
+         CAMERA FORWARD
+      ======================================================= */
 
       const fx =
         Math.sin(
@@ -5790,15 +5901,19 @@ fn fs()
           cameraPitch,
         );
 
+
+      /* =======================================================
+         CAMERA POSITION
+      ======================================================= */
+
       const camDistance =
         10.5;
 
       /*
-       * カメラ自身も
-       * プレイヤーのワールド座標へ追従。
+       * カメラは常にプレイヤーを基準にする。
        *
-       * ここでcameraYawを使うのは
-       * カメラの向きだけ。
+       * 位置はplayerに追従。
+       * 向きはcameraYaw/cameraPitchのみ。
        */
 
       const camX =
@@ -5815,6 +5930,23 @@ fn fs()
         player.z -
         fz *
           camDistance;
+
+      const lookX =
+        player.x +
+        fx * 3;
+
+      const lookY =
+        targetY +
+        fy * 3;
+
+      const lookZ =
+        player.z +
+        fz * 3;
+
+
+      /* =======================================================
+         VP
+      ======================================================= */
 
       const vp =
         mm(
@@ -5833,20 +5965,15 @@ fn fs()
             ],
 
             [
-              player.x +
-                fx * 3,
-
-              targetY +
-                fy * 3,
-
-              player.z +
-                fz * 3,
+              lookX,
+              lookY,
+              lookZ,
             ],
           ),
         );
 
       /*
-       * カメラ行列。
+       * VP
        */
 
       device.queue.writeBuffer(
@@ -5856,7 +5983,7 @@ fn fs()
       );
 
       /*
-       * ボーン。
+       * Bones
        */
 
       device.queue.writeBuffer(
@@ -5864,6 +5991,11 @@ fn fs()
         0,
         boneMatrices(),
       );
+
+
+      /* =======================================================
+         COMMAND ENCODER
+      ======================================================= */
 
       const enc =
         device.createCommandEncoder();
@@ -5917,8 +6049,11 @@ fn fs()
 
         new Float32Array([
           1, 0, 0, 0,
+
           0, 1, 0, 0,
+
           0, 0, 1, 0,
+
           0, 0, 0, 1,
         ]),
       );
@@ -5993,7 +6128,8 @@ fn fs()
 
       for (
         let i = 0;
-        i < pmx.materials.length;
+        i <
+        pmx.materials.length;
         i++
       ) {
         const g =
@@ -6086,7 +6222,7 @@ fn fs()
           ).toFixed(1)}°`;
       }
 
-      const playerDeg =
+      const playerAngle =
         (
           playerFacing *
           180 /
@@ -6094,7 +6230,7 @@ fn fs()
           360
         ) % 360;
 
-      const cameraDeg =
+      const cameraAngle =
         (
           cameraYaw *
           180 /
@@ -6115,13 +6251,13 @@ fn fs()
         `足IK: ON / つま先IK: ON\n` +
         `D系足変形: ON\n` +
         `${leftKneeInfo} / ${rightKneeInfo}\n` +
-        `プレイヤー位置: X ${player.x.toFixed(2)} / Z ${player.z.toFixed(2)}\n` +
-        `プレイヤー速度: ${speed.toFixed(2)}\n` +
-        `キャラクター方向: ${playerDeg.toFixed(0)}°\n` +
-        `カメラ方向: ${cameraDeg.toFixed(0)}°\n` +
-        `カメラとキャラは独立回転\n` +
-        `影: player.x / player.z 直結\n` +
-        `WASD: 移動 / Space・Shift: 回避\n` +
+        `キャラクター位置: X ${player.x.toFixed(2)} / Z ${player.z.toFixed(2)}\n` +
+        `速度: ${speed.toFixed(2)}\n` +
+        `キャラクター方向: ${playerAngle.toFixed(0)}°\n` +
+        `カメラ方向: ${cameraAngle.toFixed(0)}°\n` +
+        `WASD → カメラYaw変更: OFF\n` +
+        `WASD → 実ワールド移動: ON\n` +
+        `影 → player座標直結: ON\n` +
         `${
           findBoneIndex(
             "左足",
@@ -6198,7 +6334,9 @@ fn fs()
       `足IK / つま先IK / ` +
       `膝IK制限 / ` +
       `ルート移動OFF / ` +
-      `カメラ移動同期 / ` +
+      `WASDカメラ操作OFF / ` +
+      `W=カメラ正面 / ` +
+      `キャラクター方向同期 / ` +
       `影位置同期 / ` +
       `地面200×200`;
 
@@ -6227,6 +6365,5 @@ fn fs()
       loop,
     );
   </script>
-
 </body>
 </html>
