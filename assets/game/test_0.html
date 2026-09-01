@@ -2234,14 +2234,14 @@ fn fs(
              * 0fで最も強く、12fで通常の走りへ近づける。
              * 左右は同じ前方向へ曲げる。
              */
-            const hipBendDeg = 68 * Math.max(0, 1 - Math.min(1, elapsed / (12 / 30)));
+            const hipBendDeg = 92 * Math.max(0, 1 - Math.min(1, elapsed / (18 / 30)));
 
             /* 下半身にも軽く連動させ、股関節だけが折れるのを防ぐ。 */
             const lowerBody = findBoneIndex("下半身");
             if (lowerBody !== undefined && lowerBody >= 0) {
               const q = sampled[lowerBody]?.q || [0, 0, 0, 1];
               const lowerExtra = eulerToQuat(
-                ((hipBendDeg * 0.18) * Math.PI) / 180,
+                ((hipBendDeg * 0.24) * Math.PI) / 180,
                 0,
                 0,
               );
@@ -2751,8 +2751,8 @@ fn fs(
          * 走り出しだけはIK確定後に股関節の前屈をもう一度適用する。
          */
         if (activeMotionState === "runStart") {
-          const hipStrength = Math.max(0, 1 - Math.min(1, motionStateTime / 0.40));
-          const hipDeg = 68 * hipStrength;
+          const hipStrength = Math.max(0, 1 - Math.min(1, motionStateTime / 0.60));
+          const hipDeg = 92 * hipStrength;
 
           const addFinalHipBend = (names, deg) => {
             const bi = findBoneIndex(...names);
