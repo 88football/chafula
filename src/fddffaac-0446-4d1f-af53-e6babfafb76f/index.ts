@@ -1,20 +1,20 @@
 import { Hono } from 'hono';
-
-import { html, raw } from 'hono/html';
+import { html } from 'hono/html';
 
 const freb0 = new Hono();
 
 freb0.all('*', async (c) => {
   try {
-    const body = await c.req.json();
-    const content = body?.e6c417a27ec54833ba1582a92f4ec33a;
+    // フォームデータ（x-www-form-urlencoded / multipart）を解析
+    const body = await c.req.parseBody();
+    const content = body['e6c417a27ec54833ba1582a92f4ec33a'];
 
-    if (content) {
-      // raw() を使うことでエスケープされず、そのままHTMLとしてレンダリングされます
-      return c.html(html`${raw(content)}`);
+    if (typeof content === 'string' && content) {
+      // html テンプレートタグで自動エスケープして無害化
+      return c.html(html`${content}`);
     }
   } catch {
-    // JSONが含まれないリクエスト（GETなど）でのエラー落ちを防止
+    // エラーハンドリング
   }
 
   return c.text('Not Found', 404);
