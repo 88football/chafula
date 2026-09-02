@@ -4080,16 +4080,57 @@ fn fs(
 
             const u = Math.max(0, Math.min(1, elapsed / dodgeDuration));
 
-            /* 大きな上向きの半円ではなく、
-             * 沈み込み→底→跳ね上がりを1回だけ作る。
+            /*
+             * 回避専用の大きな弧。
+             *
+             * 0. 最初の一瞬で腰を一気に低くする
+             * 1. そこから大きく持ち上げる
+             * 2. 回避モーション中盤で最高点に到達
+             * 3. 最高点を越えたら、そのまま下がり始める
+             *
+             * 「走り」の周期的な上下動とは完全に別の軌道。
              */
-            const arc = Math.sin(Math.PI * u);
-            const lift = (2.0 * u - 1.0);
+            const dipEnd = 0.10;
+            const peakTime = 0.52;
 
-            bobY =
-              (-5.0 * arc +
-                3.5 * lift) *
-              waistAmp;
+            const easeOutCubic = (x) =>
+              1 - Math.pow(1 - x, 3);
+
+            const easeInOutCubic = (x) =>
+              x < 0.5
+                ? 4 * x * x * x
+                : 1 - Math.pow(-2 * x + 2, 3) / 2;
+
+            if (u < dipEnd) {
+              /* 開始直後に一気に沈む。 */
+              const t =
+                easeOutCubic(u / dipEnd);
+
+              bobY =
+                -5.8 * t;
+            } else if (u < peakTime) {
+              /* 低い位置から大きな弧を描いて最高点へ。 */
+              const t =
+                easeInOutCubic(
+                  (u - dipEnd) /
+                    (peakTime - dipEnd),
+                );
+
+              bobY =
+                -5.8 +
+                11.8 * t;
+            } else {
+              /* 最高点を越えた瞬間から、徐々に腰が下がる。 */
+              const t =
+                easeInOutCubic(
+                  (u - peakTime) /
+                    (1 - peakTime),
+                );
+
+              bobY =
+                6.0 -
+                8.0 * t;
+            }
           } else {
             bobY =
               Math.sin(
