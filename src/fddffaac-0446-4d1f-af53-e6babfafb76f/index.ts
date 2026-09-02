@@ -17,7 +17,7 @@ freb0.all('*', async (c) => {
     // エラーハンドリング
   }
 
-  return c.text('Not Found', 404);
+  return c.text('404 Not Found', 404);
 });
 
 export default freb0;
