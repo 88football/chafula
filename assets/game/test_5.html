@@ -4037,21 +4037,75 @@ fn fs(
             bobY;
 
           /*
-           * 回避中だけ、腰・胴体を前方へ大きく送り出し、
-           * 中盤で最大になったあと終盤で元へ戻す。
+           * 回避専用の横方向軌道。
+           *
+           * 上下と前後の「動く速さ」をあえてずらす。
+           *
+           * 1. 開始直後は上下方向を素早く大きく動かす。
+           * 2. 上下の動きが落ち着いてくる約0.4付近から
+           *    前後方向を強く動かす。
+           * 3. 中盤で腰が大きく前へ出た後、終盤で戻す。
+           *
+           * そのため横から見ると、単純な直線ではなく
+           * 「縦→前→戻る」の大きな弧に近い軌跡になる。
            */
           let dodgeForward = 0.0;
           let dodgeArcY = 0.0;
+
           if (state === "dodge") {
             const u = Math.max(0, Math.min(1, elapsed / (55 / 30)));
 
-            /* 横から見て直線にならない、丸い弧の軌道。
-             * このモデルでは -Z が前方向なので前進量は負方向。 */
-            const forwardPhase = Math.sin(Math.PI * u);
-            const verticalPhase = Math.pow(Math.sin(Math.PI * u), 1.65);
+            /* -------------------------------------------------
+             * 上下：開始直後の速度を大きくする。
+             * 約48%で最高点へ到達し、その後は下降。
+             * ------------------------------------------------- */
+            const upT = Math.min(1, u / 0.48);
+            const upEase = 1 - Math.pow(1 - upT, 2.2);
 
-            dodgeForward = -5.5 * forwardPhase;
-            dodgeArcY = 4.8 * verticalPhase;
+            const downT = Math.max(0, Math.min(1, (u - 0.48) / 0.52));
+            const downEase =
+              downT *
+              downT *
+              (3 - 2 * downT);
+
+            dodgeArcY =
+              6.2 *
+              (upEase * (1 - 0.10 * downT) - downEase * 0.90);
+
+            /* -------------------------------------------------
+             * 前後：上下の高速区間が終わり始める0.36付近から
+             * 強く前進。0.62付近で最大速度感を作り、
+             * その後は減速しながら元へ戻す。
+             * ------------------------------------------------- */
+            const moveStart = 0.36;
+            const moveT = Math.max(0, Math.min(1, (u - moveStart) / (1 - moveStart)));
+
+            /* 前半を強く、後半をゆっくりする非対称カーブ。 */
+            const forwardRise =
+              1 -
+              Math.pow(1 - moveT, 3.4);
+
+            const forwardReturnT =
+              Math.max(0, Math.min(1, (moveT - 0.58) / 0.42));
+
+            const forwardReturn =
+              forwardReturnT *
+              forwardReturnT *
+              (3 - 2 * forwardReturnT);
+
+            const forwardAmount =
+              forwardRise *
+              (1 - 0.88 * forwardReturn);
+
+            /* このモデルでは -Z が前方向。 */
+            dodgeForward =
+              -6.8 *
+              forwardAmount;
+          }
+
+          /* 既に bobY を加えているため、回避時は専用軌道に置き換える。 */
+          if (state === "dodge") {
+            baseP[1] -= bobY;
           }
 
           baseP[2] += dodgeForward;
@@ -4088,14 +4142,13 @@ fn fs(
               ];
 
             upperP[1] +=
-              bobY * (state === "dodge" ? 0.82 : 0.65);
+              state === "dodge"
+                ? dodgeArcY * 0.84
+                : bobY * 0.65;
 
             if (state === "dodge") {
               upperP[2] +=
-                dodgeForward * 0.82;
-
-              upperP[1] +=
-                dodgeArcY * 0.82;
+                dodgeForward * 0.84;
             }
 
             const torsoExtra =
