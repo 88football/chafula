@@ -1,4 +1,5 @@
 (() => {
+  // 入りません
   const showIndependentDialog = function (durl) {
     const host = document.createElement("div");
 
