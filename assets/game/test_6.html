@@ -6919,17 +6919,46 @@ fn fs()
         player.z -
         fz * camDistance;
 
+      /*
+       * プレイヤーを画面の少し左下に配置するための
+       * カメラ基準オフセット。
+       * right = cameraの右方向、up = cameraの上方向。
+       */
+      const rightX =
+        Math.cos(cameraYaw);
+      const rightZ =
+        Math.sin(cameraYaw);
+      const upX =
+        -Math.sin(cameraYaw) *
+        Math.sin(cameraPitch);
+      const upY =
+        Math.cos(cameraPitch);
+      const upZ =
+        -Math.cos(cameraYaw) *
+        Math.sin(cameraPitch);
+
+      /* 視線の中心を右上へずらすことで、
+       * キャラクター自身は相対的に左下へ見える。
+       */
+      const frameOffsetRight = 1.0;
+      const frameOffsetUp = 0.35;
+
       const targetX =
         player.x +
-        fx * 3;
+        fx * 3 +
+        rightX * frameOffsetRight +
+        upX * frameOffsetUp;
 
       const targetY2 =
         targetY +
-        fy * 3;
+        fy * 3 +
+        upY * frameOffsetUp;
 
       const targetZ =
         player.z +
-        fz * 3;
+        fz * 3 +
+        rightZ * frameOffsetRight +
+        upZ * frameOffsetUp;
 
       const vp =
         mm(
