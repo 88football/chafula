@@ -3911,42 +3911,86 @@ fn fs(
             waistFreq = 1.40;
           }
 
-          const cycle =
-            isOneShot
-              ? elapsed *
-                waistFreq
-              : loopPhase *
-                waistFreq;
+          let cycle;
+          let phase;
+          let pitchDeg;
+          let yawDeg;
+          let rollDeg;
 
-          const phase =
-            cycle *
-            Math.PI *
-            2;
+          if (state === "dodge") {
+            /*
+             * 回避時は走りの単純な上下運動とは別の軌道にする。
+             *
+             * 1回の回避動作の前半で大きく沈み込み、
+             * 中央で最も低くなったあと、後半で大きく
+             * 持ち上がる「大きな弧」を描く。
+             *
+             * 回避モーションはワンショットなので、
+             * その0～1の進行度を直接利用する。
+             */
+            const dodgeDuration =
+              Math.max(0.001, motions.dash
+                ? (motions.dash.maxFrame - motions.dash.minFrame) / 30
+                : 55 / 30);
 
-          const pitchDeg =
-            4.5 *
-            Math.sin(
-              phase +
-                Math.PI *
-                  0.15,
-            ) *
-            waistAmp;
+            const u = Math.max(0, Math.min(1, elapsed / dodgeDuration));
 
-          const yawDeg =
-            7.5 *
-            Math.sin(
-              phase,
-            ) *
-            waistAmp;
+            /* 0→1→0 の大きな弧。
+             * sin(πu) が中央で最大になるので、
+             * マイナス方向へ大きく沈み込む。
+             */
+            const arc = Math.sin(Math.PI * u);
 
-          const rollDeg =
-            5.5 *
-            Math.sin(
-              phase +
-                Math.PI *
-                  0.5,
-            ) *
-            waistAmp;
+            /* 前半は沈み、後半で戻る。
+             * cos は開始=+1、中央=0、終了=-1。
+             */
+            const rise = Math.cos(Math.PI * u);
+
+            /* 回避専用の体全体の大きな弧運動 */
+            pitchDeg =
+              (12.0 * rise - 6.0 * arc) * waistAmp;
+
+            yawDeg =
+              9.0 * Math.sin(Math.PI * 2.0 * u) * waistAmp;
+
+            rollDeg =
+              14.0 * Math.sin(Math.PI * u) * waistAmp;
+          } else {
+            cycle =
+              isOneShot
+                ? elapsed * waistFreq
+                : loopPhase * waistFreq;
+
+            phase =
+              cycle *
+              Math.PI *
+              2;
+
+            pitchDeg =
+              4.5 *
+              Math.sin(
+                phase +
+                  Math.PI *
+                    0.15,
+              ) *
+              waistAmp;
+
+            yawDeg =
+              7.5 *
+              Math.sin(
+                phase,
+              ) *
+              waistAmp;
+
+            rollDeg =
+              5.5 *
+              Math.sin(
+                phase +
+                  Math.PI *
+                    0.5,
+              ) *
+              waistAmp;
+          }
 
           const q =
             sampled[
@@ -4026,13 +4070,35 @@ fn fs(
             Math.PI *
             2;
 
-          const bobY =
-            Math.sin(
-              bobPhase +
-                Math.PI *
-                  0.5,
-            ) *
-            bobAmp;
+          let bobY;
+
+          if (state === "dodge") {
+            const dodgeDuration =
+              Math.max(0.001, motions.dash
+                ? (motions.dash.maxFrame - motions.dash.minFrame) / 30
+                : 55 / 30);
+
+            const u = Math.max(0, Math.min(1, elapsed / dodgeDuration));
+
+            /* 大きな上向きの半円ではなく、
+             * 沈み込み→底→跳ね上がりを1回だけ作る。
+             */
+            const arc = Math.sin(Math.PI * u);
+            const lift = (2.0 * u - 1.0);
+
+            bobY =
+              (-5.0 * arc +
+                3.5 * lift) *
+              waistAmp;
+          } else {
+            bobY =
+              Math.sin(
+                bobPhase +
+                  Math.PI *
+                    0.5,
+              ) *
+              bobAmp;
+          }
 
           baseP[1] +=
             bobY;
