@@ -3984,14 +3984,9 @@ fn fs(
               0,
             ];
 
-          if (state === "dodge") {
-            baseP[2] -= dodgeForwardArc || 0;
-          }
-
           let bobAmp = 0.0;
           let bobFreq = waistFreq;
           let bobY = 0.0;
-          let dodgeForwardArc = 0.0;
 
           if (state === "runStart") {
             bobAmp = 1.15;
@@ -4009,29 +4004,19 @@ fn fs(
             bobY = Math.sin(bobPhase + Math.PI * 0.5) * bobAmp;
           } else if (state === "dodge") {
             /*
-             * 回避専用の弧運動。
-             * 0fでは0から開始し、瞬間的な沈み込みを作らない。
-             * その後すぐ大きく上昇し、中央付近で最高点を迎え、
-             * 後半は自然に下降する。
+             * 回避専用の大きな弧運動。
+             * 開始時は現在位置から自然に出発し、
+             * 中盤で最高点、その後は元の高さへ戻る。
              */
             const u = Math.max(0, Math.min(1, elapsed / (55 / 30)));
-            bobY = 5.0 * Math.sin(Math.PI * u);
-            bobFreq = 1.75;
 
             /*
-             * 回避専用の前後移動。
-             *
-             * 開始時は0、そこから中盤へ向かって
-             * 腰・体全体を前方へ大きく移動させ、
-             * 中盤で最大前進量に到達する。
-             * 後半は同じ弧の反対側をたどって
-             * 開始位置へ滑らかに戻す。
-             *
-             * モデルの正面は -Z なので、
-             * PMXローカルZの負方向を「前」とする。
+             * 前半をやや急に持ち上げ、後半でなだらかに戻す。
+             * sinカーブを基本にしつつ、powで前半の立ち上がりを調整。
              */
-            /* 前方への移動量は baseP 作成後に適用する。 */
-            dodgeForwardArc = 6.0 * Math.sin(Math.PI * u);
+            const arc = Math.sin(Math.PI * Math.pow(u, 0.78));
+            bobY = 5.0 * arc;
+            bobFreq = 1.75;
           } else if (state === "idle") {
             bobAmp = 0.10;
             bobFreq = 0.55;
@@ -4050,6 +4035,17 @@ fn fs(
 
           baseP[1] +=
             bobY;
+
+          /*
+           * 回避中だけ、腰・胴体を前方へ大きく送り出し、
+           * 中盤で最大になったあと終盤で元へ戻す。
+           */
+          let dodgeForward = 0.0;
+          if (state === "dodge") {
+            const u = Math.max(0, Math.min(1, elapsed / (55 / 30)));
+            dodgeForward = 5.0 * Math.sin(Math.PI * u);
+          }
+          baseP[2] += dodgeForward;
 
           sampled[
             lowerBodyIndex
@@ -4085,16 +4081,8 @@ fn fs(
               bobY * (state === "dodge" ? 0.82 : 0.65);
 
             if (state === "dodge") {
-              /* 上半身も前方へ追従させ、
-               * 腰だけが前に飛び出す感じを抑える。 */
-              const dodgeU = Math.max(
-                0,
-                Math.min(1, elapsed / (55 / 30)),
-              );
-              upperP[2] -=
-                6.0 *
-                Math.sin(Math.PI * dodgeU) *
-                0.55;
+              upperP[2] +=
+                dodgeForward * 0.82;
             }
 
             const torsoExtra =
