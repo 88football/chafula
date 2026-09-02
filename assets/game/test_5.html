@@ -4043,7 +4043,7 @@ fn fs(
           let dodgeForward = 0.0;
           if (state === "dodge") {
             const u = Math.max(0, Math.min(1, elapsed / (55 / 30)));
-            dodgeForward = 5.0 * Math.sin(Math.PI * u);
+            dodgeForward = -6.5 * Math.sin(Math.PI * Math.pow(u, 0.72));
           }
           baseP[2] += dodgeForward;
 
