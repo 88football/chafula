@@ -16,6 +16,7 @@ freb0.all('*', async (c) => {
     // エラー処理
   }
 
+  
   return c.text('404 Not Found', 404);
 });
 
