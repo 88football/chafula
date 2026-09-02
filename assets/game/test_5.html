@@ -4041,11 +4041,21 @@ fn fs(
            * 中盤で最大になったあと終盤で元へ戻す。
            */
           let dodgeForward = 0.0;
+          let dodgeArcY = 0.0;
           if (state === "dodge") {
             const u = Math.max(0, Math.min(1, elapsed / (55 / 30)));
-            dodgeForward = -6.5 * Math.sin(Math.PI * Math.pow(u, 0.72));
+
+            /* 横から見て直線にならない、丸い弧の軌道。
+             * このモデルでは -Z が前方向なので前進量は負方向。 */
+            const forwardPhase = Math.sin(Math.PI * u);
+            const verticalPhase = Math.pow(Math.sin(Math.PI * u), 1.65);
+
+            dodgeForward = -5.5 * forwardPhase;
+            dodgeArcY = 4.8 * verticalPhase;
           }
+
           baseP[2] += dodgeForward;
+          baseP[1] += dodgeArcY;
 
           sampled[
             lowerBodyIndex
@@ -4083,6 +4093,9 @@ fn fs(
             if (state === "dodge") {
               upperP[2] +=
                 dodgeForward * 0.82;
+
+              upperP[1] +=
+                dodgeArcY * 0.82;
             }
 
             const torsoExtra =
