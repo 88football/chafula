@@ -3984,9 +3984,14 @@ fn fs(
               0,
             ];
 
+          if (state === "dodge") {
+            baseP[2] -= dodgeForwardArc || 0;
+          }
+
           let bobAmp = 0.0;
           let bobFreq = waistFreq;
           let bobY = 0.0;
+          let dodgeForwardArc = 0.0;
 
           if (state === "runStart") {
             bobAmp = 1.15;
@@ -4012,6 +4017,21 @@ fn fs(
             const u = Math.max(0, Math.min(1, elapsed / (55 / 30)));
             bobY = 5.0 * Math.sin(Math.PI * u);
             bobFreq = 1.75;
+
+            /*
+             * 回避専用の前後移動。
+             *
+             * 開始時は0、そこから中盤へ向かって
+             * 腰・体全体を前方へ大きく移動させ、
+             * 中盤で最大前進量に到達する。
+             * 後半は同じ弧の反対側をたどって
+             * 開始位置へ滑らかに戻す。
+             *
+             * モデルの正面は -Z なので、
+             * PMXローカルZの負方向を「前」とする。
+             */
+            /* 前方への移動量は baseP 作成後に適用する。 */
+            dodgeForwardArc = 6.0 * Math.sin(Math.PI * u);
           } else if (state === "idle") {
             bobAmp = 0.10;
             bobFreq = 0.55;
@@ -4063,6 +4083,19 @@ fn fs(
 
             upperP[1] +=
               bobY * (state === "dodge" ? 0.82 : 0.65);
+
+            if (state === "dodge") {
+              /* 上半身も前方へ追従させ、
+               * 腰だけが前に飛び出す感じを抑える。 */
+              const dodgeU = Math.max(
+                0,
+                Math.min(1, elapsed / (55 / 30)),
+              );
+              upperP[2] -=
+                6.0 *
+                Math.sin(Math.PI * dodgeU) *
+                0.55;
+            }
 
             const torsoExtra =
               eulerToQuat(
