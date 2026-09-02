@@ -4068,7 +4068,19 @@ fn fs(
               downT *
               (3 - 2 * downT);
 
+            /*
+             * 回避開始直後だけ、一瞬だけ腰を少し沈ませる。
+             * 約0.12周期で元の高さへ戻るため、その後の大きな上昇を
+             * 邪魔せず「一瞬沈む→すぐ上がる」という初動になる。
+             */
+            const dipDuration = 0.12;
+            const dipT =
+              Math.max(0, Math.min(1, u / dipDuration));
+            const initialDip =
+              -1.45 * Math.sin(Math.PI * dipT);
+
             dodgeArcY =
+              initialDip +
               6.2 *
               (upEase * (1 - 0.10 * downT) - downEase * 0.90);
 
