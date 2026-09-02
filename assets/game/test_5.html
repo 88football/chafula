@@ -4073,11 +4073,11 @@ fn fs(
              * 約0.12周期で元の高さへ戻るため、その後の大きな上昇を
              * 邪魔せず「一瞬沈む→すぐ上がる」という初動になる。
              */
-            const dipDuration = 0.12;
+            const dipDuration = 0.105;
             const dipT =
               Math.max(0, Math.min(1, u / dipDuration));
             const initialDip =
-              -2.20 * Math.sin(Math.PI * dipT);
+              -3.20 * Math.sin(Math.PI * dipT);
 
             dodgeArcY =
               initialDip +
