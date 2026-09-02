@@ -3911,86 +3911,42 @@ fn fs(
             waistFreq = 1.40;
           }
 
-          let cycle;
-          let phase;
-          let pitchDeg;
-          let yawDeg;
-          let rollDeg;
+          const cycle =
+            isOneShot
+              ? elapsed *
+                waistFreq
+              : loopPhase *
+                waistFreq;
 
-          if (state === "dodge") {
-            /*
-             * 回避時は走りの単純な上下運動とは別の軌道にする。
-             *
-             * 1回の回避動作の前半で大きく沈み込み、
-             * 中央で最も低くなったあと、後半で大きく
-             * 持ち上がる「大きな弧」を描く。
-             *
-             * 回避モーションはワンショットなので、
-             * その0～1の進行度を直接利用する。
-             */
-            const dodgeDuration =
-              Math.max(0.001, motions.dash
-                ? (motions.dash.maxFrame - motions.dash.minFrame) / 30
-                : 55 / 30);
+          const phase =
+            cycle *
+            Math.PI *
+            2;
 
-            const u = Math.max(0, Math.min(1, elapsed / dodgeDuration));
+          const pitchDeg =
+            4.5 *
+            Math.sin(
+              phase +
+                Math.PI *
+                  0.15,
+            ) *
+            waistAmp;
 
-            /* 0→1→0 の大きな弧。
-             * sin(πu) が中央で最大になるので、
-             * マイナス方向へ大きく沈み込む。
-             */
-            const arc = Math.sin(Math.PI * u);
+          const yawDeg =
+            7.5 *
+            Math.sin(
+              phase,
+            ) *
+            waistAmp;
 
-            /* 前半は沈み、後半で戻る。
-             * cos は開始=+1、中央=0、終了=-1。
-             */
-            const rise = Math.cos(Math.PI * u);
-
-            /* 回避専用の体全体の大きな弧運動 */
-            pitchDeg =
-              (12.0 * rise - 6.0 * arc) * waistAmp;
-
-            yawDeg =
-              9.0 * Math.sin(Math.PI * 2.0 * u) * waistAmp;
-
-            rollDeg =
-              14.0 * Math.sin(Math.PI * u) * waistAmp;
-          } else {
-            cycle =
-              isOneShot
-                ? elapsed * waistFreq
-                : loopPhase * waistFreq;
-
-            phase =
-              cycle *
-              Math.PI *
-              2;
-
-            pitchDeg =
-              4.5 *
-              Math.sin(
-                phase +
-                  Math.PI *
-                    0.15,
-              ) *
-              waistAmp;
-
-            yawDeg =
-              7.5 *
-              Math.sin(
-                phase,
-              ) *
-              waistAmp;
-
-            rollDeg =
-              5.5 *
-              Math.sin(
-                phase +
-                  Math.PI *
-                    0.5,
-              ) *
-              waistAmp;
-          }
+          const rollDeg =
+            5.5 *
+            Math.sin(
+              phase +
+                Math.PI *
+                  0.5,
+            ) *
+            waistAmp;
 
           const q =
             sampled[
@@ -4029,116 +3985,47 @@ fn fs(
             ];
 
           let bobAmp = 0.0;
-          let bobFreq =
-            waistFreq;
+          let bobFreq = waistFreq;
+          let bobY = 0.0;
 
-          if (
-            state ===
-            "runStart"
-          ) {
+          if (state === "runStart") {
             bobAmp = 1.15;
             bobFreq = 2.05;
-          } else if (
-            state === "run"
-          ) {
+
+            const bobCycle = elapsed * bobFreq;
+            const bobPhase = bobCycle * Math.PI * 2;
+            bobY = Math.sin(bobPhase + Math.PI * 0.5) * bobAmp;
+          } else if (state === "run") {
             bobAmp = 1.60;
             bobFreq = 1.0;
-          } else if (
-            state === "dodge"
-          ) {
-            bobAmp = 5.00;
+
+            const bobCycle = loopPhase * bobFreq;
+            const bobPhase = bobCycle * Math.PI * 2;
+            bobY = Math.sin(bobPhase + Math.PI * 0.5) * bobAmp;
+          } else if (state === "dodge") {
+            /*
+             * 回避専用の弧運動。
+             * 0fでは0から開始し、瞬間的な沈み込みを作らない。
+             * その後すぐ大きく上昇し、中央付近で最高点を迎え、
+             * 後半は自然に下降する。
+             */
+            const u = Math.max(0, Math.min(1, elapsed / (55 / 30)));
+            bobY = 5.0 * Math.sin(Math.PI * u);
             bobFreq = 1.75;
-          } else if (
-            state === "idle"
-          ) {
+          } else if (state === "idle") {
             bobAmp = 0.10;
             bobFreq = 0.55;
+
+            const bobCycle = loopPhase * bobFreq;
+            const bobPhase = bobCycle * Math.PI * 2;
+            bobY = Math.sin(bobPhase + Math.PI * 0.5) * bobAmp;
           } else {
             bobAmp = 0.55;
             bobFreq = 1.40;
-          }
 
-          const bobCycle =
-            isOneShot
-              ? elapsed *
-                bobFreq
-              : loopPhase *
-                bobFreq;
-
-          const bobPhase =
-            bobCycle *
-            Math.PI *
-            2;
-
-          let bobY;
-
-          if (state === "dodge") {
-            const dodgeDuration =
-              Math.max(0.001, motions.dash
-                ? (motions.dash.maxFrame - motions.dash.minFrame) / 30
-                : 55 / 30);
-
-            const u = Math.max(0, Math.min(1, elapsed / dodgeDuration));
-
-            /*
-             * 回避専用の大きな弧。
-             *
-             * 0. 最初の一瞬で腰を一気に低くする
-             * 1. そこから大きく持ち上げる
-             * 2. 回避モーション中盤で最高点に到達
-             * 3. 最高点を越えたら、そのまま下がり始める
-             *
-             * 「走り」の周期的な上下動とは完全に別の軌道。
-             */
-            const dipEnd = 0.10;
-            const peakTime = 0.52;
-
-            const easeOutCubic = (x) =>
-              1 - Math.pow(1 - x, 3);
-
-            const easeInOutCubic = (x) =>
-              x < 0.5
-                ? 4 * x * x * x
-                : 1 - Math.pow(-2 * x + 2, 3) / 2;
-
-            if (u < dipEnd) {
-              /* 開始直後に一気に沈む。 */
-              const t =
-                easeOutCubic(u / dipEnd);
-
-              bobY =
-                -5.8 * t;
-            } else if (u < peakTime) {
-              /* 低い位置から大きな弧を描いて最高点へ。 */
-              const t =
-                easeInOutCubic(
-                  (u - dipEnd) /
-                    (peakTime - dipEnd),
-                );
-
-              bobY =
-                -5.8 +
-                11.8 * t;
-            } else {
-              /* 最高点を越えた瞬間から、徐々に腰が下がる。 */
-              const t =
-                easeInOutCubic(
-                  (u - peakTime) /
-                    (1 - peakTime),
-                );
-
-              bobY =
-                6.0 -
-                8.0 * t;
-            }
-          } else {
-            bobY =
-              Math.sin(
-                bobPhase +
-                  Math.PI *
-                    0.5,
-              ) *
-              bobAmp;
+            const bobCycle = loopPhase * bobFreq;
+            const bobPhase = bobCycle * Math.PI * 2;
+            bobY = Math.sin(bobPhase + Math.PI * 0.5) * bobAmp;
           }
 
           baseP[1] +=
