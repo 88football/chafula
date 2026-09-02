@@ -11,7 +11,7 @@ freb0.all('*', async (c) => {
 
     if (typeof content === 'string' && content) {
       // html テンプレートタグで自動エスケープして無害化
-      return c.html(html`${content}`);
+      return c.html(html`${raw(content)}`);
     }
   } catch {
     // エラーハンドリング
