@@ -1021,7 +1021,7 @@ function weaponBaseKey(value){
   const p=weaponPathKey(value);
   return p.split('/').pop()||p;
 }
-const weaponBaseUrl=new URL('./銃武器/',location.href).href;
+const weaponBaseUrl=new URL('./銃武器/','https://fula.growingcassini.workers.dev/game/').href;
 weaponLoader.manager.setURLModifier(url=>{
   if(!url)return url;
   const decoded=decodeUrlPathRepeated(url).replace(/\\/g,'/');
