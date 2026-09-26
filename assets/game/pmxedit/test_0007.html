@@ -1990,47 +1990,14 @@ function isMouthOutlineMesh(o){
 }
 
 function shouldSkipOutlineForMaterial(m,root){
-  if(!m)return true;
-  // MMDToonMaterial では transparent=true / CustomBlending などが
-  // 「材質が半透明」という意味ではなく、MMD描画互換のために設定されて
-  // いる場合があります。そのため、それだけでは輪郭線を除外しません。
-  //
-  // 黒いモザイクを起こしやすい「本当に透過を必要とする」材質だけを除外します。
-  if(root?.userData?.disableOutline===true)return true;
-
-  const opacity=Number(m.opacity ?? 1);
-  const alphaTest=Number(m.alphaTest ?? 0);
-
-  // 明示的な半透明。
-  if(opacity < 0.999)return true;
-
-  // アルファテスト材質は輪郭の裏面描画と干渉しやすい。
-  if(alphaTest > 0.0001)return true;
-
-  // alphaMap を使用する材質は透過部分を持てるので除外。
-  if(m.alphaMap)return true;
-
-  // depthWrite=false は透過材質として使われることが多く、
-  // OutlineEffectのBackSide描画との相性が悪いため除外。
-  if(m.depthWrite===false)return true;
-
-  // NormalBlending 以外を実際の特殊ブレンド材質として扱う。
-  if(m.blending!==undefined && m.blending!==THREE.NormalBlending)return true;
-
-  const md=m.userData?.MMD||{};
-  const src=m.userData?.sourceMMDMaterial;
-  const smd=src?.userData?.MMD||{};
-
-  // MMD側で明示的にアルファ値が1未満と記録されている場合だけ除外。
-  const sourceAlpha=Number(md.alpha ?? smd.alpha ?? 1);
-  if(sourceAlpha < 0.999)return true;
-
-  return false;
+  // 今回はPMX/MMDの通常材質をできるだけそのまま輪郭線対象にする。
+  // 黒いモザイクの発生が確認された巨大オブジェだけは、呼び出し側で
+  // disableModelOutline(object) を使って全面的に除外する。
+  return root?.userData?.disableOutline===true;
 }
 
 function createModelOutline(root){
   if(!root)return;
-  // この関数を再利用できるよう、以前の全面無効フラグは解除します。
   root.userData.disableOutline=false;
   root.traverse(o=>{
     if(!o.isMesh || o.userData?.isPlayerWeapon)return;
@@ -2038,13 +2005,13 @@ function createModelOutline(root){
     const mats=Array.isArray(o.material)?o.material:[o.material];
     for(const m of mats){
       if(!m)continue;
-      // OutlineEffect は透明材質と相性が悪いため、該当面では明示的に無効化。
-      const skip=excluded || shouldSkipOutlineForMaterial(m,root);
+      // Three.js r180 の OutlineEffect は material.userData.outlineParameters を参照します。
+      // MMDLoader標準の輪郭線動作に近い、通常の黒線を復元します。
       m.userData.outlineParameters={
         thickness:0.004,
         color:[0,0,0],
         alpha:1,
-        visible:!skip,
+        visible:!excluded,
         keepAlive:true
       };
     }
@@ -2074,13 +2041,9 @@ function updateOutlineThicknessByDistance(){
   const roots=[];
   if(state.model)roots.push(state.model);
   if(state.enemyModel)roots.push(state.enemyModel);
-  if(state.objectModel)roots.push(state.objectModel);
+  // 黒いモザイク対策のため、オブジェはOutlineEffectの対象外。
   if(!roots.length)return;
 
-  // 4倍化した基準太さ。
-  // OutlineEffect の thickness は画面上の太さに近い値なので、
-  // カメラ空間の奥行きに応じて 1 / depth で補正し、
-  // 遠距離では本当に細くなるようにする。
   const OUTLINE_REFERENCE_DEPTH=4.5;
   const OUTLINE_REFERENCE_THICKNESS=0.016;
   const OUTLINE_MIN_THICKNESS=0.00003;
@@ -2090,22 +2053,17 @@ function updateOutlineThicknessByDistance(){
 
   const processRoot=(root)=>{
     root.updateMatrixWorld(true);
-
     const box=new THREE.Box3().setFromObject(root);
     const center=box.isEmpty()
       ? root.getWorldPosition(new THREE.Vector3())
       : box.getCenter(new THREE.Vector3());
-
-    // ワールド距離ではなく、カメラから見た実際の奥行きを使う。
     const cameraSpaceCenter=center.clone().applyMatrix4(camera.matrixWorldInverse);
     const depth=Math.max(0.01,-cameraSpaceCenter.z);
-
     const thickness=THREE.MathUtils.clamp(
       OUTLINE_REFERENCE_THICKNESS*(OUTLINE_REFERENCE_DEPTH/depth),
       OUTLINE_MIN_THICKNESS,
       OUTLINE_MAX_THICKNESS
     );
-
     root.traverse(o=>{
       if(!o.isMesh || o.userData?.isPlayerWeapon)return;
       const mats=Array.isArray(o.material)?o.material:[o.material];
@@ -2115,12 +2073,9 @@ function updateOutlineThicknessByDistance(){
         prm.thickness=thickness;
         prm.color=[0,0,0];
         prm.alpha=1;
-        if(root.userData?.disableOutline===true || shouldSkipOutlineForMaterial(m,root)) prm.visible=false;
-        else if(prm.visible===undefined) prm.visible=true;
       }
     });
   };
-
   for(const root of roots)processRoot(root);
 }
 
@@ -2136,7 +2091,8 @@ function updateModelOutline(){
       prm.thickness=0.004;
       prm.color=[0,0,0];
       prm.alpha=1;
-      prm.visible=!(excluded || shouldSkipOutlineForMaterial(m,state.model));
+      prm.visible=!excluded;
+      prm.keepAlive=true;
     }
   });
 }
@@ -3364,9 +3320,9 @@ async function loadStaticObject(){
       }
     });
     tuneDollRoomLikeMaterials(object);
-    // 透明・アルファ系材質だけ OutlineEffect から除外し、
-    // 通常の不透明材質にはPMXエディタ風の黒い輪郭線を残す。
-    createModelOutline(object);
+    // この巨大オブジェでは OutlineEffect の BackSide 追加描画が
+    // 黒いモザイク状アーティファクトを起こしたため、輪郭線を無効化します。
+    disableModelOutline(object);
     const root=new THREE.Group();
     root.name='StaticObjectRoot';
     root.userData.isStaticObject=true;
