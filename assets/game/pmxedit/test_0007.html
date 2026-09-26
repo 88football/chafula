@@ -1991,21 +1991,31 @@ function isMouthOutlineMesh(o){
 
 function shouldSkipOutlineForMaterial(m,root){
   if(!m)return true;
-  // StaticObject は、PMX内の透明面・二重面・細かい重なりを
-  // OutlineEffect が黒い裏面として描画してしまう可能性があるため、
-  // オブジェ全体の輪郭描画を無効化します。
+  // OutlineEffect は BackSide のシルエットを追加描画するため、
+  // 透明・半透明・アルファ抜き・特殊ブレンド材質では
+  // 透明部分まで黒く塗られてモザイク状になることがあります。
+  // その材質だけ輪郭線を無効化し、通常の不透明材質は輪郭線を残します。
   if(root?.userData?.disableOutline===true)return true;
-  // 透明材質では OutlineEffect の BackSide シルエットが
-  // 元テクスチャのアルファを考慮せず、透明部分まで黒く塗ることがある。
   if(m.transparent===true)return true;
+  if(m.alphaMap)return true;
   if((m.alphaTest||0)>0)return true;
   if((m.opacity??1)<0.999)return true;
   if(m.blending!==undefined && m.blending!==THREE.NormalBlending)return true;
+
+  // MMD系材質に透過関連の独自情報が残っている場合も安全側へ倒します。
+  const md=m.userData?.MMD||{};
+  const src=m.userData?.sourceMMDMaterial;
+  const smd=src?.userData?.MMD||{};
+  if(md.transparent===true || smd.transparent===true)return true;
+  if(Number(md.alpha??smd.alpha??1)<0.999)return true;
+  if(Number(md.alphaTest??smd.alphaTest??0)>0)return true;
   return false;
 }
 
 function createModelOutline(root){
   if(!root)return;
+  // この関数を再利用できるよう、以前の全面無効フラグは解除します。
+  root.userData.disableOutline=false;
   root.traverse(o=>{
     if(!o.isMesh || o.userData?.isPlayerWeapon)return;
     const excluded=isMouthOutlineMesh(o);
@@ -2048,6 +2058,7 @@ function updateOutlineThicknessByDistance(){
   const roots=[];
   if(state.model)roots.push(state.model);
   if(state.enemyModel)roots.push(state.enemyModel);
+  if(state.objectModel)roots.push(state.objectModel);
   if(!roots.length)return;
 
   // 4倍化した基準太さ。
@@ -3337,9 +3348,9 @@ async function loadStaticObject(){
       }
     });
     tuneDollRoomLikeMaterials(object);
-    // オブジェは OutlineEffect の黒い裏面シルエットを使わず、
-    // PMX本来の材質・透明表現をそのまま描画する。
-    disableModelOutline(object);
+    // 透明・アルファ系材質だけ OutlineEffect から除外し、
+    // 通常の不透明材質にはPMXエディタ風の黒い輪郭線を残す。
+    createModelOutline(object);
     const root=new THREE.Group();
     root.name='StaticObjectRoot';
     root.userData.isStaticObject=true;
