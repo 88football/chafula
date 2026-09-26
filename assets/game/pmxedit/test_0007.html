@@ -1989,6 +1989,21 @@ function isMouthOutlineMesh(o){
   }
 }
 
+function shouldSkipOutlineForMaterial(m,root){
+  if(!m)return true;
+  // StaticObject は、PMX内の透明面・二重面・細かい重なりを
+  // OutlineEffect が黒い裏面として描画してしまう可能性があるため、
+  // オブジェ全体の輪郭描画を無効化します。
+  if(root?.userData?.disableOutline===true)return true;
+  // 透明材質では OutlineEffect の BackSide シルエットが
+  // 元テクスチャのアルファを考慮せず、透明部分まで黒く塗ることがある。
+  if(m.transparent===true)return true;
+  if((m.alphaTest||0)>0)return true;
+  if((m.opacity??1)<0.999)return true;
+  if(m.blending!==undefined && m.blending!==THREE.NormalBlending)return true;
+  return false;
+}
+
 function createModelOutline(root){
   if(!root)return;
   root.traverse(o=>{
@@ -1997,13 +2012,33 @@ function createModelOutline(root){
     const mats=Array.isArray(o.material)?o.material:[o.material];
     for(const m of mats){
       if(!m)continue;
-      // OutlineEffect は mesh.userData ではなく material.userData の
-      // outlineParameters を参照するため、ここで材質側へ確実に設定する。
+      // OutlineEffect は透明材質と相性が悪いため、該当面では明示的に無効化。
+      const skip=excluded || shouldSkipOutlineForMaterial(m,root);
       m.userData.outlineParameters={
         thickness:0.004,
         color:[0,0,0],
         alpha:1,
-        visible:!excluded
+        visible:!skip,
+        keepAlive:true
+      };
+    }
+  });
+}
+
+function disableModelOutline(root){
+  if(!root)return;
+  root.userData.disableOutline=true;
+  root.traverse(o=>{
+    if(!o.isMesh || o.userData?.isPlayerWeapon)return;
+    const mats=Array.isArray(o.material)?o.material:[o.material];
+    for(const m of mats){
+      if(!m)continue;
+      m.userData.outlineParameters={
+        thickness:0,
+        color:[0,0,0],
+        alpha:1,
+        visible:false,
+        keepAlive:true
       };
     }
   });
@@ -2053,6 +2088,8 @@ function updateOutlineThicknessByDistance(){
         prm.thickness=thickness;
         prm.color=[0,0,0];
         prm.alpha=1;
+        if(root.userData?.disableOutline===true || shouldSkipOutlineForMaterial(m,root)) prm.visible=false;
+        else if(prm.visible===undefined) prm.visible=true;
       }
     });
   };
@@ -2072,7 +2109,7 @@ function updateModelOutline(){
       prm.thickness=0.004;
       prm.color=[0,0,0];
       prm.alpha=1;
-      prm.visible=!excluded;
+      prm.visible=!(excluded || shouldSkipOutlineForMaterial(m,state.model));
     }
   });
 }
@@ -3295,11 +3332,14 @@ async function loadStaticObject(){
         m.depthTest=true;
         m.depthWrite=true;
         if(m.map)m.map.colorSpace=THREE.SRGBColorSpace;
+        // 透明材質は OutlineEffect では扱わず、元のMMD材質設定を維持する。
         m.needsUpdate=true;
       }
     });
     tuneDollRoomLikeMaterials(object);
-    createModelOutline(object);
+    // オブジェは OutlineEffect の黒い裏面シルエットを使わず、
+    // PMX本来の材質・透明表現をそのまま描画する。
+    disableModelOutline(object);
     const root=new THREE.Group();
     root.name='StaticObjectRoot';
     root.userData.isStaticObject=true;
