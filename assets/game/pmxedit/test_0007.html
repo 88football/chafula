@@ -1991,24 +1991,40 @@ function isMouthOutlineMesh(o){
 
 function shouldSkipOutlineForMaterial(m,root){
   if(!m)return true;
-  // OutlineEffect は BackSide のシルエットを追加描画するため、
-  // 透明・半透明・アルファ抜き・特殊ブレンド材質では
-  // 透明部分まで黒く塗られてモザイク状になることがあります。
-  // その材質だけ輪郭線を無効化し、通常の不透明材質は輪郭線を残します。
+  // MMDToonMaterial では transparent=true / CustomBlending などが
+  // 「材質が半透明」という意味ではなく、MMD描画互換のために設定されて
+  // いる場合があります。そのため、それだけでは輪郭線を除外しません。
+  //
+  // 黒いモザイクを起こしやすい「本当に透過を必要とする」材質だけを除外します。
   if(root?.userData?.disableOutline===true)return true;
-  if(m.transparent===true)return true;
+
+  const opacity=Number(m.opacity ?? 1);
+  const alphaTest=Number(m.alphaTest ?? 0);
+
+  // 明示的な半透明。
+  if(opacity < 0.999)return true;
+
+  // アルファテスト材質は輪郭の裏面描画と干渉しやすい。
+  if(alphaTest > 0.0001)return true;
+
+  // alphaMap を使用する材質は透過部分を持てるので除外。
   if(m.alphaMap)return true;
-  if((m.alphaTest||0)>0)return true;
-  if((m.opacity??1)<0.999)return true;
+
+  // depthWrite=false は透過材質として使われることが多く、
+  // OutlineEffectのBackSide描画との相性が悪いため除外。
+  if(m.depthWrite===false)return true;
+
+  // NormalBlending 以外を実際の特殊ブレンド材質として扱う。
   if(m.blending!==undefined && m.blending!==THREE.NormalBlending)return true;
 
-  // MMD系材質に透過関連の独自情報が残っている場合も安全側へ倒します。
   const md=m.userData?.MMD||{};
   const src=m.userData?.sourceMMDMaterial;
   const smd=src?.userData?.MMD||{};
-  if(md.transparent===true || smd.transparent===true)return true;
-  if(Number(md.alpha??smd.alpha??1)<0.999)return true;
-  if(Number(md.alphaTest??smd.alphaTest??0)>0)return true;
+
+  // MMD側で明示的にアルファ値が1未満と記録されている場合だけ除外。
+  const sourceAlpha=Number(md.alpha ?? smd.alpha ?? 1);
+  if(sourceAlpha < 0.999)return true;
+
   return false;
 }
 
