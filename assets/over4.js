@@ -1329,12 +1329,43 @@ function ABEKENMAN_rewri (baw) {
       console.log("ABEKENMAN_location SET:", value);
     },
   });
+
+  const iframeProto = baw.HTMLIFrameElement.prototype;
+
+// 1. contentWindow ゲッターの書き換え
+const origContentWindow = baw.Object.getOwnPropertyDescriptor(iframeProto, 'contentWindow')?.get;
+if (origContentWindow) {
+  baw.Object.defineProperty(iframeProto, 'contentWindow', {
+    get() {
+      const win = origContentWindow.call(this);
+      if (win) ABEKENMAN_rewri(win); // 参照取得時にフックを適用
+      return win;
+    },
+    configurable: true,
+    enumerable: true,
+  });
+}
+
+// 2. contentDocument ゲッターの書き換え（別ルートの回避策を塞ぐ）
+const origContentDoc = baw.Object.getOwnPropertyDescriptor(iframeProto, 'contentDocument')?.get;
+if (origContentDoc) {
+  baw.Object.defineProperty(iframeProto, 'contentDocument', {
+    get() {
+      const doc = origContentDoc.call(this);
+      if (doc && doc.defaultView) ABEKENMAN_rewri(doc.defaultView); // defaultView(window) をフック
+      return doc;
+    },
+    configurable: true,
+    enumerable: true,
+  });
+}
+
 }
 
 ABEKENMAN_rewri(window);
-ABEKENMAN_rewri(window.HTMLIFrameElement.prototype.contentWindow);
-ABEKENMAN_rewri(window.HTMLIFrameElement.prototype.contentWindow.parent);
-ABEKENMAN_rewri(window.HTMLIFrameElement.prototype.contentWindow.top)
+//ABEKENMAN_rewri(window.HTMLIFrameElement.prototype.contentWindow);
+//ABEKENMAN_rewri(window.HTMLIFrameElement.prototype.contentWindow.parent);
+//ABEKENMAN_rewri(window.HTMLIFrameElement.prototype.contentWindow.top)
 
 // 新Navigation API によるフック
 // const ABEKENMAN_ifr = HTMLIFrameElement.property.contentWindow;
