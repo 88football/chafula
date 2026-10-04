@@ -4,5 +4,19 @@
   "compatibility_date": "2026-05-16",
   "assets": {
     "directory": "./assets"
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GAME_ROOMS",
+        "class_name": "GameRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["GameRoom"]
+    }
+  ]
 }
