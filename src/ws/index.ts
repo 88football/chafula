@@ -1,5 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
+
+type Bindings = {
+  GAME_ROOMS: DurableObjectNamespace;
+};
 
 const MAX_PLAYERS_PER_ROOM = 16;
 const MAX_MESSAGE_BYTES = 8192;
@@ -7,9 +11,9 @@ const MIN_STATE_INTERVAL_MS = 20;
 const MAX_COORDINATE = 10000000;
 const MAX_SPEED = 10000;
 
-const app = new Hono();
+const ws0 = new Hono<{ Bindings: Bindings }>();
 
-app.get("/", async (c) => {
+const connectToRoom = async (c: Context<{ Bindings: Bindings }>) => {
   const request = c.req.raw;
   if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
     return new Response("WebSocket upgrade required", {
@@ -30,15 +34,19 @@ app.get("/", async (c) => {
     }
   }
 
-  const roomCode = String(url.searchParams.get("room") || "").toUpperCase();
+  const roomCode = String(c.req.param("roomId") || url.searchParams.get("room") || "").toUpperCase();
   if (!/^[A-HJ-NP-Z2-9]{6,10}$/.test(roomCode)) {
     return new Response("Invalid room code", { status: 400 });
   }
 
-  const gameRooms = (c.env as any).GAME_ROOMS;
+  const gameRooms = c.env.GAME_ROOMS;
   const roomId = gameRooms.idFromName(roomCode);
   return gameRooms.get(roomId).fetch(request);
-});
+};
+
+// The room path is the primary endpoint; keep the query form working for older clients.
+ws0.get("/:roomId", connectToRoom);
+ws0.get("/", connectToRoom);
 
 type PlayerState = {
   position: number[];
@@ -274,4 +282,4 @@ export class GameRoom extends DurableObject {
   }
 }
 
-export default app;
+export default ws0;
