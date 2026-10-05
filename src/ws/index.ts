@@ -6,7 +6,9 @@ type Bindings = {
 };
 
 const MAX_PLAYERS_PER_ROOM = 16;
-const MAX_MESSAGE_BYTES = 8192;
+const MAX_MESSAGE_BYTES = 36000;
+const MAX_AVATAR_BYTES = 32 * 1024 * 1024;
+const MAX_AVATAR_CHUNKS = 2048;
 const MIN_STATE_INTERVAL_MS = 20;
 const MAX_COORDINATE = 10000000;
 const MAX_SPEED = 10000;
@@ -52,6 +54,7 @@ type PlayerState = {
   position: number[];
   rotation: number[];
   velocity: number[];
+  modelScale: number;
   maneuverActive: boolean;
   aiming: boolean;
   traveling: boolean;
@@ -122,6 +125,14 @@ export class GameRoom extends DurableObject {
     }
     if (payload.type === "state") {
       this.relayState(socket, attachment, payload);
+      return;
+    }
+    if (payload.type === "avatarRequest") {
+      this.relayAvatarRequest(attachment, payload);
+      return;
+    }
+    if (["avatarUrl", "avatarStart", "avatarChunk", "avatarEnd", "avatarError"].includes(payload.type)) {
+      this.relayAvatarMessage(attachment, payload);
       return;
     }
     this.sendError(socket, "未対応のメッセージです", 1008);
@@ -215,17 +226,89 @@ export class GameRoom extends DurableObject {
     const rotation = this.vector(value.rotation, 4, 2);
     const velocity = this.vector(value.velocity, 3, MAX_SPEED);
     if (!position || !rotation || !velocity) return null;
+    const modelScale = value.modelScale == null ? 1 : Number(value.modelScale);
+    if (!Number.isFinite(modelScale) || modelScale < 0.0001 || modelScale > 100) return null;
     const length = Math.hypot(rotation[0], rotation[1], rotation[2], rotation[3]);
     if (length < 1e-6) return null;
     return {
       position,
       rotation: rotation.map((part) => part / length),
       velocity,
+      modelScale,
       maneuverActive: value.maneuverActive === true,
       aiming: value.aiming === true,
       traveling: value.traveling === true,
       motion: typeof value.motion === "string" ? value.motion.slice(0, 12) : "idle",
     };
+  }
+
+  private relayAvatarRequest(attachment: PlayerAttachment, payload: any): void {
+    if (!attachment.joined) return;
+    const targetPlayerId = String(payload.targetPlayerId || "");
+    if (!targetPlayerId || targetPlayerId === attachment.playerId) return;
+    const target = this.findPlayerSocket(targetPlayerId);
+    if (target) this.sendJson(target, { type: "avatarRequest", playerId: attachment.playerId });
+  }
+
+  private relayAvatarMessage(attachment: PlayerAttachment, payload: any): void {
+    if (!attachment.joined) return;
+    const targetPlayerId = String(payload.targetPlayerId || "");
+    const target = targetPlayerId && targetPlayerId !== attachment.playerId
+      ? this.findPlayerSocket(targetPlayerId)
+      : null;
+    if (!target) return;
+
+    const type = payload.type;
+    const message: Record<string, unknown> = { type, fromPlayerId: attachment.playerId };
+    if (type === "avatarUrl") {
+      const url = String(payload.url || "");
+      if (url.length > 2048) return;
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
+      } catch {
+        return;
+      }
+      message.url = url;
+      message.fileName = String(payload.fileName || "model.pmx").slice(0, 160);
+    } else if (type === "avatarStart") {
+      const totalBytes = Number(payload.totalBytes);
+      const totalChunks = Number(payload.totalChunks);
+      const transferId = String(payload.transferId || "");
+      if (!/^[0-9a-f-]{36}$/i.test(transferId)
+        || !Number.isSafeInteger(totalBytes) || totalBytes <= 0 || totalBytes > MAX_AVATAR_BYTES
+        || !Number.isSafeInteger(totalChunks) || totalChunks <= 0 || totalChunks > MAX_AVATAR_CHUNKS) return;
+      message.transferId = transferId;
+      message.totalBytes = totalBytes;
+      message.totalChunks = totalChunks;
+      message.fileName = String(payload.fileName || "model.zip").slice(0, 160);
+      message.pmxPath = String(payload.pmxPath || "model.pmx").slice(0, 240);
+    } else if (type === "avatarChunk") {
+      const transferId = String(payload.transferId || "");
+      const index = Number(payload.index);
+      const data = String(payload.data || "");
+      if (!/^[0-9a-f-]{36}$/i.test(transferId)
+        || !Number.isSafeInteger(index) || index < 0 || index >= MAX_AVATAR_CHUNKS
+        || data.length === 0 || data.length > 25000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return;
+      message.transferId = transferId;
+      message.index = index;
+      message.data = data;
+    } else if (type === "avatarEnd") {
+      const transferId = String(payload.transferId || "");
+      if (!/^[0-9a-f-]{36}$/i.test(transferId)) return;
+      message.transferId = transferId;
+    } else if (type === "avatarError") {
+      message.message = String(payload.message || "キャラクターモデルを共有できませんでした").slice(0, 200);
+    }
+    this.sendJson(target, message);
+  }
+
+  private findPlayerSocket(playerId: string): WebSocket | null {
+    for (const peer of this.ctx.getWebSockets()) {
+      const attachment = this.readAttachment(peer);
+      if (attachment?.joined && attachment.playerId === playerId) return peer;
+    }
+    return null;
   }
 
   private vector(value: any, length: number, limit: number): number[] | null {
