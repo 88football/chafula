@@ -12,6 +12,7 @@ const MAX_AVATAR_CHUNKS = 2048;
 const MIN_STATE_INTERVAL_MS = 20;
 const MAX_COORDINATE = 10000000;
 const MAX_SPEED = 10000;
+const MOTION_MODES = new Set(["idle", "run", "start1", "start2", "stop1", "stop2"]);
 
 const ws0 = new Hono<{ Bindings: Bindings }>();
 
@@ -59,6 +60,10 @@ type PlayerState = {
   aiming: boolean;
   traveling: boolean;
   motion: string;
+  motionTime: number;
+  motionSpeed: number;
+  motionLoop: boolean;
+  motionPlaying: boolean;
 };
 
 type PlayerAttachment = {
@@ -230,6 +235,11 @@ export class GameRoom extends DurableObject {
     if (!Number.isFinite(modelScale) || modelScale < 0.0001 || modelScale > 100) return null;
     const length = Math.hypot(rotation[0], rotation[1], rotation[2], rotation[3]);
     if (length < 1e-6) return null;
+    const requestedMotion = typeof value.motion === "string" ? value.motion.toLowerCase() : "idle";
+    const motionTime = value.motionTime == null ? 0 : Number(value.motionTime);
+    const motionSpeed = value.motionSpeed == null ? 1 : Number(value.motionSpeed);
+    if (!Number.isFinite(motionTime) || !Number.isFinite(motionSpeed)) return null;
+    const motion = MOTION_MODES.has(requestedMotion) ? requestedMotion : "idle";
     return {
       position,
       rotation: rotation.map((part) => part / length),
@@ -238,7 +248,13 @@ export class GameRoom extends DurableObject {
       maneuverActive: value.maneuverActive === true,
       aiming: value.aiming === true,
       traveling: value.traveling === true,
-      motion: typeof value.motion === "string" ? value.motion.slice(0, 12) : "idle",
+      motion,
+      motionTime: Math.max(0, Math.min(600, motionTime)),
+      motionSpeed: Math.max(0, Math.min(16, motionSpeed)),
+      motionLoop: typeof value.motionLoop === "boolean"
+        ? value.motionLoop
+        : motion === "idle" || motion === "run",
+      motionPlaying: value.motionPlaying !== false,
     };
   }
 
