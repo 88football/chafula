@@ -156,7 +156,7 @@ function updateWeaponCrosshair(){
   const hud=$('shootHud'); if(hud)hud.classList.toggle('on',!!state.weapon);
 }
 
-const state={playerRoot:null,model:null,mmdResult:null,selected:-1,bones:[],boneVisible:true,textureUrls:new Map(),objectUrls:[],pmxFile:null,pmxBuffer:null,pmxMeta:null,pmxWeights:null,rigids:[],selectedRigid:-1,vmd:null,vmdName:'',mixer:null,clock:new THREE.Clock(),vmdPlaying:false,vmdDuration:0,vmdLoop:true,vmdIdleAction:null,vmdRunAction:null,vmdStart1Vmd:null,vmdStart2Vmd:null,vmdStart1Action:null,vmdStart2Action:null,vmdStart1Name:'',vmdStart2Name:'',vmdStart1Duration:0,vmdStart2Duration:0,vmdStop1Vmd:null,vmdStop2Vmd:null,vmdStop1Action:null,vmdStop2Action:null,vmdStop1Name:'',vmdStop2Name:'',vmdStop1Duration:0,vmdStop2Duration:0,vmdStopPhase:0,vmdStopToken:0,vmdStopFinishedHandler:null,vmdStartupPhase:0,vmdStartupToken:0,vmdStartupFinishedHandler:null,vmdMoveWasActive:false,vmdActiveMode:'idle',vmdIdleVmd:null,vmdRunVmd:null,createdBoneCount:0,physicsEnabled:true,physicsDebugRigid:false,physicsDebugJoint:false,physicsReady:false,joints:[],weapon:null,weaponHandBone:null,weaponMount:null,weaponObjectUrls:[],weaponLoading:false,weaponTrackingLogged:false,physicsRootLocks:[],physicsNamedRootLocks:[],physicsRootLocksReady:false,pmxTextureNames:[],pmxMaterialTextureIndices:[],pmxMaterialNames:[],enemyRoot:null,enemyModel:null,enemyMmdResult:null,enemyMixer:null,enemyWalkAction:null,enemyIdleAction:null,enemyActiveMode:'idle',enemyLoading:false,enemyWalkVmd:null,enemyIdleVmd:null,enemyHP:3,enemyHitCount:0,enemyInstances:[],objectRoot:null,objectModel:null,objectLoading:false,objectUrl:"https://fula.growingcassini.workers.dev/game/evangelion_ja02_final_3/evangelion_ja02_only_whole_front.pmx",shotCooldown:0,shotInterval:0.18,shotFx:[]};
+const state={playerRoot:null,model:null,mmdResult:null,selected:-1,bones:[],boneVisible:true,textureUrls:new Map(),objectUrls:[],pmxFile:null,pmxBuffer:null,pmxMeta:null,pmxWeights:null,rigids:[],selectedRigid:-1,vmd:null,vmdName:'',mixer:null,clock:new THREE.Clock(),vmdPlaying:false,vmdDuration:0,vmdLoop:true,vmdIdleAction:null,vmdRunAction:null,vmdStart1Vmd:null,vmdStart2Vmd:null,vmdStart1Action:null,vmdStart2Action:null,vmdStart1Name:'',vmdStart2Name:'',vmdStart1Duration:0,vmdStart2Duration:0,vmdStop1Vmd:null,vmdStop2Vmd:null,vmdStop1Action:null,vmdStop2Action:null,vmdStop1Name:'',vmdStop2Name:'',vmdStop1Duration:0,vmdStop2Duration:0,vmdStopPhase:0,vmdStopToken:0,vmdStopFinishedHandler:null,vmdStartupPhase:0,vmdStartupToken:0,vmdStartupFinishedHandler:null,vmdMoveWasActive:false,vmdActiveMode:'idle',vmdIdleVmd:null,vmdRunVmd:null,createdBoneCount:0,physicsEnabled:true,physicsDebugRigid:false,physicsDebugJoint:false,physicsReady:false,joints:[],weapon:null,weaponHandBone:null,weaponMount:null,weaponObjectUrls:[],weaponLoading:false,weaponTrackingLogged:false,physicsRootLocks:[],physicsNamedRootLocks:[],physicsRootLocksReady:false,pmxTextureNames:[],pmxMaterialTextureIndices:[],pmxMaterialNames:[],enemyRoot:null,enemyModel:null,enemyMmdResult:null,enemyMixer:null,enemyWalkAction:null,enemyIdleAction:null,enemyActiveMode:'idle',enemyLoading:false,enemyWalkVmd:null,enemyIdleVmd:null,enemyHP:3,enemyHitCount:0,enemyInstances:[],objectRoot:null,objectModel:null,objectLoading:false,objectUrl:"https://chafula.growingcassini.workers.dev/game/evangelion_ja02_final_3/evangelion_ja02_only_whole_front.pmx",shotCooldown:0,shotInterval:0.18,shotFx:[]};
 const scene=new THREE.Scene();
 // DollRoom MMD Studio風: 白背景＋薄いグレーの床。遠景フォグは使わず、PMX/MMDの色をそのまま見せる。
 scene.background=new THREE.Color(0xffffff);
@@ -1886,7 +1886,7 @@ async function equipGun(){
   if($('unequipGun'))$('unequipGun').disabled=true;
   status('枪.pmx を読み込み中…');
   try{
-    // 武器は https://fula.growingcassini.workers.dev/game/%E9%8A%83%E6%AD%A6%E5%99%A8/%E6%9E%AA.pmx から直接取得する。
+    // 武器は https://chafula.growingcassini.workers.dev/game/%E9%8A%83%E6%AD%A6%E5%99%A8/%E6%9E%AA.pmx から直接取得する。
     const gunUrl=WEAPON_PMX_URL;
     const result=await weaponLoader.loadAsync(gunUrl);
     if(!result?.mesh)throw new Error('枪.pmx の3Dメッシュを取得できませんでした。');
@@ -2487,29 +2487,29 @@ const enemyLoadingManager=new THREE.LoadingManager();
 const enemyLoader=new MMDLoader(enemyLoadingManager).register(MMDAmmoPlugin);
 const enemyVmdLoader=new VMDLoader();
 const objectLoader=new MMDLoader();
-const OBJECT_PMX_URL='https://fula.growingcassini.workers.dev/game/evangelion_ja02_final_3/evangelion_ja02_only_whole_front.pmx';
-const ENEMY_PMX_URL='https://fula.growingcassini.workers.dev/game/星穹铁道—万敌/星穹铁道—万敌.pmx';
-const SECOND_ENEMY_PMX_URL='https://fula.growingcassini.workers.dev/game/%E6%98%9F%E7%A9%B9%E9%93%81%E9%81%93%E2%80%94%E9%93%B6%E7%8B%BCLV.999/%E6%98%9F%E7%A9%B9%E9%93%81%E9%81%93%E2%80%94%E9%93%B6%E7%8B%BCLV.999.pmx';
-const ENEMY_WALK_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E5%A5%B3)/2.%E6%AD%A9%E3%81%8D10L_(40f_%E5%89%8D%E7%A7%BB%E5%8B%9520).vmd';
-const ENEMY_IDLE_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/5.%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E3%83%BB%E3%81%9D%E3%81%AE%E4%BB%96/%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/1.%E5%91%BC%E5%90%B8_(90f_%E7%A7%BB%E5%8B%95%E3%81%AA%E3%81%97).vmd';
+const OBJECT_PMX_URL='https://chafula.growingcassini.workers.dev/game/evangelion_ja02_final_3/evangelion_ja02_only_whole_front.pmx';
+const ENEMY_PMX_URL='https://chafula.growingcassini.workers.dev/game/星穹铁道—万敌/星穹铁道—万敌.pmx';
+const SECOND_ENEMY_PMX_URL='https://chafula.growingcassini.workers.dev/game/%E6%98%9F%E7%A9%B9%E9%93%81%E9%81%93%E2%80%94%E9%93%B6%E7%8B%BCLV.999/%E6%98%9F%E7%A9%B9%E9%93%81%E9%81%93%E2%80%94%E9%93%B6%E7%8B%BCLV.999.pmx';
+const ENEMY_WALK_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E5%A5%B3)/2.%E6%AD%A9%E3%81%8D10L_(40f_%E5%89%8D%E7%A7%BB%E5%8B%9520).vmd';
+const ENEMY_IDLE_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/5.%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E3%83%BB%E3%81%9D%E3%81%AE%E4%BB%96/%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/1.%E5%91%BC%E5%90%B8_(90f_%E7%A7%BB%E5%8B%95%E3%81%AA%E3%81%97).vmd';
 let enemyTextureBase='';
 const ENEMY_APPROACH_START=1250.0;
 const ENEMY_STOP_DISTANCE=10.0;
 const ENEMY_SPEED=3.0;
 // 敵同士が同じ場所へ重ならないための最小水平距離。
 const ENEMY_MIN_SEPARATION=5.5;
-const WEAPON_PMX_URL='https://fula.growingcassini.workers.dev/game/%E9%8A%83%E6%AD%A6%E5%99%A8/%E6%9E%AA.pmx';
+const WEAPON_PMX_URL='https://chafula.growingcassini.workers.dev/game/%E9%8A%83%E6%AD%A6%E5%99%A8/%E6%9E%AA.pmx';
 const WEAPON_SCALE=1.0;
 const weaponForward=new THREE.Vector3(0,0,-1);
 
 // 初期読み込み用のリモートPMX / VMD。
-const INITIAL_PMX_URL='https://fula.growingcassini.workers.dev/game/%E4%BC%8A%E6%B3%95/%E4%BC%8A%E6%B3%95.pmx';
-const INITIAL_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/2.%E8%B5%B0%E3%82%8B/2.%E8%B5%B0%E3%82%8A86L_%E5%85%A8%E5%8A%9B_(14f_%E5%89%8D%E7%A7%BB%E5%8B%9560).vmd';
-const INITIAL_IDLE_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/5.%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E3%83%BB%E3%81%9D%E3%81%AE%E4%BB%96/%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/1.%E5%91%BC%E5%90%B8_(90f_%E7%A7%BB%E5%8B%95%E3%81%AA%E3%81%97).vmd';
-const INITIAL_START1_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E7%94%B7)/1.%E6%AD%A9%E3%81%8D%E5%87%BA%E3%81%97_%287f_%E5%89%8D%E7%A7%BB%E5%8B%952%29.vmd';
-const INITIAL_START2_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E7%94%B7)/5.%E6%AD%A9%E3%81%8D%E3%81%8B%E3%82%89%E8%B5%B0%E3%82%8A%E3%83%80%E3%83%83%E3%82%B7%E3%83%A5%E3%81%B8_%2821f_%E5%89%8D%E7%A7%BB%E5%8B%9550%29.vmd';
-const INITIAL_STOP1_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/2.%E8%B5%B0%E3%82%8B/4.%E8%B5%B0%E3%82%8A%E3%81%8B%E3%82%89%E6%AD%A9%E3%81%8D%E3%81%B8_%E5%BE%8C%E3%82%8D%E4%BD%93%E9%87%8D_(42f_%E5%89%8D%E7%A7%BB%E5%8B%9560).vmd';
-const INITIAL_STOP2_VMD_URL='https://fula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E7%94%B7)/4.%E6%AD%A2%E3%82%8B_(20f_%E5%89%8D%E7%A7%BB%E5%8B%957).vmd';
+const INITIAL_PMX_URL='https://chafula.growingcassini.workers.dev/game/%E4%BC%8A%E6%B3%95/%E4%BC%8A%E6%B3%95.pmx';
+const INITIAL_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/2.%E8%B5%B0%E3%82%8B/2.%E8%B5%B0%E3%82%8A86L_%E5%85%A8%E5%8A%9B_(14f_%E5%89%8D%E7%A7%BB%E5%8B%9560).vmd';
+const INITIAL_IDLE_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/5.%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E3%83%BB%E3%81%9D%E3%81%AE%E4%BB%96/%E5%BE%85%E6%A9%9F%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/1.%E5%91%BC%E5%90%B8_(90f_%E7%A7%BB%E5%8B%95%E3%81%AA%E3%81%97).vmd';
+const INITIAL_START1_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E7%94%B7)/1.%E6%AD%A9%E3%81%8D%E5%87%BA%E3%81%97_%287f_%E5%89%8D%E7%A7%BB%E5%8B%952%29.vmd';
+const INITIAL_START2_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E7%94%B7)/5.%E6%AD%A9%E3%81%8D%E3%81%8B%E3%82%89%E8%B5%B0%E3%82%8A%E3%83%80%E3%83%83%E3%82%B7%E3%83%A5%E3%81%B8_%2821f_%E5%89%8D%E7%A7%BB%E5%8B%9550%29.vmd';
+const INITIAL_STOP1_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/2.%E8%B5%B0%E3%82%8B/4.%E8%B5%B0%E3%82%8A%E3%81%8B%E3%82%89%E6%AD%A9%E3%81%8D%E3%81%B8_%E5%BE%8C%E3%82%8D%E4%BD%93%E9%87%8D_(42f_%E5%89%8D%E7%A7%BB%E5%8B%9560).vmd';
+const INITIAL_STOP2_VMD_URL='https://chafula.growingcassini.workers.dev/game/%E7%A7%BB%E5%8B%95%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E9%85%8D%E5%B8%83v1.3/1.%E6%AD%A9%E3%81%8F(%E7%94%B7)/4.%E6%AD%A2%E3%82%8B_(20f_%E5%89%8D%E7%A7%BB%E5%8B%957).vmd';
 let initialRemoteTextureBase='';
 
 // キャラクターPMX専用のテクスチャ解決。MMDLoaderのLoadingManagerだけに登録し、
@@ -2592,7 +2592,7 @@ function weaponBaseKey(value){
   const p=weaponPathKey(value);
   return p.split('/').pop()||p;
 }
-const weaponBaseUrl=new URL('./銃武器/','https://fula.growingcassini.workers.dev/game/').href;
+const weaponBaseUrl=new URL('./銃武器/','https://chafula.growingcassini.workers.dev/game/').href;
 weaponLoader.manager.setURLModifier(url=>{
   if(!url)return url;
   const decoded=decodeUrlPathRepeated(url).replace(/\\/g,'/');
