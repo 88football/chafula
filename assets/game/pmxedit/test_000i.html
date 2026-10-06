@@ -2592,7 +2592,7 @@ function weaponBaseKey(value){
   const p=weaponPathKey(value);
   return p.split('/').pop()||p;
 }
-const weaponBaseUrl=new URL('./銃武器/','https://chafula.growingcassini.workers.dev/game/').href;
+const weaponBaseUrl=new URL('./銃武器/','https://vovo.growingcassini.workers.dev/').href;
 weaponLoader.manager.setURLModifier(url=>{
   if(!url)return url;
   const decoded=decodeUrlPathRepeated(url).replace(/\\/g,'/');
